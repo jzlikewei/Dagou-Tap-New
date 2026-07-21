@@ -233,13 +233,13 @@ const touchTrails = new Map(); // pointerId -> 跟手圆环、尾迹点与退场
 const CONTROLS_IDLE_MS = 2000;
 const CONTROLS_HOVER_IDLE_MS = 250;
 const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 4000;
-const PHONE_MAX_SHORT_EDGE = 600;
+const MOBILE_TOUCH_MAX_SHORT_EDGE = 1024;
 const CREATOR_MID = '357762853';
 const CREATOR_URL = `https://space.bilibili.com/${CREATOR_MID}`;
 const FEATURED_BVID = 'BV1kNKU6REBg';
 const FEATURED_VIDEO_URL = `https://www.bilibili.com/video/${FEATURED_BVID}/`;
 const NAVIGATION_MUTE_KEY = 'dagou-navigation-muted';
-const FORCE_PHONE_LANDSCAPE_KEY = 'dagou-force-phone-landscape-v1';
+const LANDSCAPE_PERFORMANCE_KEY = 'dagou-force-phone-landscape-v1';
 const TOY_CLOUD_KEYS = Object.freeze({
   sfxUnlocked: 'dagou_sfx_unlocked_v1',
   settingsSeen: 'dagou_settings_seen_v1',
@@ -267,8 +267,11 @@ const LOCKED_SFX_IDS = new Set(['dingdong', 'hajimi']);
 const DEBUG_UNLOCK_SFX = true; // 临时调试：发布前改回 false，恢复 Toy 云端锁定。
 let controlsIdleTimer = 0;
 let navigationMuted = false;
-let forcePhoneLandscape = false;
-let phoneLandscapeBlocked = false;
+let landscapePerformanceEnabled = false;
+let landscapeGateVisible = false;
+let landscapeFullscreenOwned = false;
+let landscapeRequestPending = false;
+let landscapeRequestSerial = 0;
 
 try {
   navigationMuted =
@@ -278,10 +281,10 @@ try {
 }
 
 try {
-  forcePhoneLandscape =
-    window.localStorage.getItem(FORCE_PHONE_LANDSCAPE_KEY) === '1';
+  landscapePerformanceEnabled =
+    window.localStorage.getItem(LANDSCAPE_PERFORMANCE_KEY) === '1';
 } catch (error) {
-  console.warn('[大狗Tap] 无法读取手机横屏设置。', error);
+  console.warn('[大狗Tap] 无法读取横屏演奏设置。', error);
 }
 
 /* ---------- DOM ---------- */
@@ -347,26 +350,27 @@ const performanceSettingsStatus = document.getElementById(
 const mobileDisplaySettingsSection = document.getElementById(
   'mobile-display-settings-section'
 );
-const forceLandscapeSetting = document.getElementById(
-  'force-landscape-setting'
+const landscapePerformanceSetting = document.getElementById(
+  'landscape-performance-setting'
 );
-const phoneLandscapeGate = document.getElementById('phone-landscape-gate');
-const phoneLandscapeDisable = document.getElementById(
-  'phone-landscape-disable'
+const landscapeGate = document.getElementById('landscape-gate');
+const landscapeGateRetry = document.getElementById('landscape-gate-retry');
+const landscapeGateDisable = document.getElementById(
+  'landscape-gate-disable'
 );
 const toyNotice = document.getElementById('toy-notice');
 const authorLink = document.getElementById('author-link');
 const djAuthorLink = document.getElementById('dj-author-link');
 const reduceUiMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function isPhoneDevice(
-  coarsePointer = window.matchMedia('(pointer: coarse)').matches,
+function isMobileTouchDevice(
+  hasCoarsePointer = window.matchMedia('(any-pointer: coarse)').matches,
   screenWidth = window.screen?.width ?? window.innerWidth,
   screenHeight = window.screen?.height ?? window.innerHeight
 ) {
   const shortEdge = Math.min(Number(screenWidth), Number(screenHeight));
-  return coarsePointer && Number.isFinite(shortEdge) &&
-    shortEdge <= PHONE_MAX_SHORT_EDGE;
+  return hasCoarsePointer && Number.isFinite(shortEdge) &&
+    shortEdge <= MOBILE_TOUCH_MAX_SHORT_EDGE;
 }
 
 function isPortraitViewport(
@@ -376,26 +380,41 @@ function isPortraitViewport(
   return Number(height) > Number(width);
 }
 
-function shouldBlockPhoneLandscape(
-  enabled = forcePhoneLandscape,
-  phone = isPhoneDevice(),
+function shouldShowLandscapeGate(
+  enabled = landscapePerformanceEnabled,
+  mobileDevice = isMobileTouchDevice(),
   portrait = isPortraitViewport()
 ) {
-  return enabled && phone && portrait;
+  return enabled && mobileDevice && portrait;
 }
 
-function saveForcePhoneLandscape() {
+function saveLandscapePerformancePreference() {
   try {
     window.localStorage.setItem(
-      FORCE_PHONE_LANDSCAPE_KEY,
-      forcePhoneLandscape ? '1' : '0'
+      LANDSCAPE_PERFORMANCE_KEY,
+      landscapePerformanceEnabled ? '1' : '0'
     );
   } catch (error) {
-    console.warn('[大狗Tap] 无法保存手机横屏设置。', error);
+    console.warn('[大狗Tap] 无法保存横屏演奏设置。', error);
   }
 }
 
-async function requestPhoneLandscapeLock() {
+async function requestLandscapeFullscreen() {
+  if (document.fullscreenElement) return true;
+  const fullscreenTarget = document.documentElement;
+  if (typeof fullscreenTarget?.requestFullscreen !== 'function') return false;
+  try {
+    await fullscreenTarget.requestFullscreen();
+    landscapeFullscreenOwned =
+      document.fullscreenElement === fullscreenTarget;
+    return landscapeFullscreenOwned;
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器未进入全屏。', error);
+    return false;
+  }
+}
+
+async function requestLandscapeOrientationLock() {
   const orientation = window.screen?.orientation;
   if (typeof orientation?.lock !== 'function') return false;
   try {
@@ -407,7 +426,41 @@ async function requestPhoneLandscapeLock() {
   }
 }
 
-function releasePhoneLandscapeLock() {
+async function requestLandscapeExperience() {
+  if (landscapeRequestPending || !landscapePerformanceEnabled) return false;
+  const requestSerial = ++landscapeRequestSerial;
+  landscapeRequestPending = true;
+  try {
+    const fullscreenTarget = document.documentElement;
+    if (
+      !document.fullscreenElement &&
+      typeof fullscreenTarget?.requestFullscreen === 'function'
+    ) {
+      await requestLandscapeFullscreen();
+    }
+    if (
+      requestSerial !== landscapeRequestSerial ||
+      !landscapePerformanceEnabled
+    ) {
+      await releaseLandscapeExperience();
+      return false;
+    }
+
+    const locked = await requestLandscapeOrientationLock();
+    if (
+      requestSerial !== landscapeRequestSerial ||
+      !landscapePerformanceEnabled
+    ) {
+      await releaseLandscapeExperience();
+      return false;
+    }
+    return locked;
+  } finally {
+    landscapeRequestPending = false;
+  }
+}
+
+function releaseLandscapeOrientationLock() {
   const orientation = window.screen?.orientation;
   if (typeof orientation?.unlock !== 'function') return;
   try {
@@ -417,53 +470,80 @@ function releasePhoneLandscapeLock() {
   }
 }
 
-function renderPhoneLandscapePreference() {
-  const phone = isPhoneDevice();
-  const blocked = shouldBlockPhoneLandscape(
-    forcePhoneLandscape,
-    phone,
-    isPortraitViewport()
-  );
-  const wasBlocked = phoneLandscapeBlocked;
-  phoneLandscapeBlocked = blocked;
-
-  mobileDisplaySettingsSection.hidden = !phone;
-  forceLandscapeSetting.disabled = !phone;
-  forceLandscapeSetting.setAttribute(
-    'aria-checked',
-    String(phone && forcePhoneLandscape)
-  );
-  phoneLandscapeGate.classList.toggle('is-visible', blocked);
-  phoneLandscapeGate.setAttribute('aria-hidden', String(!blocked));
-  phoneLandscapeGate.inert = !blocked;
-  stage.inert = blocked;
-
-  if (blocked && !wasBlocked) {
-    stopActivePerformanceInput();
-    requestAnimationFrame(() => {
-      phoneLandscapeDisable.focus({ preventScroll: true });
-    });
-  } else if (!blocked && wasBlocked && document.activeElement === phoneLandscapeDisable) {
-    phoneLandscapeDisable.blur();
+async function releaseLandscapeFullscreen() {
+  if (!landscapeFullscreenOwned) return;
+  landscapeFullscreenOwned = false;
+  if (
+    !document.fullscreenElement ||
+    typeof document.exitFullscreen !== 'function'
+  ) return;
+  try {
+    await document.exitFullscreen();
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器未退出全屏。', error);
   }
 }
 
-async function setForcePhoneLandscape(enabled) {
-  if (!isPhoneDevice()) return;
-  forcePhoneLandscape = enabled === true;
-  saveForcePhoneLandscape();
+async function releaseLandscapeExperience() {
+  releaseLandscapeOrientationLock();
+  await releaseLandscapeFullscreen();
+}
 
-  if (forcePhoneLandscape) {
-    const lockRequest = requestPhoneLandscapeLock();
+function renderLandscapePerformancePreference() {
+  const mobileDevice = isMobileTouchDevice();
+  const gateVisible = shouldShowLandscapeGate(
+    landscapePerformanceEnabled,
+    mobileDevice,
+    isPortraitViewport()
+  );
+  const wasVisible = landscapeGateVisible;
+  landscapeGateVisible = gateVisible;
+
+  mobileDisplaySettingsSection.hidden = !mobileDevice;
+  landscapePerformanceSetting.disabled =
+    !mobileDevice || landscapeRequestPending;
+  landscapePerformanceSetting.setAttribute(
+    'aria-checked',
+    String(mobileDevice && landscapePerformanceEnabled)
+  );
+  landscapeGate.classList.toggle('is-visible', gateVisible);
+  landscapeGate.setAttribute('aria-hidden', String(!gateVisible));
+  landscapeGate.inert = !gateVisible;
+  landscapeGateRetry.disabled = landscapeRequestPending;
+  stage.inert = gateVisible;
+
+  if (gateVisible && !wasVisible) {
+    stopActivePerformanceInput();
+    requestAnimationFrame(() => {
+      landscapeGateRetry.focus({ preventScroll: true });
+    });
+  } else if (
+    !gateVisible &&
+    wasVisible &&
+    landscapeGate.contains(document.activeElement)
+  ) {
+    document.activeElement.blur();
+  }
+}
+
+async function setLandscapePerformance(enabled) {
+  if (!isMobileTouchDevice()) return;
+  landscapePerformanceEnabled = enabled === true;
+  saveLandscapePerformancePreference();
+
+  if (landscapePerformanceEnabled) {
     if (settingsOpen) closeSettings();
-    renderPhoneLandscapePreference();
-    await lockRequest;
-    renderPhoneLandscapePreference();
+    const landscapeRequest = requestLandscapeExperience();
+    renderLandscapePerformancePreference();
+    await landscapeRequest;
+    renderLandscapePerformancePreference();
     return;
   }
 
-  releasePhoneLandscapeLock();
-  renderPhoneLandscapePreference();
+  landscapeRequestSerial++;
+  renderLandscapePerformancePreference();
+  await releaseLandscapeExperience();
+  renderLandscapePerformancePreference();
 }
 
 function showControls() {
@@ -1765,11 +1845,16 @@ for (const button of performanceSettingButtons) {
   });
 }
 
-forceLandscapeSetting.addEventListener('click', () => {
-  void setForcePhoneLandscape(!forcePhoneLandscape);
+landscapePerformanceSetting.addEventListener('click', () => {
+  void setLandscapePerformance(!landscapePerformanceEnabled);
 });
-phoneLandscapeDisable.addEventListener('click', () => {
-  void setForcePhoneLandscape(false);
+landscapeGateRetry.addEventListener('click', () => {
+  const landscapeRequest = requestLandscapeExperience();
+  renderLandscapePerformancePreference();
+  void landscapeRequest.then(() => renderLandscapePerformancePreference());
+});
+landscapeGateDisable.addEventListener('click', () => {
+  void setLandscapePerformance(false);
 });
 
 soundFieldSlider.addEventListener('input', () => {
@@ -1798,12 +1883,18 @@ for (const eventName of [
   );
 }
 window.addEventListener('orientationchange', () => {
-  window.setTimeout(renderPhoneLandscapePreference, 0);
+  window.setTimeout(renderLandscapePerformancePreference, 0);
   if (spatialControlMode === 'gravity') {
     gravityBaseline = null;
     lastGravityTilt = null;
     setSoundFieldPosition(0);
   }
+});
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement !== document.documentElement) {
+    landscapeFullscreenOwned = false;
+  }
+  renderLandscapePerformancePreference();
 });
 
 async function persistDjSettings(nextSettings, cloudItems) {
@@ -4562,7 +4653,7 @@ overlay.addEventListener('pointerup', (event) => {
 
 let resizeTimer = 0;
 function handleLayoutResize() {
-  renderPhoneLandscapePreference();
+  renderLandscapePerformancePreference();
   fxResize();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(buildGrid, 150);
@@ -4575,7 +4666,7 @@ if (window.ResizeObserver) {
 
 buildGrid();
 fxResize();
-renderPhoneLandscapePreference();
+renderLandscapePerformancePreference();
 updateMuteButton(musicToggle, bgmMuted, '音乐');
 updateMuteButton(sfxToggle, sfxMuted, '音效');
 showControls();

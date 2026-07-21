@@ -740,8 +740,8 @@
   }
   @keyframes pulse { 50% { opacity: .35; } }
 
-  /* 手机横屏门：位于舞台之外，竖屏时保留一个可退出的安全入口。 */
-  #phone-landscape-gate {
+  /* 横屏演奏门：位于舞台之外，竖屏时保留重试与退出入口。 */
+  #landscape-gate {
     position: fixed;
     inset: 0;
     z-index: 80;
@@ -759,20 +759,20 @@
     pointer-events: none;
     transition: opacity .24s ease, visibility 0s linear .24s;
   }
-  #phone-landscape-gate.is-visible {
+  #landscape-gate.is-visible {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
     transition-delay: 0s;
   }
-  .phone-landscape-card {
+  .landscape-gate-card {
     width: min(330px, 100%);
     display: grid;
     justify-items: center;
     gap: 12px;
     text-align: center;
   }
-  .phone-turn-device {
+  .landscape-turn-device {
     position: relative;
     width: 48px;
     height: 82px;
@@ -780,9 +780,9 @@
     border-radius: 11px;
     box-shadow: inset 0 0 0 3px rgba(255, 180, 0, .12),
                 0 9px 22px rgba(135, 131, 126, .2);
-    animation: turnPhoneLandscape 1.8s cubic-bezier(.2, .8, .2, 1) infinite;
+    animation: turnDeviceLandscape 1.8s cubic-bezier(.2, .8, .2, 1) infinite;
   }
-  .phone-turn-device::after {
+  .landscape-turn-device::after {
     content: "";
     position: absolute;
     left: 50%;
@@ -793,19 +793,25 @@
     background: var(--amber);
     transform: translateX(-50%);
   }
-  .phone-landscape-title {
+  .landscape-gate-title {
     color: #b57e00;
     font-size: 24px;
     font-weight: 900;
     letter-spacing: .12em;
   }
-  .phone-landscape-copy {
+  .landscape-gate-copy {
     max-width: 280px;
     color: rgba(111, 106, 99, .84);
     font-size: 13px;
     line-height: 1.65;
   }
-  #phone-landscape-disable {
+  .landscape-gate-actions {
+    width: min(240px, 100%);
+    display: grid;
+    gap: 8px;
+  }
+  #landscape-gate-retry,
+  #landscape-gate-disable {
     min-height: 40px;
     padding: 8px 18px;
     border: 1px solid rgba(135, 131, 126, .34);
@@ -818,16 +824,26 @@
     cursor: pointer;
     touch-action: manipulation;
   }
-  #phone-landscape-disable:focus-visible {
+  #landscape-gate-retry {
+    border-color: rgba(255, 180, 0, .72);
+    color: #765300;
+    background: rgba(255, 190, 35, .2);
+  }
+  #landscape-gate-retry:disabled {
+    opacity: .58;
+    cursor: wait;
+  }
+  #landscape-gate-retry:focus-visible,
+  #landscape-gate-disable:focus-visible {
     outline: 3px solid rgba(62, 123, 250, .34);
     outline-offset: 3px;
   }
-  @keyframes turnPhoneLandscape {
+  @keyframes turnDeviceLandscape {
     0%, 22% { transform: rotate(0deg); }
     64%, 100% { transform: rotate(90deg); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .phone-turn-device { animation: none; transform: rotate(90deg); }
+    .landscape-turn-device { animation: none; transform: rotate(90deg); }
   }
 
   /* 设置菜单：与开始遮罩同款的半透明米白背景，盖在所有常驻元素之上 */
@@ -1720,18 +1736,18 @@
                   </div>
                 </div>
                 <div class="spatial-audio-hint">HRTF 加入前后与远近定位，耳机效果更明显</div>
-                <div class="spatial-audio-hint">手动：拖动顶部滑杆；PC 用 Z 左移、/ 右移、B 回中。重力：倾斜 iPad，点“校准”重设中央位置</div>
+                <div class="spatial-audio-hint">手动：拖动顶部滑杆；PC 用 Z 左移、/ 右移、B 回中。重力：倾斜 iPad，点“校准”重设中央位置。重力只移动音场，不改变屏幕方向</div>
               </div>
             </div>
             <div id="performance-settings-status" role="status">正在读取哔哩哔哩云端设置…</div>
           </section>
 
-          <section id="mobile-display-settings-section" class="settings-section" aria-label="手机显示" hidden>
-            <div class="settings-label">手机 · Mobile</div>
-            <button class="setting-row" id="force-landscape-setting" type="button" role="switch" aria-checked="false">
+          <section id="mobile-display-settings-section" class="settings-section" aria-label="移动设备显示" hidden>
+            <div class="settings-label">手机 / 平板 · Display</div>
+            <button class="setting-row" id="landscape-performance-setting" type="button" role="switch" aria-checked="false">
               <span class="setting-copy">
-                <span class="setting-name">强制横屏</span>
-                <span class="setting-description">竖屏时提示旋转，浏览器支持时自动锁定</span>
+                <span class="setting-name">横屏演奏</span>
+                <span class="setting-description">自动请求全屏和横屏，失败时提示旋转</span>
               </span>
               <span class="setting-switch" aria-hidden="true"></span>
             </button>
@@ -1748,16 +1764,19 @@
     </div>
   </div>
 
-  <div id="phone-landscape-gate" role="dialog" aria-modal="true" aria-label="请横过手机" aria-hidden="true" inert>
-    <div class="phone-landscape-card">
-      <span class="phone-turn-device" aria-hidden="true"></span>
-      <div class="phone-landscape-title">请横过手机</div>
-      <div class="phone-landscape-copy">强制横屏已开启。将手机旋转为横屏后继续演奏。</div>
-      <button id="phone-landscape-disable" type="button">关闭强制横屏</button>
+  <div id="landscape-gate" role="dialog" aria-modal="true" aria-label="请横过设备" aria-hidden="true" inert>
+    <div class="landscape-gate-card">
+      <span class="landscape-turn-device" aria-hidden="true"></span>
+      <div class="landscape-gate-title">请横过设备</div>
+      <div class="landscape-gate-copy">正在请求全屏与横屏锁定。画面仍为竖屏时，请手动旋转设备。</div>
+      <div class="landscape-gate-actions">
+        <button id="landscape-gate-retry" type="button">尝试自动横屏</button>
+        <button id="landscape-gate-disable" type="button">关闭横屏演奏</button>
+      </div>
     </div>
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260721-ipad-unlock-landscape"></script>
+  <script src="main.js?v=20260722-landscape-lock"></script>
 </body>
 </html>
