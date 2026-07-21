@@ -501,6 +501,36 @@ assert.ok(dagouButton);
 assert.doesNotMatch(dagouButton[1], /\bis-locked\b/, 'dagou must stay unlocked');
 assert.match(
   htmlSource,
+  /<title>大狗Tap DJ版<\/title>/,
+  'the browser title must identify the DJ edition',
+);
+assert.match(
+  htmlSource,
+  /class="title-edition">DJ版<\/span>/,
+  'the opening title must identify the DJ edition',
+);
+assert.match(
+  htmlSource,
+  /id="author-link" href="https:\/\/space\.bilibili\.com\/357762853"/,
+  'the original author profile must remain linked',
+);
+assert.match(
+  htmlSource,
+  /<div class="author-id">马克杯MarkCup<\/div>/,
+  'the original author credit must remain visible',
+);
+assert.match(
+  htmlSource,
+  /id="dj-author-link" href="https:\/\/github\.com\/jzlikewei"/,
+  'the DJ edition profile must remain linked',
+);
+assert.match(
+  htmlSource,
+  /<div class="author-id">jzlikewei<\/div>/,
+  'the DJ edition credit must remain visible',
+);
+assert.match(
+  htmlSource,
   /<img src="Image\/dingdongji_close_mouth\.png" alt="" draggable="false" \/>/,
   'the Dingdong option must use the supplied close-mouth image'
 );

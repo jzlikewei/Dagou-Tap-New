@@ -296,6 +296,7 @@ const performanceSettingsStatus = document.getElementById(
 );
 const toyNotice = document.getElementById('toy-notice');
 const authorLink = document.getElementById('author-link');
+const djAuthorLink = document.getElementById('dj-author-link');
 const reduceUiMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function showControls() {
@@ -1446,12 +1447,14 @@ for (const option of sfxOptions) {
   });
 }
 
-for (const eventName of ['pointerdown', 'pointermove', 'pointerup']) {
-  authorLink.addEventListener(eventName, (event) => event.stopPropagation());
+for (const link of [authorLink, djAuthorLink]) {
+  for (const eventName of ['pointerdown', 'pointermove', 'pointerup']) {
+    link.addEventListener(eventName, (event) => event.stopPropagation());
+  }
+  link.addEventListener('click', (event) => event.stopPropagation());
 }
 authorLink.addEventListener('click', (event) => {
   event.preventDefault();
-  event.stopPropagation();
   openCreatorSpace();
 });
 

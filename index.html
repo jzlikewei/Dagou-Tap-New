@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#fff2dc" />
-<title>大狗Tap</title>
+<title>大狗Tap DJ版</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐶</text></svg>" />
 <script src="//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js"></script>
 <style>
@@ -55,17 +55,25 @@
     pointer-events: none;
   }
 
-  /* 常驻作者署名：始终位于页面最前层。
-     两行严格等宽；Created by 整体跟拍，MarkCup 每拍依次放大一个字母。 */
-  #author-link {
+  /* 常驻创作署名：保留原作者入口，并补充 DJ 版改编者。 */
+  #author-credits {
     position: absolute;
     right: max(18px, env(safe-area-inset-right));
     bottom: max(16px, env(safe-area-inset-bottom));
     z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+    pointer-events: none;
+  }
+  #author-link {
+    position: relative;
     padding: 10px 12px 11px;
     display: block;
     text-decoration: none;
     cursor: pointer;
+    pointer-events: auto;
     touch-action: manipulation;
     transition: transform .22s ease;
   }
@@ -110,12 +118,42 @@
     transform-origin: 50% 72%;
     will-change: transform;
   }
+  #dj-author-link {
+    width: 148px;
+    margin-top: -8px;
+    padding: 4px 12px 7px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    color: rgba(135, 131, 126, .82);
+    font: 700 8px/1 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    letter-spacing: .04em;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: manipulation;
+    transition: color .22s ease, transform .22s ease;
+  }
+  .dj-author-name {
+    color: var(--amber);
+    font-size: 10px;
+    letter-spacing: .02em;
+    text-transform: none;
+  }
   @media (hover: hover) {
     #author-link:hover { transform: translateY(-2px); }
     #author-link:hover .author-label,
     #author-link:hover .author-name { color: #d88f00; }
+    #dj-author-link:hover {
+      color: #d88f00;
+      transform: translateY(-1px);
+    }
+    #dj-author-link:hover .dj-author-name { color: #d88f00; }
   }
-  #author-link:focus-visible {
+  #author-link:focus-visible,
+  #dj-author-link:focus-visible {
     outline: 2px solid rgba(62, 123, 250, .35);
     outline-offset: 2px;
   }
@@ -545,11 +583,13 @@
       padding-inline: 10px;
     }
     .control-button span { display: none; }
-    #author-link {
+    #author-credits {
       right: max(10px, env(safe-area-inset-right));
       bottom: max(10px, env(safe-area-inset-bottom));
-      min-width: 0;
       max-width: calc(100% - 20px);
+    }
+    #author-link {
+      min-width: 0;
       padding: 8px 9px 7px 12px;
     }
     .author-copy { width: 106px; }
@@ -558,6 +598,13 @@
       margin-left: -2px;
       font-size: 15px;
     }
+    #dj-author-link {
+      width: 127px;
+      margin-top: -5px;
+      padding: 4px 9px 6px 12px;
+      font-size: 7px;
+    }
+    .dj-author-name { font-size: 9px; }
   }
 
   /* 开始遮罩（首次点击解锁音频） */
@@ -582,6 +629,14 @@
     color: var(--amber);
   }
   #overlay .title em { font-style: normal; color: var(--gray); }
+  #overlay .title-edition {
+    display: inline-block;
+    margin-left: .22em;
+    color: var(--amber);
+    font-size: .42em;
+    letter-spacing: .12em;
+    vertical-align: .3em;
+  }
   #overlay .sub {
     font-size: clamp(13px, 2.4vmin, 18px);
     letter-spacing: .5em;
@@ -903,10 +958,18 @@
   }
 
   /* 作者卡：八边形头像 + 主页按钮 */
+  .author-list {
+    display: grid;
+    gap: 12px;
+  }
   .author-card {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+  .author-card + .author-card {
+    padding-top: 12px;
+    border-top: 1px solid rgba(135, 131, 126, .18);
   }
   .author-avatar {
     flex: none;
@@ -925,6 +988,11 @@
     object-fit: cover;
     clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px),
                        calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  }
+  .author-avatar--dj {
+    color: #fffaf0;
+    font: 900 16px/1 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    letter-spacing: .08em;
   }
   .author-info {
     flex: 1;
@@ -946,12 +1014,14 @@
     color: rgba(135, 131, 126, .78);
     text-transform: uppercase;
   }
-  #author-home-button {
+  #author-home-button,
+  #dj-author-home-button {
     min-width: 64px;
     min-height: 38px;
     padding: 6px 10px;
     font-size: 12px;
   }
+  #dj-author-home-button { text-decoration: none; }
 
   /* 开发视频卡：16:9 封面 + 播放角标 + 标题 */
   .video-card {
@@ -1180,12 +1250,18 @@
   <div id="stage">
     <canvas id="fx"></canvas>
     <canvas id="touch-fx" aria-hidden="true"></canvas>
-    <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开作者哔哩哔哩主页">
-      <span class="author-copy" aria-hidden="true">
-        <span class="author-label">Created by</span>
-        <span class="author-name">MarkCup</span>
-      </span>
-    </a>
+    <div id="author-credits" aria-label="创作信息">
+      <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开原作者马克杯 MarkCup 的哔哩哔哩主页">
+        <span class="author-copy" aria-hidden="true">
+          <span class="author-label">Original by</span>
+          <span class="author-name">MarkCup</span>
+        </span>
+      </a>
+      <a id="dj-author-link" href="https://github.com/jzlikewei" target="_blank" rel="noopener noreferrer" aria-label="打开 DJ 版改编者 jzlikewei 的 GitHub 主页">
+        <span>DJ edition by</span>
+        <span class="dj-author-name">jzlikewei</span>
+      </a>
+    </div>
     <div id="key-grid" aria-hidden="true"></div>
     <div id="zoneflash"></div>
     <div id="dj-stage" aria-hidden="true"></div>
@@ -1245,21 +1321,38 @@
             </button>
           </div>
 
-          <section class="settings-section" aria-label="作者">
-            <div class="settings-label">作者 · Creator</div>
-            <div class="author-card">
-              <span class="author-avatar"><img src="Image/creator-avatar.jpg" alt="马克杯MarkCup 的头像" draggable="false" /></span>
-              <div class="author-info">
-                <div class="author-id">马克杯MarkCup</div>
-                <div class="author-sub">bilibili 创作者</div>
+          <section class="settings-section" aria-label="创作信息">
+            <div class="settings-label">创作信息 · Credits</div>
+            <div class="author-list">
+              <div class="author-card">
+                <span class="author-avatar"><img src="Image/creator-avatar.jpg" alt="马克杯MarkCup 的头像" draggable="false" /></span>
+                <div class="author-info">
+                  <div class="author-id">马克杯MarkCup</div>
+                  <div class="author-sub">原作者 · bilibili 创作者</div>
+                </div>
+                <button id="author-home-button" class="control-button" type="button" aria-label="前往原作者哔哩哔哩主页">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 11.5L12 4l8 7.5" />
+                    <path d="M6.5 10v9.5h11V10" />
+                  </svg>
+                  主页
+                </button>
               </div>
-              <button id="author-home-button" class="control-button" type="button" aria-label="前往作者哔哩哔哩主页">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 11.5L12 4l8 7.5" />
-                  <path d="M6.5 10v9.5h11V10" />
-                </svg>
-                主页
-              </button>
+              <div class="author-card">
+                <span class="author-avatar author-avatar--dj" aria-hidden="true">DJ</span>
+                <div class="author-info">
+                  <div class="author-id">jzlikewei</div>
+                  <div class="author-sub">DJ 版改编 · 功能开发</div>
+                </div>
+                <a id="dj-author-home-button" class="control-button" href="https://github.com/jzlikewei" target="_blank" rel="noopener noreferrer" aria-label="前往 jzlikewei 的 GitHub 主页">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 15l6-6" />
+                    <path d="M8 8h-2a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h7a3 3 0 0 0 3-3v-2" />
+                    <path d="M13 3h8v8M21 3l-8 8" />
+                  </svg>
+                  GitHub
+                </a>
+              </div>
             </div>
           </section>
 
@@ -1385,12 +1478,12 @@
     <div id="toy-notice" role="status" aria-live="assertive" aria-atomic="true" aria-hidden="true"></div>
 
     <div id="overlay">
-      <div class="title">大狗<em>Tap</em></div>
+      <div class="title" aria-label="大狗Tap DJ版">大狗<em>Tap</em><span class="title-edition">DJ版</span></div>
       <div class="sub">点 击 任 意 位 置 开 始</div>
     </div>
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-dj-emoji-flyout-test"></script>
+<script src="main.js?v=20260721-dj-edition-credits-test"></script>
 </body>
 </html>
