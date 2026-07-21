@@ -191,6 +191,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     new FakeElement({ dataset: { setting: 'rhythmSnap' } }),
     new FakeElement({ dataset: { setting: 'showGrid' } }),
     new FakeElement({ dataset: { setting: 'spatialAudio' } }),
+    new FakeElement({ dataset: { setting: 'spatialAudio' } }),
   ];
   const pianoModeDescription = new FakeElement();
   const djSettingsPanel = new FakeElement();
@@ -446,6 +447,12 @@ function option(harness, id) {
 
 function performanceButton(harness, settingName) {
   return harness.performanceButtons.find(
+    (item) => item.dataset.setting === settingName
+  );
+}
+
+function performanceButtons(harness, settingName) {
+  return harness.performanceButtons.filter(
     (item) => item.dataset.setting === settingName
   );
 }
@@ -1037,9 +1044,25 @@ assert.doesNotMatch(
   assert.deepEqual(setup.log, ['set:dagou_spatial_audio_v1']);
   assert.equal(setup.storage.dagou_spatial_audio_v1, '1');
   assert.equal(harness.context.performanceSettings.spatialAudio, true);
-  assert.equal(
-    performanceButton(harness, 'spatialAudio').attributes.get('aria-checked'),
-    'true',
+  assert.deepEqual(
+    performanceButtons(harness, 'spatialAudio').map(button =>
+      button.attributes.get('aria-checked')
+    ),
+    ['true', 'true'],
+  );
+
+  setup.log.length = 0;
+  await harness.context.handlePerformanceSettingClick(
+    performanceButtons(harness, 'spatialAudio')[1]
+  );
+  assert.deepEqual(setup.log, ['set:dagou_spatial_audio_v1']);
+  assert.equal(setup.storage.dagou_spatial_audio_v1, '0');
+  assert.equal(harness.context.performanceSettings.spatialAudio, false);
+  assert.deepEqual(
+    performanceButtons(harness, 'spatialAudio').map(button =>
+      button.attributes.get('aria-checked')
+    ),
+    ['false', 'false'],
   );
 }
 

@@ -230,10 +230,15 @@ assert.match(
   /id="audio-controls"[\s\S]*?id="spatial-audio-toggle"[^>]*data-setting="spatialAudio"/,
   'the main controls must expose the 3D audio switch',
 );
-assert.doesNotMatch(
+assert.match(
   htmlSource,
-  /id="spatial-audio-setting"/,
-  'the 3D audio switch must no longer stay inside settings',
+  /id="spatial-audio-setting"[^>]*data-setting="spatialAudio"[\s\S]*?id="spatial-audio-settings"/,
+  'settings must expose the same 3D audio switch above its detail controls',
+);
+assert.equal(
+  [...htmlSource.matchAll(/data-setting="spatialAudio"/g)].length,
+  2,
+  'the top bar and settings menu must each expose one 3D audio switch',
 );
 assert.match(
   mainSource,
