@@ -48,13 +48,26 @@ vm.runInNewContext(
   ${extractConst('SPATIAL_FOCUS_GAIN')}
   ${extractConst('GRAVITY_DEAD_ZONE')}
   ${extractConst('GRAVITY_FULL_TILT')}
+  ${extractConst('SOUND_FIELD_KEY_POSITIONS')}
   const performanceSettings = { spatialAudio: false };
   let soundFieldPosition = 0;
+  let settingsOpen = false;
+  let spatialControlMode = 'manual';
+  let shortcutPosition = null;
+  let manualActivations = 0;
+  function activateManualSoundField() {
+    spatialControlMode = 'manual';
+    manualActivations++;
+  }
+  function setSoundFieldPosition(value) {
+    shortcutPosition = value;
+  }
   ${extractFunction('clampSoundFieldPosition')}
   ${extractFunction('getDeckBaseSpatialPan')}
   ${extractFunction('getSpatialOutputTargets')}
   ${extractFunction('screenRelativeTilt')}
   ${extractFunction('getGravitySoundFieldTarget')}
+  ${extractFunction('handleSoundFieldKeyboard')}
 
   globalThis.spatialApi = {
     targets(enabled, position, deckId) {
@@ -68,6 +81,29 @@ vm.runInNewContext(
     },
     gravityTarget(delta) {
       return getGravitySoundFieldTarget(delta);
+    },
+    shortcut(code, options = {}) {
+      performanceSettings.spatialAudio = options.enabled !== false;
+      settingsOpen = options.settingsOpen === true;
+      spatialControlMode = options.mode ?? 'manual';
+      shortcutPosition = null;
+      manualActivations = 0;
+      let prevented = false;
+      const handled = handleSoundFieldKeyboard({
+        code,
+        repeat: options.repeat === true,
+        metaKey: options.metaKey === true,
+        ctrlKey: options.ctrlKey === true,
+        altKey: options.altKey === true,
+        preventDefault() { prevented = true; },
+      });
+      return {
+        handled,
+        prevented,
+        position: shortcutPosition,
+        mode: spatialControlMode,
+        manualActivations,
+      };
     },
   };
   `,
@@ -115,6 +151,31 @@ assert.equal(sandbox.spatialApi.gravityTarget(3), 0);
 assert.equal(sandbox.spatialApi.gravityTarget(9), 0.5);
 assert.equal(sandbox.spatialApi.gravityTarget(15), 1);
 assert.equal(sandbox.spatialApi.gravityTarget(-15), -1);
+assert.deepEqual(clone(sandbox.spatialApi.shortcut('KeyZ')), {
+  handled: true,
+  prevented: true,
+  position: -1,
+  mode: 'manual',
+  manualActivations: 0,
+});
+assert.equal(sandbox.spatialApi.shortcut('Slash').position, 1);
+assert.equal(sandbox.spatialApi.shortcut('KeyB').position, 0);
+assert.deepEqual(clone(sandbox.spatialApi.shortcut('KeyB', { mode: 'gravity' })), {
+  handled: true,
+  prevented: true,
+  position: 0,
+  mode: 'manual',
+  manualActivations: 1,
+});
+assert.equal(sandbox.spatialApi.shortcut('KeyX').handled, false);
+assert.equal(
+  sandbox.spatialApi.shortcut('KeyZ', { enabled: false }).handled,
+  false,
+);
+assert.equal(
+  sandbox.spatialApi.shortcut('KeyZ', { settingsOpen: true }).handled,
+  false,
+);
 
 assert.match(
   extractFunction('createSpatialOutput'),
@@ -162,6 +223,11 @@ assert.match(
   /id="sound-field-slider"[^>]*type="range"[^>]*min="-100"[^>]*max="100"/,
   'the stage must expose a live left-to-right sound field slider',
 );
+assert.match(
+  htmlSource,
+  /id="sound-field-slider"[^>]*aria-keyshortcuts="Z \/ B"/,
+  'the slider must announce its three PC shortcuts',
+);
 assert.match(htmlSource, /data-spatial-mode="manual"/, 'missing manual mode');
 assert.match(htmlSource, /data-spatial-mode="gravity"/, 'missing gravity mode');
 
@@ -172,3 +238,4 @@ console.log('- manual focus shifts the field and emphasizes the nearer deck');
 console.log('- portrait and landscape tilt axes map into one sound-field value');
 console.log('- gravity reaches full range at 15 degrees with a 3-degree dead zone');
 console.log('- iPad sensor permission and slider fallback remain present');
+console.log('- Z, slash, and B move the PC sound field left, right, and center');

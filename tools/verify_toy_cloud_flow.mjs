@@ -88,7 +88,10 @@ const functionNames = [
   'openFeaturedVideo',
   'showToyNotice',
   'applyPerformanceSettings',
+  'normalizePerformanceSettings',
   'replacePerformanceSettings',
+  'getToggledPerformanceSettings',
+  'getChangedPerformanceCloudItems',
   'replaceDjSettings',
   'resetPerformanceSettingsToDefaults',
   'markToyCloudUnavailable',
@@ -625,13 +628,7 @@ for (const [settingName, defaultChecked] of [
   );
   assert.equal(harness.context.toyCloudState.initialized, true);
   assert.equal(harness.context.toyCloudState.environmentAvailable, false);
-  assert.equal(
-    harness.performanceButtons
-      .filter(button => button.dataset.setting !== 'pianoMode')
-      .every(button => !button.disabled),
-    true,
-  );
-  assert.equal(performanceButton(harness, 'pianoMode').disabled, true);
+  assert.equal(harness.performanceButtons.every(button => !button.disabled), true);
   assert.equal(harness.context.performanceSettings.djMode, true);
   assert.equal(
     performanceButton(harness, 'djMode').attributes.get('aria-checked'),
@@ -702,7 +699,7 @@ for (const [settingName, defaultChecked] of [
     { ...harness.context.performanceSettings },
     {
       djMode: true,
-      pianoMode: true,
+      pianoMode: false,
       rhythmSnap: false,
       showGrid: true,
       spatialAudio: true,
@@ -720,8 +717,9 @@ for (const [settingName, defaultChecked] of [
       trailStyle: 'emoji',
     },
   );
-  assert.equal(performanceButton(harness, 'pianoMode').disabled, true);
-  assert.equal(harness.pianoModeDescription.textContent, 'DJ 模式固定使用 4 × 3 网格');
+  assert.equal(setup.storage.dagou_piano_mode_v1, '0');
+  assert.equal(performanceButton(harness, 'pianoMode').disabled, false);
+  assert.equal(harness.pianoModeDescription.textContent, '开启后退出 DJ，开放一个八度音阶');
   assert.equal(harness.djSettingsPanel.classList.contains('is-visible'), true);
 }
 
@@ -783,11 +781,14 @@ for (const [settingName, defaultChecked] of [
   await harness.context.handlePerformanceSettingClick(
     performanceButton(harness, 'djMode')
   );
-  assert.deepEqual(setup.log, ['set:dagou_dj_mode_v1']);
+  assert.deepEqual(setup.log, [
+    'set:dagou_dj_mode_v1,dagou_piano_mode_v1',
+  ]);
   assert.equal(setup.storage.dagou_dj_mode_v1, '1');
+  assert.equal(setup.storage.dagou_piano_mode_v1, '0');
   assert.equal(harness.context.performanceSettings.djMode, true);
-  assert.equal(harness.context.performanceSettings.pianoMode, true);
-  assert.equal(performanceButton(harness, 'pianoMode').disabled, true);
+  assert.equal(harness.context.performanceSettings.pianoMode, false);
+  assert.equal(performanceButton(harness, 'pianoMode').disabled, false);
 
   setup.log.length = 0;
   await harness.context.handlePerformanceSettingClick(
@@ -796,8 +797,45 @@ for (const [settingName, defaultChecked] of [
   assert.deepEqual(setup.log, ['set:dagou_dj_mode_v1']);
   assert.equal(setup.storage.dagou_dj_mode_v1, '0');
   assert.equal(harness.context.performanceSettings.djMode, false);
-  assert.equal(harness.context.performanceSettings.pianoMode, true);
+  assert.equal(harness.context.performanceSettings.pianoMode, false);
   assert.equal(performanceButton(harness, 'pianoMode').disabled, false);
+}
+
+{
+  const setup = makeToy({
+    cloud: {
+      dagou_sfx_unlocked_v1: '1',
+      dagou_piano_mode_v1: '1',
+    },
+  });
+  const harness = makeHarness(setup.toy);
+  await initialize(harness);
+  assert.equal(harness.context.performanceSettings.djMode, false);
+  assert.equal(harness.context.performanceSettings.pianoMode, true);
+  assert.equal(setup.storage.dagou_dj_mode_v1, '0');
+}
+
+{
+  const setup = makeToy({
+    cloud: {
+      dagou_sfx_unlocked_v1: '1',
+      dagou_dj_mode_v1: '1',
+      dagou_piano_mode_v1: '0',
+    },
+  });
+  const harness = makeHarness(setup.toy);
+  await initialize(harness);
+  setup.log.length = 0;
+  await harness.context.handlePerformanceSettingClick(
+    performanceButton(harness, 'pianoMode')
+  );
+  assert.deepEqual(setup.log, [
+    'set:dagou_dj_mode_v1,dagou_piano_mode_v1',
+  ]);
+  assert.equal(setup.storage.dagou_dj_mode_v1, '0');
+  assert.equal(setup.storage.dagou_piano_mode_v1, '1');
+  assert.equal(harness.context.performanceSettings.djMode, false);
+  assert.equal(harness.context.performanceSettings.pianoMode, true);
 }
 
 {
@@ -1135,7 +1173,7 @@ console.log('- settings red dot and per-option NEW states persist independently'
 console.log('- a visible red dot pins only the settings button while audio controls hide');
 console.log('- the temporary debug switch unlocks both options without Toy capabilities');
 console.log('- performance defaults, cloud restore/write, and local-only fallback switching');
-console.log('- DJ mode stays locked until SFX unlock and preserves the piano preference');
+console.log('- DJ and piano modes stay mutually exclusive across clicks and cloud restore');
 console.log('- DJ deck count and three deck assignments persist to their cloud keys');
 console.log('- DJ touch trails switch between normal and per-sound emoji styles');
 console.log('- 3D audio defaults, cloud restore, and cloud writes stay consistent');

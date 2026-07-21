@@ -183,6 +183,11 @@ const SPATIAL_FOCUS_GAIN = 0.12;
 const GRAVITY_DEAD_ZONE = 3;
 const GRAVITY_FULL_TILT = 15;
 const GRAVITY_SMOOTHING = 0.2;
+const SOUND_FIELD_KEY_POSITIONS = Object.freeze({
+  KeyZ: -1,
+  Slash: 1,
+  KeyB: 0,
+});
 
 const liveVoices = new Set();
 const liveSpatialOutputs = new Set();
@@ -1021,12 +1026,47 @@ function applyPerformanceSettings(previousSettings) {
   }
 }
 
-function replacePerformanceSettings(nextSettings) {
-  const previousSettings = { ...performanceSettings };
+function normalizePerformanceSettings(nextSettings, preferredMode = 'djMode') {
+  const normalized = {};
   for (const key of Object.keys(DEFAULT_PERFORMANCE_SETTINGS)) {
-    performanceSettings[key] = nextSettings[key] === true;
+    normalized[key] = nextSettings?.[key] === true;
   }
+  if (normalized.djMode && normalized.pianoMode) {
+    if (preferredMode === 'pianoMode') normalized.djMode = false;
+    else normalized.pianoMode = false;
+  }
+  return normalized;
+}
+
+function replacePerformanceSettings(nextSettings, preferredMode = 'djMode') {
+  const previousSettings = { ...performanceSettings };
+  Object.assign(
+    performanceSettings,
+    normalizePerformanceSettings(nextSettings, preferredMode)
+  );
   applyPerformanceSettings(previousSettings);
+}
+
+function getToggledPerformanceSettings(settingName) {
+  const nextSettings = {
+    ...performanceSettings,
+    [settingName]: !performanceSettings[settingName],
+  };
+  return normalizePerformanceSettings(
+    nextSettings,
+    nextSettings[settingName] ? settingName : 'djMode'
+  );
+}
+
+function getChangedPerformanceCloudItems(nextSettings) {
+  const items = {};
+  for (const [settingName, cloudKey] of Object.entries(
+    PERFORMANCE_SETTING_KEYS
+  )) {
+    if (nextSettings[settingName] === performanceSettings[settingName]) continue;
+    items[cloudKey] = nextSettings[settingName] ? '1' : '0';
+  }
+  return items;
 }
 
 function resetPerformanceSettingsToDefaults() {
@@ -1137,11 +1177,10 @@ function renderPerformanceSettings() {
     button.disabled =
       !toyCloudState.initialized ||
       performanceSettingsSaving ||
-      djSettingsSaving ||
-      (settingName === 'pianoMode' && performanceSettings.djMode);
+      djSettingsSaving;
   }
   pianoModeDescription.textContent = performanceSettings.djMode
-    ? 'DJ 模式固定使用 4 × 3 网格'
+    ? '开启后退出 DJ，开放一个八度音阶'
     : '开放一个八度的音阶';
   renderDjSettings();
   renderSpatialAudioControls();
@@ -1240,7 +1279,25 @@ async function initializeToyCloudState() {
     replaceDjSettings(readCloudDjSettings(cloud), false);
     const cloudPerformanceSettings = readCloudPerformanceSettings(cloud);
     if (!toyCloudState.sfxUnlocked) cloudPerformanceSettings.djMode = false;
+    let modeCorrection = null;
+    if (cloudPerformanceSettings.djMode && cloudPerformanceSettings.pianoMode) {
+      if (cloud[TOY_CLOUD_KEYS.djMode] === '1') {
+        cloudPerformanceSettings.pianoMode = false;
+        modeCorrection = { [TOY_CLOUD_KEYS.pianoMode]: '0' };
+      } else {
+        cloudPerformanceSettings.djMode = false;
+        modeCorrection = { [TOY_CLOUD_KEYS.djMode]: '0' };
+      }
+    }
     replacePerformanceSettings(cloudPerformanceSettings);
+    if (modeCorrection) {
+      try {
+        await toy.setCloudStorage(modeCorrection);
+      } catch (error) {
+        markToyCloudUnavailable(toyCloudState);
+        console.warn('[大狗Tap] 演奏模式冲突修正失败。', error);
+      }
+    }
 
     if (!toyCloudState.locallyChanged.settingsSeen) {
       toyCloudState.settingsSeen =
@@ -1255,7 +1312,7 @@ async function initializeToyCloudState() {
         cloud[TOY_CLOUD_KEYS.hajimiNewSeen] === '1';
     }
   } catch (error) {
-    // 读取不可用时，三个演奏设置也必须整体保持默认值。
+    // 读取不可用时，演奏设置整体保持默认值。
     toyCloudState.cloudReadable = false;
     resetPerformanceSettingsToDefaults();
     console.warn('[大狗Tap] Toy 云状态读取失败。', error);
@@ -1502,7 +1559,8 @@ async function handlePerformanceSettingClick(button) {
   if (!cloudKey) return;
 
   const state = await toyStateReady;
-  const nextValue = !performanceSettings[settingName];
+  const nextSettings = getToggledPerformanceSettings(settingName);
+  const nextValue = nextSettings[settingName];
   if (settingName === 'djMode' && nextValue && !state.sfxUnlocked) {
     if (!state.environmentAvailable || !state.toy) {
       showToyNotice('请在哔哩哔哩内打开并解锁音效后使用 DJ 模式', true);
@@ -1514,10 +1572,7 @@ async function handlePerformanceSettingClick(button) {
     return;
   }
   if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
+    replacePerformanceSettings(nextSettings, settingName);
     renderToyCloudState();
     showToyNotice('云存储不可用，本次设置仅在当前页面有效。');
     return;
@@ -1526,20 +1581,14 @@ async function handlePerformanceSettingClick(button) {
   performanceSettingsSaving = true;
   renderPerformanceSettings();
   try {
-    await state.toy.setCloudStorage({
-      [cloudKey]: nextValue ? '1' : '0',
-    });
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
+    await state.toy.setCloudStorage(
+      getChangedPerformanceCloudItems(nextSettings)
+    );
+    replacePerformanceSettings(nextSettings, settingName);
   } catch (error) {
     // 写入失败后降级为本地会话设置，保留用户刚刚选择的值。
     markToyCloudUnavailable(state);
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
+    replacePerformanceSettings(nextSettings, settingName);
     console.warn('[大狗Tap] 演奏设置写入失败。', error);
     showToyNotice('云存储不可用，本次设置仅在当前页面有效。');
   } finally {
@@ -4193,6 +4242,7 @@ function beginKeyboardInput(code) {
 }
 
 function handleKeyboardDown(event) {
+  if (handleSoundFieldKeyboard(event)) return;
   if (
     !performanceSettings.djMode ||
     settingsOpen ||
@@ -4206,6 +4256,24 @@ function handleKeyboardDown(event) {
   void start().then(() => {
     if (pressedKeyboardCodes.has(event.code)) beginKeyboardInput(event.code);
   });
+}
+
+function handleSoundFieldKeyboard(event) {
+  const position = SOUND_FIELD_KEY_POSITIONS[event.code];
+  if (
+    position === undefined ||
+    !performanceSettings.spatialAudio ||
+    settingsOpen ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.altKey
+  ) return false;
+
+  event.preventDefault();
+  if (event.repeat) return true;
+  if (spatialControlMode !== 'manual') activateManualSoundField();
+  setSoundFieldPosition(position, true);
+  return true;
 }
 
 function handleKeyboardUp(event) {

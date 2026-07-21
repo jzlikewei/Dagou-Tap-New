@@ -1387,7 +1387,7 @@
     <div id="sound-field-control" role="group" aria-label="3D 音场控制" aria-hidden="true">
       <span class="sound-field-badge" id="sound-field-mode-label">3D · 手动</span>
       <span class="sound-field-edge" aria-hidden="true">L</span>
-      <input id="sound-field-slider" type="range" min="-100" max="100" step="1" value="0" aria-label="音场位置" aria-valuetext="居中" />
+      <input id="sound-field-slider" type="range" min="-100" max="100" step="1" value="0" aria-label="音场位置；Z 左移，斜杠右移，B 回中" aria-valuetext="居中" aria-keyshortcuts="Z / B" />
       <span class="sound-field-edge" aria-hidden="true">R</span>
       <button id="sound-field-center" type="button">回中</button>
     </div>
@@ -1621,7 +1621,7 @@
                     <button class="spatial-mode-button" type="button" role="radio" aria-checked="false" data-spatial-mode="gravity">重力</button>
                   </div>
                 </div>
-                <div class="spatial-audio-hint">手动模式拖动舞台顶部滑杆；重力模式倾斜 iPad，点“校准”重设中央位置</div>
+                <div class="spatial-audio-hint">手动：拖动顶部滑杆；PC 用 Z 左移、/ 右移、B 回中。重力：倾斜 iPad，点“校准”重设中央位置</div>
               </div>
             </div>
             <div id="performance-settings-status" role="status">正在读取哔哩哔哩云端设置…</div>
@@ -1639,6 +1639,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-spatial-toggle"></script>
+<script src="main.js?v=20260721-mode-shortcuts"></script>
 </body>
 </html>
