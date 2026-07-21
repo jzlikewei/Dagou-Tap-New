@@ -151,7 +151,7 @@ function makeToy({
   return { toy, log, storage };
 }
 
-function makeHarness(toy) {
+function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
   const options = [
     new FakeElement({ classes: ['sfx-option', 'is-active'], dataset: { sfx: 'dagou' } }),
     new FakeElement({ classes: ['sfx-option', 'is-locked'], dataset: { sfx: 'dingdong' } }),
@@ -193,16 +193,19 @@ function makeHarness(toy) {
   const muteLog = [];
   const externalNavigationLog = [];
   let buildGridCalls = 0;
-  const context = vm.createContext({
-    console: { warn() {} },
-    window: {
-      toy,
-      location: {
-        assign(url) {
-          externalNavigationLog.push(url);
-        },
+  const testWindow = {
+    toy,
+    location: {
+      assign(url) {
+        externalNavigationLog.push(url);
       },
     },
+  };
+  testWindow.self = testWindow;
+  testWindow.top = embedded ? {} : testWindow;
+  const context = vm.createContext({
+    console: { warn() {} },
+    window: testWindow,
     setTimeout: () => 1,
     clearTimeout() {},
     TOY_CLOUD_KEYS: {
@@ -287,7 +290,7 @@ function makeHarness(toy) {
     startTime: 0,
     // Keep the baseline cases validating the normal release/cloud-lock flow.
     // The dedicated debug case below opts into the temporary bypass explicitly.
-    DEBUG_UNLOCK_SFX: false,
+    DEBUG_UNLOCK_SFX: debugUnlock,
     DEFAULT_PERFORMANCE_SETTINGS: Object.freeze({
       djMode: false,
       pianoMode: false,
@@ -358,7 +361,7 @@ function makeHarness(toy) {
       initialized: false,
       environmentAvailable: false,
       cloudReadable: false,
-      sfxUnlocked: false,
+      sfxUnlocked: debugUnlock,
       settingsSeen: false,
       newSeen: { dingdong: false, hajimi: false },
       locallyChanged: { settingsSeen: false, dingdong: false, hajimi: false },
@@ -542,6 +545,32 @@ for (const [settingName, defaultChecked] of [
     htmlSource,
     new RegExp(`data-setting="${settingName}"[^>]*aria-checked="${defaultChecked}"|aria-checked="${defaultChecked}"[^>]*data-setting="${settingName}"`),
     `Missing default markup for ${settingName}`,
+  );
+}
+
+{
+  const setup = makeToy();
+  const harness = makeHarness(setup.toy, {
+    embedded: false,
+    debugUnlock: true,
+  });
+  await initialize(harness);
+  assert.deepEqual(
+    setup.log,
+    [],
+    'a standalone page must skip the Toy parent handshake',
+  );
+  assert.equal(harness.context.toyCloudState.initialized, true);
+  assert.equal(harness.context.toyCloudState.environmentAvailable, false);
+  assert.equal(harness.performanceButtons.every(button => !button.disabled), true);
+
+  await harness.context.handlePerformanceSettingClick(
+    performanceButton(harness, 'djMode')
+  );
+  assert.equal(harness.context.performanceSettings.djMode, true);
+  assert.equal(
+    performanceButton(harness, 'djMode').attributes.get('aria-checked'),
+    'true',
   );
 }
 

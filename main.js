@@ -906,6 +906,9 @@ function renderToyCloudState() {
 }
 
 async function detectToyEnvironment() {
+  // Toy SDK 通过父页面握手；独立打开的网页直接使用本地设置，避免等待握手超时。
+  if (window.self === window.top) return null;
+
   const toy = window.toy;
   if (
     !toy ||
