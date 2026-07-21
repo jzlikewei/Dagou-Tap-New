@@ -181,7 +181,7 @@ const SPATIAL_DECK_PANS = Object.freeze([-0.72, 0, 0.72]);
 const SPATIAL_FIELD_SHIFT = 0.3;
 const SPATIAL_FOCUS_GAIN = 0.12;
 const GRAVITY_DEAD_ZONE = 3;
-const GRAVITY_FULL_TILT = 22;
+const GRAVITY_FULL_TILT = 15;
 const GRAVITY_SMOOTHING = 0.2;
 
 const liveVoices = new Set();
@@ -285,6 +285,7 @@ const touchFx2d = touchFxCanvas.getContext('2d');
 const topControls = document.getElementById('top-controls');
 const musicToggle = document.getElementById('music-toggle');
 const sfxToggle = document.getElementById('sfx-toggle');
+const spatialAudioToggle = document.getElementById('spatial-audio-toggle');
 const settingsButton = document.getElementById('settings-button');
 const updateDot = document.getElementById('update-dot');
 const settingsOverlay = document.getElementById('settings-overlay');
@@ -296,7 +297,7 @@ const videoPlay = videoCard.querySelector('.video-play');
 const sfxOptions = [...document.querySelectorAll('.sfx-option')];
 const hajimiOptionImage = document.getElementById('hajimi-option-image');
 const performanceSettingButtons = [
-  ...document.querySelectorAll('.setting-row[data-setting]'),
+  ...document.querySelectorAll('[data-setting]'),
 ];
 const pianoModeSetting = document.getElementById('piano-mode-setting');
 const pianoModeDescription = pianoModeSetting.querySelector('.setting-description');
@@ -452,6 +453,7 @@ function updateUiRhythm(beatPosition) {
   if (!Number.isFinite(beatPosition)) {
     setRhythmScale(musicToggle, 0, 0.075);
     setRhythmScale(sfxToggle, 0, 0.075);
+    setRhythmScale(spatialAudioToggle, 0, 0.075);
     setRhythmScale(settingsButton, 0, 0.075);
     setRhythmScale(updateDot, 0, 0.4);
     setRhythmScale(videoPlay, 0, 0.12);
@@ -478,6 +480,7 @@ function updateUiRhythm(beatPosition) {
 
   setRhythmScale(musicToggle, musicPulse, 0.075);
   setRhythmScale(sfxToggle, sfxPulse, 0.075);
+  setRhythmScale(spatialAudioToggle, pulse, 0.075);
   setRhythmScale(settingsButton, pulse, 0.075);
   setRhythmScale(updateDot, pulse, 0.4);
   setRhythmScale(videoPlay, pulse, 0.12);
@@ -712,6 +715,9 @@ function renderSoundFieldPosition() {
 function renderSpatialAudioControls() {
   const enabled = performanceSettings.spatialAudio;
   const gravityMode = spatialControlMode === 'gravity';
+  const toggleAction = enabled ? '关闭' : '开启';
+  spatialAudioToggle.setAttribute('aria-label', `${toggleAction} 3D 音效`);
+  spatialAudioToggle.title = `${toggleAction} 3D 音效`;
   spatialAudioSettingsPanel.classList.toggle('is-visible', enabled);
   spatialAudioSettingsPanel.setAttribute('aria-hidden', String(!enabled));
   stage.classList.toggle('is-spatial-audio', enabled);
@@ -765,6 +771,15 @@ function screenRelativeTilt(event) {
   return Number(event.gamma);
 }
 
+function getGravitySoundFieldTarget(delta) {
+  const magnitude = Math.abs(delta);
+  if (magnitude <= GRAVITY_DEAD_ZONE) return 0;
+  return Math.sign(delta) * clampSoundFieldPosition(
+    (magnitude - GRAVITY_DEAD_ZONE) /
+    (GRAVITY_FULL_TILT - GRAVITY_DEAD_ZONE)
+  );
+}
+
 function handleDeviceOrientation(event) {
   if (spatialControlMode !== 'gravity' || !performanceSettings.spatialAudio) {
     return;
@@ -778,13 +793,7 @@ function handleDeviceOrientation(event) {
   if (!Number.isFinite(gravityBaseline)) gravityBaseline = tilt;
 
   const delta = tilt - gravityBaseline;
-  const magnitude = Math.abs(delta);
-  const target = magnitude <= GRAVITY_DEAD_ZONE
-    ? 0
-    : Math.sign(delta) * clampSoundFieldPosition(
-        (magnitude - GRAVITY_DEAD_ZONE) /
-        (GRAVITY_FULL_TILT - GRAVITY_DEAD_ZONE)
-      );
+  const target = getGravitySoundFieldTarget(delta);
   setSoundFieldPosition(
     soundFieldPosition + (target - soundFieldPosition) * GRAVITY_SMOOTHING
   );
@@ -1739,7 +1748,7 @@ document.addEventListener(
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('#music-toggle, #sfx-toggle')
+      target.closest('#music-toggle, #sfx-toggle, #spatial-audio-toggle')
     ) {
       return;
     }

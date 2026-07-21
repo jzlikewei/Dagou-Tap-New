@@ -46,12 +46,15 @@ vm.runInNewContext(
   ${extractConst('SPATIAL_DECK_PANS')}
   ${extractConst('SPATIAL_FIELD_SHIFT')}
   ${extractConst('SPATIAL_FOCUS_GAIN')}
+  ${extractConst('GRAVITY_DEAD_ZONE')}
+  ${extractConst('GRAVITY_FULL_TILT')}
   const performanceSettings = { spatialAudio: false };
   let soundFieldPosition = 0;
   ${extractFunction('clampSoundFieldPosition')}
   ${extractFunction('getDeckBaseSpatialPan')}
   ${extractFunction('getSpatialOutputTargets')}
   ${extractFunction('screenRelativeTilt')}
+  ${extractFunction('getGravitySoundFieldTarget')}
 
   globalThis.spatialApi = {
     targets(enabled, position, deckId) {
@@ -62,6 +65,9 @@ vm.runInNewContext(
     tilt(angle, beta, gamma) {
       window.screen.orientation.angle = angle;
       return screenRelativeTilt({ beta, gamma });
+    },
+    gravityTarget(delta) {
+      return getGravitySoundFieldTarget(delta);
     },
   };
   `,
@@ -105,6 +111,10 @@ assert.deepEqual(
 assert.equal(sandbox.spatialApi.tilt(0, 8, -12), -12);
 assert.equal(sandbox.spatialApi.tilt(90, 8, -12), 8);
 assert.equal(sandbox.spatialApi.tilt(270, 8, -12), -8);
+assert.equal(sandbox.spatialApi.gravityTarget(3), 0);
+assert.equal(sandbox.spatialApi.gravityTarget(9), 0.5);
+assert.equal(sandbox.spatialApi.gravityTarget(15), 1);
+assert.equal(sandbox.spatialApi.gravityTarget(-15), -1);
 
 assert.match(
   extractFunction('createSpatialOutput'),
@@ -134,8 +144,18 @@ assert.match(
 
 assert.match(
   htmlSource,
-  /data-setting="spatialAudio"/,
-  'settings must expose the 3D audio switch',
+  /id="audio-controls"[\s\S]*?id="spatial-audio-toggle"[^>]*data-setting="spatialAudio"/,
+  'the main controls must expose the 3D audio switch',
+);
+assert.doesNotMatch(
+  htmlSource,
+  /id="spatial-audio-setting"/,
+  'the 3D audio switch must no longer stay inside settings',
+);
+assert.match(
+  mainSource,
+  /querySelectorAll\('\[data-setting\]'\)/,
+  'the main 3D switch must share the performance-setting persistence path',
 );
 assert.match(
   htmlSource,
@@ -150,4 +170,5 @@ console.log('- off mode centers every effect voice at unity gain');
 console.log('- two and three deck layouts map to left, center, and right positions');
 console.log('- manual focus shifts the field and emphasizes the nearer deck');
 console.log('- portrait and landscape tilt axes map into one sound-field value');
+console.log('- gravity reaches full range at 15 degrees with a 3-degree dead zone');
 console.log('- iPad sensor permission and slider fallback remain present');
