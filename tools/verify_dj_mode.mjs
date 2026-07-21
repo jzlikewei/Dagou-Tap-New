@@ -270,17 +270,24 @@ vm.runInNewContext(
   `
   const C = { amber: '#ffb400', teal: '#16c2a3', blue: '#3e7bfa' };
   const TOUCH_TRAIL_COLORS = Object.freeze([C.amber, C.teal, C.blue]);
+  const SFX_EMOJIS = Object.freeze({ dagou: '🐶', dingdong: '🐔', hajimi: '🐱' });
   const TOUCH_TRAIL_MAX_POINTS = 10;
   const TOUCH_TRAIL_POINT_GAP = 8;
   const touchTrails = new Map();
-  const zones = [{ deckSlot: 0 }, { deckSlot: 2 }];
-  function zoneIndex(clientX) { return clientX < 500 ? 0 : 1; }
+  const zones = [
+    { deckSlot: 0, sfxId: 'dagou' },
+    { deckSlot: 1, sfxId: 'dingdong' },
+    { deckSlot: 2, sfxId: 'hajimi' },
+  ];
+  function zoneIndex(clientX) {
+    return clientX < 400 ? 0 : clientX < 700 ? 1 : 2;
+  }
   function getStageMetrics() {
     return { width: 1000, height: 500, left: 100, top: 50 };
   }
   function touchTrailNow() { return 99; }
   ${extractFunction('getTouchTrailPoint')}
-  ${extractFunction('getTouchTrailColor')}
+  ${extractFunction('getTouchTrailAppearance')}
   ${extractFunction('beginTouchTrail')}
   ${extractFunction('moveTouchTrail')}
   ${extractFunction('pulseTouchTrail')}
@@ -294,6 +301,7 @@ vm.runInNewContext(
       y: trail.y,
       sampleX: trail.sampleX,
       color: trail.color,
+      emoji: trail.emoji,
       pulseAt: trail.pulseAt,
       releasedAt: trail.releasedAt,
       pointCount: trail.points.length,
@@ -321,6 +329,7 @@ assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
   y: 50,
   sampleX: 100,
   color: '#ffb400',
+  emoji: '🐶',
   pulseAt: 1,
   releasedAt: null,
   pointCount: 1,
@@ -331,12 +340,16 @@ assert.equal(
   2,
   'small pointer moves must accumulate into a visible trail sample',
 );
-touchTrailApi.move(1, 700, 300, 1.2);
+touchTrailApi.move(1, 550, 300, 1.15);
+assert.equal(touchTrailApi.snapshot(1).color, '#16c2a3');
+assert.equal(touchTrailApi.snapshot(1).emoji, '🐔');
+touchTrailApi.move(1, 800, 300, 1.2);
 assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
-  x: 600,
+  x: 700,
   y: 250,
-  sampleX: 600,
+  sampleX: 700,
   color: '#3e7bfa',
+  emoji: '🐱',
   pulseAt: 1,
   releasedAt: null,
   pointCount: 10,
@@ -349,6 +362,16 @@ assert.equal(touchTrailApi.size(), 2);
 assert.equal(touchTrailApi.snapshot(1).pulseAt, 1.3);
 assert.equal(touchTrailApi.snapshot(1).releasedAt, 1.4);
 assert.equal(touchTrailApi.snapshot(2).releasedAt, 1.5);
+assert.match(
+  extractFunction('drawTouchTrails'),
+  /performanceSettings\.djMode\s*&&\s*djSettings\.trailStyle === 'emoji'/,
+  'emoji trails must stay scoped to DJ mode',
+);
+assert.match(
+  extractFunction('drawTouchEmoji'),
+  /fillText\(emoji, 0, 0\)/,
+  'emoji trails must draw the sound-matched glyph on the touch canvas',
+);
 
 const keyboardSandbox = {};
 vm.runInNewContext(
@@ -555,3 +578,4 @@ console.log('- layout rotation releases input tied to the previous grid');
 console.log('- different decks sustain together while the newest voice wins within one deck');
 console.log('- the grid setting controls DJ cell boundaries while deck structure remains active');
 console.log('- multi-pointer touch trails follow movement, cap history, pulse, and release independently');
+console.log('- emoji trails map dog, chicken, and cat glyphs to each deck sound');

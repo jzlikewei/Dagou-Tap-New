@@ -182,6 +182,9 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
   const djCountButtons = [2, 3].map((count) =>
     new FakeElement({ dataset: { djCount: String(count) } })
   );
+  const djTrailStyleButtons = ['normal', 'emoji'].map((trailStyle) =>
+    new FakeElement({ dataset: { djTrailStyle: trailStyle } })
+  );
   const djDeckAssignmentRows = [0, 1, 2].map((slot) =>
     new FakeElement({
       dataset: { djSlot: String(slot) },
@@ -221,6 +224,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       djDeckLeft: 'dagou_dj_deck_left_v1',
       djDeckCenter: 'dagou_dj_deck_center_v1',
       djDeckRight: 'dagou_dj_deck_right_v1',
+      djTrailStyle: 'dagou_dj_trail_style_v1',
     },
     TOY_CLOUD_KEY_LIST: [
       'dagou_sfx_unlocked_v1',
@@ -235,6 +239,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       'dagou_dj_deck_left_v1',
       'dagou_dj_deck_center_v1',
       'dagou_dj_deck_right_v1',
+      'dagou_dj_trail_style_v1',
     ],
     TOY_REQUIRED_ABILITIES: [
       'getUserProfile',
@@ -306,6 +311,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     DEFAULT_DJ_SETTINGS: Object.freeze({
       deckCount: 2,
       deckSfxIds: Object.freeze(['dagou', 'dingdong', 'hajimi']),
+      trailStyle: 'normal',
     }),
     DJ_DECK_CLOUD_KEYS: Object.freeze([
       'dagou_dj_deck_left_v1',
@@ -322,17 +328,20 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     djSettings: {
       deckCount: 2,
       deckSfxIds: ['dagou', 'dingdong', 'hajimi'],
+      trailStyle: 'normal',
     },
     djSettingsSaving: false,
     performanceSettingButtons: performanceButtons,
     pianoModeDescription,
     djSettingsPanel,
     djCountButtons,
+    djTrailStyleButtons,
     djDeckAssignmentRows,
     performanceSettingsStatus: new FakeElement(),
     zones: [{}],
     clearQueuedPerformanceInput() {},
     stopActivePerformanceInput() {},
+    releaseAllTouchTrails() {},
     renderKeyGrid() {},
     buildGrid() { buildGridCalls++; },
     FEATURED_BVID: 'BV1kNKU6REBg',
@@ -393,6 +402,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     pianoModeDescription,
     djSettingsPanel,
     djCountButtons,
+    djTrailStyleButtons,
     djDeckAssignmentRows,
     getBuildGridCalls: () => buildGridCalls,
     notices,
@@ -430,6 +440,7 @@ for (const key of [
   'dagou_dj_deck_left_v1',
   'dagou_dj_deck_center_v1',
   'dagou_dj_deck_right_v1',
+  'dagou_dj_trail_style_v1',
 ]) {
   assert.ok(mainSource.includes(`'${key}'`), `Missing cloud key ${key}`);
 }
@@ -607,6 +618,7 @@ for (const [settingName, defaultChecked] of [
       dagou_dj_deck_left_v1: 'hajimi',
       dagou_dj_deck_center_v1: 'dagou',
       dagou_dj_deck_right_v1: 'dingdong',
+      dagou_dj_trail_style_v1: 'emoji',
     },
   });
   const harness = makeHarness(setup.toy);
@@ -624,8 +636,13 @@ for (const [settingName, defaultChecked] of [
     {
       deckCount: harness.context.djSettings.deckCount,
       deckSfxIds: [...harness.context.djSettings.deckSfxIds],
+      trailStyle: harness.context.djSettings.trailStyle,
     },
-    { deckCount: 3, deckSfxIds: ['hajimi', 'dagou', 'dingdong'] },
+    {
+      deckCount: 3,
+      deckSfxIds: ['hajimi', 'dagou', 'dingdong'],
+      trailStyle: 'emoji',
+    },
   );
   assert.equal(performanceButton(harness, 'pianoMode').disabled, true);
   assert.equal(harness.pianoModeDescription.textContent, 'DJ 模式固定使用 4 × 3 网格');
@@ -715,6 +732,17 @@ for (const [settingName, defaultChecked] of [
   assert.equal(
     harness.djDeckAssignmentRows[1].classList.contains('is-hidden'),
     false,
+  );
+
+  await harness.context.persistDjSettings(
+    { ...harness.context.djSettings, trailStyle: 'emoji' },
+    { dagou_dj_trail_style_v1: 'emoji' },
+  );
+  assert.equal(setup.storage.dagou_dj_trail_style_v1, 'emoji');
+  assert.equal(harness.context.djSettings.trailStyle, 'emoji');
+  assert.equal(
+    harness.djTrailStyleButtons[1].attributes.get('aria-checked'),
+    'true',
   );
 
   const assignments = [
@@ -997,5 +1025,6 @@ console.log('- the temporary debug switch unlocks both options without Toy capab
 console.log('- performance defaults, cloud restore/write, and local-only fallback switching');
 console.log('- DJ mode stays locked until SFX unlock and preserves the piano preference');
 console.log('- DJ deck count and three deck assignments persist to their cloud keys');
+console.log('- DJ touch trails switch between normal and per-sound emoji styles');
 console.log('- active Hajimi button toggles the lazy-loaded looping character');
 console.log('- Web Audio clock returns the lossless atlas to frame 0 every nine beats');

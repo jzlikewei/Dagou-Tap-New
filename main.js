@@ -24,6 +24,7 @@ const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
 const DEFAULT_DJ_SETTINGS = Object.freeze({
   deckCount: 2,
   deckSfxIds: Object.freeze(['dagou', 'dingdong', 'hajimi']),
+  trailStyle: 'normal',
 });
 
 /* ---------- 全局状态 ---------- */
@@ -74,6 +75,11 @@ const SFX_LABELS = Object.freeze({
   dingdong: '叮咚鸡',
   hajimi: '哈基米',
 });
+const SFX_EMOJIS = Object.freeze({
+  dagou: '🐶',
+  dingdong: '🐔',
+  hajimi: '🐱',
+});
 const DJ_DECK_LABELS = Object.freeze(['LEFT', 'CENTER', 'RIGHT']);
 const DJ_ACTIVE_SLOTS = Object.freeze({
   2: Object.freeze([0, 2]),
@@ -116,6 +122,7 @@ let selectedSfxId = 'dagou';
 const djSettings = {
   deckCount: DEFAULT_DJ_SETTINGS.deckCount,
   deckSfxIds: [...DEFAULT_DJ_SETTINGS.deckSfxIds],
+  trailStyle: DEFAULT_DJ_SETTINGS.trailStyle,
 };
 let djSettingsSaving = false;
 let djLandscape = true;
@@ -217,6 +224,7 @@ const TOY_CLOUD_KEYS = Object.freeze({
   djDeckLeft: 'dagou_dj_deck_left_v1',
   djDeckCenter: 'dagou_dj_deck_center_v1',
   djDeckRight: 'dagou_dj_deck_right_v1',
+  djTrailStyle: 'dagou_dj_trail_style_v1',
 });
 const TOY_CLOUD_KEY_LIST = Object.freeze(Object.values(TOY_CLOUD_KEYS));
 const TOY_REQUIRED_ABILITIES = Object.freeze([
@@ -276,6 +284,9 @@ const pianoModeSetting = document.getElementById('piano-mode-setting');
 const pianoModeDescription = pianoModeSetting.querySelector('.setting-description');
 const djSettingsPanel = document.getElementById('dj-settings');
 const djCountButtons = [...document.querySelectorAll('[data-dj-count]')];
+const djTrailStyleButtons = [
+  ...document.querySelectorAll('[data-dj-trail-style]'),
+];
 const djDeckAssignmentRows = [
   ...document.querySelectorAll('.dj-deck-assignment[data-dj-slot]'),
 ];
@@ -778,17 +789,21 @@ function resetPerformanceSettingsToDefaults() {
 
 function replaceDjSettings(nextSettings, rebuild = true) {
   const deckCount = nextSettings?.deckCount === 3 ? 3 : 2;
+  const trailStyle = nextSettings?.trailStyle === 'emoji' ? 'emoji' : 'normal';
   const deckSfxIds = DEFAULT_DJ_SETTINGS.deckSfxIds.map((fallback, slot) => {
     const candidate = nextSettings?.deckSfxIds?.[slot];
     return SFX_SAMPLE_SETS[candidate] ? candidate : fallback;
   });
-  const changed =
+  const layoutChanged =
     deckCount !== djSettings.deckCount ||
     deckSfxIds.some((sfxId, slot) => sfxId !== djSettings.deckSfxIds[slot]);
+  const trailStyleChanged = trailStyle !== djSettings.trailStyle;
 
   djSettings.deckCount = deckCount;
   djSettings.deckSfxIds = deckSfxIds;
-  if (changed && rebuild) {
+  djSettings.trailStyle = trailStyle;
+  if (trailStyleChanged) releaseAllTouchTrails();
+  if (layoutChanged && rebuild) {
     stopActivePerformanceInput();
     buildGrid();
   }
@@ -813,6 +828,8 @@ function readCloudPerformanceSettings(cloud) {
 function readCloudDjSettings(cloud) {
   return {
     deckCount: cloud[TOY_CLOUD_KEYS.djDeckCount] === '3' ? 3 : 2,
+    trailStyle:
+      cloud[TOY_CLOUD_KEYS.djTrailStyle] === 'emoji' ? 'emoji' : 'normal',
     deckSfxIds: DJ_DECK_CLOUD_KEYS.map((key, slot) => {
       const sfxId = cloud[key];
       return SFX_SAMPLE_SETS[sfxId]
@@ -829,6 +846,13 @@ function renderDjSettings() {
 
   for (const button of djCountButtons) {
     const selected = Number(button.dataset.djCount) === djSettings.deckCount;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = djSettingsSaving;
+  }
+
+  for (const button of djTrailStyleButtons) {
+    const selected = button.dataset.djTrailStyle === djSettings.trailStyle;
     button.classList.toggle('is-active', selected);
     button.setAttribute('aria-checked', String(selected));
     button.disabled = djSettingsSaving;
@@ -1310,6 +1334,19 @@ for (const button of djCountButtons) {
     void persistDjSettings(
       { ...djSettings, deckCount },
       { [TOY_CLOUD_KEYS.djDeckCount]: String(deckCount) }
+    );
+  });
+}
+
+for (const button of djTrailStyleButtons) {
+  button.addEventListener('click', () => {
+    const trailStyle = button.dataset.djTrailStyle === 'emoji'
+      ? 'emoji'
+      : 'normal';
+    if (trailStyle === djSettings.trailStyle) return;
+    void persistDjSettings(
+      { ...djSettings, trailStyle },
+      { [TOY_CLOUD_KEYS.djTrailStyle]: trailStyle }
     );
   });
 }
@@ -2524,8 +2561,25 @@ function drawPiece(g, kind, color, x, y, r, rot) {
   g.restore();
 }
 
+function drawTouchEmoji(g, emoji, x, y, size, alpha, rotation = 0) {
+  if (size <= 0 || alpha <= 0) return;
+  g.save();
+  g.translate(x, y);
+  g.rotate(rotation);
+  g.globalAlpha = alpha;
+  g.font = `${size.toFixed(1)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.shadowColor = 'rgba(111, 106, 99, .28)';
+  g.shadowBlur = Math.min(8, size * 0.18);
+  g.fillText(emoji, 0, 0);
+  g.restore();
+}
+
 function drawTouchTrails(now) {
   touchFx2d.clearRect(0, 0, fxW, fxH);
+  const emojiMode =
+    performanceSettings.djMode && djSettings.trailStyle === 'emoji';
 
   for (const [pointerId, trail] of touchTrails) {
     trail.points = trail.points.filter(
@@ -2545,6 +2599,21 @@ function drawTouchTrails(now) {
       const age = clamp01((now - point.at) / TOUCH_TRAIL_POINT_LIFE);
       const order = pointCount > 0 ? (index + 1) / pointCount : 1;
       const alpha = (1 - smooth(age)) * (0.18 + order * 0.58) * releaseAlpha;
+      if (emojiMode) {
+        const distanceFromHead = pointCount - 1 - index;
+        if (distanceFromHead > 0 && distanceFromHead % 2 === 1) return;
+        drawTouchEmoji(
+          touchFx2d,
+          point.emoji,
+          point.x,
+          Math.max(14, point.y - 18),
+          (12 + order * 10) * (1 - age * 0.3),
+          alpha,
+          Math.sin(now * 3 + index) * 0.08
+        );
+        return;
+      }
+
       const size = (2.5 + order * 4.5) * (1 - age * 0.38);
       touchFx2d.globalAlpha = alpha;
       drawPiece(
@@ -2560,6 +2629,26 @@ function drawTouchTrails(now) {
 
     const intro = easeOutBack(clamp01((now - trail.startedAt) / 0.12));
     const pulse = 1 - clamp01((now - trail.pulseAt) / 0.18);
+    if (emojiMode) {
+      touchFx2d.save();
+      touchFx2d.globalAlpha = 0.58 * releaseAlpha;
+      touchFx2d.fillStyle = trail.color;
+      touchFx2d.beginPath();
+      touchFx2d.arc(trail.x, trail.y, 4 + pulse * 2.5, 0, Math.PI * 2);
+      touchFx2d.fill();
+      touchFx2d.restore();
+      drawTouchEmoji(
+        touchFx2d,
+        trail.emoji,
+        trail.x,
+        Math.max(24, trail.y - 30),
+        (34 + pulse * 8 + releaseProgress * 7) * intro,
+        releaseAlpha,
+        Math.sin(now * 5 + trail.x * 0.01) * 0.07
+      );
+      continue;
+    }
+
     const radius = (24 + pulse * 9 + releaseProgress * 18) * intro;
     touchFx2d.save();
     touchFx2d.globalAlpha = releaseAlpha;
@@ -2637,28 +2726,32 @@ function getTouchTrailPoint(clientX, clientY) {
   };
 }
 
-function getTouchTrailColor(clientX, clientY) {
+function getTouchTrailAppearance(clientX, clientY) {
   const zone = zones[zoneIndex(clientX, clientY)];
-  return Number.isInteger(zone?.deckSlot)
-    ? TOUCH_TRAIL_COLORS[zone.deckSlot]
-    : C.amber;
+  return {
+    color: Number.isInteger(zone?.deckSlot)
+      ? TOUCH_TRAIL_COLORS[zone.deckSlot]
+      : C.amber,
+    emoji: SFX_EMOJIS[zone?.sfxId] ?? SFX_EMOJIS.dagou,
+  };
 }
 
 function beginTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
   const point = getTouchTrailPoint(clientX, clientY);
-  const color = getTouchTrailColor(clientX, clientY);
+  const { color, emoji } = getTouchTrailAppearance(clientX, clientY);
   touchTrails.set(pointerId, {
     x: point.x,
     y: point.y,
     sampleX: point.x,
     sampleY: point.y,
     color,
+    emoji,
     startedAt: at,
     updatedAt: at,
     sampleAt: at,
     pulseAt: at,
     releasedAt: null,
-    points: [{ ...point, color, at }],
+    points: [{ ...point, color, emoji, at }],
   });
 }
 
@@ -2667,7 +2760,7 @@ function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
   if (!trail || trail.releasedAt !== null) return;
 
   const point = getTouchTrailPoint(clientX, clientY);
-  const color = getTouchTrailColor(clientX, clientY);
+  const { color, emoji } = getTouchTrailAppearance(clientX, clientY);
   const dx = point.x - trail.sampleX;
   const dy = point.y - trail.sampleY;
   const distance = Math.hypot(dx, dy);
@@ -2682,6 +2775,7 @@ function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
       x: trail.sampleX + dx * progress,
       y: trail.sampleY + dy * progress,
       color,
+      emoji,
       at: trail.sampleAt + (at - trail.sampleAt) * progress,
     });
   }
@@ -2697,6 +2791,7 @@ function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
   trail.x = point.x;
   trail.y = point.y;
   trail.color = color;
+  trail.emoji = emoji;
   trail.updatedAt = at;
 }
 

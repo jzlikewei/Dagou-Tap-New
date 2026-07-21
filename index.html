@@ -819,7 +819,8 @@
     gap: 6px;
   }
   .dj-count-button,
-  .dj-sfx-choice {
+  .dj-sfx-choice,
+  .dj-trail-choice {
     border: 1px solid rgba(135, 131, 126, .32);
     color: #77716b;
     background: rgba(255, 255, 255, .66);
@@ -833,15 +834,41 @@
     border-radius: 8px;
   }
   .dj-count-button.is-active,
-  .dj-sfx-choice.is-active {
+  .dj-sfx-choice.is-active,
+  .dj-trail-choice.is-active {
     color: #b57e00;
     border-color: rgba(255, 180, 0, .78);
     background: rgba(255, 250, 240, .96);
   }
   .dj-count-button:disabled,
-  .dj-sfx-choice:disabled {
+  .dj-sfx-choice:disabled,
+  .dj-trail-choice:disabled {
     opacity: .52;
     cursor: wait;
+  }
+  .dj-trail-setting {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+  .dj-trail-label {
+    color: rgba(111, 106, 99, .8);
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .dj-trail-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .dj-trail-choice {
+    min-height: 34px;
+    border-radius: 8px;
+  }
+  .dj-trail-choice[data-dj-trail-style="emoji"] {
+    font-size: 16px;
+    letter-spacing: .12em;
   }
   .dj-deck-assignment {
     display: grid;
@@ -1294,6 +1321,13 @@
                   <button class="dj-count-button is-active" type="button" role="radio" aria-checked="true" data-dj-count="2">2 Deck</button>
                   <button class="dj-count-button" type="button" role="radio" aria-checked="false" data-dj-count="3">3 Deck</button>
                 </div>
+                <div class="dj-trail-setting">
+                  <span class="dj-trail-label">跟手特效</span>
+                  <div class="dj-trail-choices" role="radiogroup" aria-label="跟手特效">
+                    <button class="dj-trail-choice is-active" type="button" role="radio" aria-checked="true" data-dj-trail-style="normal">普通</button>
+                    <button class="dj-trail-choice" type="button" role="radio" aria-checked="false" aria-label="动物 Emoji" data-dj-trail-style="emoji">🐶🐔🐱</button>
+                  </div>
+                </div>
                 <div class="dj-deck-assignment" data-dj-slot="0">
                   <span class="dj-deck-name">LEFT</span>
                   <div class="dj-sfx-choices" role="radiogroup" aria-label="左侧 Deck 音效">
@@ -1357,6 +1391,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-dj-toggle-fix-test"></script>
+<script src="main.js?v=20260721-dj-emoji-trails-test"></script>
 </body>
 </html>

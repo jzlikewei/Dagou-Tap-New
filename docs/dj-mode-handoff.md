@@ -8,6 +8,7 @@
 - 新增 `tools/verify_dj_mode.mjs`，覆盖横竖屏 Deck 网格、36 键映射、键盘生命周期、旋转清理和多 Deck 长音。
 - 页面失焦统一释放队列、按键和活动声音；旋转布局时释放旧网格输入；移除 Deck 时清理嘴部计时器。
 - 新增独立多指跟手画布：每个触点显示圆环、短粒子尾迹和跨格脉冲，松手后独立淡出。
+- DJ 设置可在普通几何尾迹与 `🐶🐔🐱` 尾迹之间切换，emoji 跟随所在 Deck 当前绑定的音色变化。
 - `显示网格` 已改为真正控制 DJ 细网格；Deck 分界由舞台结构独立保留。
 - GitHub Pages 等顶层网页会立即进入本地设置模式，DJ 开关不再等待 Toy SDK 父页面握手。
 - `tools/README.md` 已补充 DJ 验证命令和键盘布局。
@@ -97,6 +98,7 @@ DJ 模式作为独立演奏模式，由设置页开关启用。
 const DEFAULT_DJ_SETTINGS = {
   deckCount: 2,
   deckSfxIds: ['dagou', 'dingdong', 'hajimi'],
+  trailStyle: 'normal',
 };
 ```
 
