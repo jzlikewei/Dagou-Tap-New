@@ -89,6 +89,7 @@ vm.runInNewContext(
   let enqueuedZones = [];
   let swipeEntrySerial = 0;
   function retuneHeldJiao() { return false; }
+  function pulseTouchTrail() {}
   function releaseVoice() {}
   function commitUnsnappedInput() {}
   function enqueueActivation(zi) {

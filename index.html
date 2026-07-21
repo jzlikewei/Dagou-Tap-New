@@ -47,6 +47,14 @@
     pointer-events: none;
   }
 
+  /* 多指跟手层：位于角色和网格之上，每个触点独立绘制圆环与短尾迹。 */
+  #touch-fx {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+  }
+
   /* 常驻作者署名：始终位于页面最前层。
      两行严格等宽；Created by 整体跟拍，MarkCup 每拍依次放大一个字母。 */
   #author-link {
@@ -264,6 +272,12 @@
   }
   #dj-stage.is-portrait {
     grid-template-rows: repeat(var(--dj-deck-count, 2), minmax(0, 1fr));
+  }
+  #dj-stage.is-landscape .dj-deck + .dj-deck {
+    border-left: 3px solid rgba(255, 180, 0, .42);
+  }
+  #dj-stage.is-portrait .dj-deck + .dj-deck {
+    border-top: 3px solid rgba(255, 180, 0, .42);
   }
   .dj-deck {
     position: relative;
@@ -1138,6 +1152,7 @@
 <body>
   <div id="stage">
     <canvas id="fx"></canvas>
+    <canvas id="touch-fx" aria-hidden="true"></canvas>
     <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开作者哔哩哔哩主页">
       <span class="author-copy" aria-hidden="true">
         <span class="author-label">Created by</span>
@@ -1342,6 +1357,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-dj-unlocked-test"></script>
+<script src="main.js?v=20260721-touch-trails-test"></script>
 </body>
 </html>

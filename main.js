@@ -196,6 +196,7 @@ let inputSerial = 0;
 let lastCommittedInputTime = -Infinity;
 const lastCommittedDjInputTimes = new Map();
 const pointers = new Map();// pointerId -> { zone, voice, pendingEntryId, lastX, lastY }
+const touchTrails = new Map(); // pointerId -> 跟手圆环、尾迹点与退场状态
 const CONTROLS_IDLE_MS = 2000;
 const CONTROLS_HOVER_IDLE_MS = 250;
 const CREATOR_MID = '357762853';
@@ -239,6 +240,7 @@ try {
 /* ---------- DOM ---------- */
 const stage     = document.getElementById('stage');
 const fxCanvas  = document.getElementById('fx');
+const touchFxCanvas = document.getElementById('touch-fx');
 const dogEl     = document.getElementById('dog');
 const dogInner  = document.getElementById('dog-inner');
 const dogJelly  = document.getElementById('dog-jelly');
@@ -253,6 +255,7 @@ const flashLayer = document.getElementById('zoneflash');
 const djStage = document.getElementById('dj-stage');
 const subEl     = overlay.querySelector('.sub');
 const fx2d      = fxCanvas.getContext('2d');
+const touchFx2d = touchFxCanvas.getContext('2d');
 const topControls = document.getElementById('top-controls');
 const musicToggle = document.getElementById('music-toggle');
 const sfxToggle = document.getElementById('sfx-toggle');
@@ -598,6 +601,7 @@ function clearQueuedPerformanceInput() {
 function stopActivePerformanceInput() {
   clearQueuedPerformanceInput();
   pressedKeyboardCodes.clear();
+  releaseAllTouchTrails();
   pointers.clear();
   if (!ctx) return;
   for (const voice of [...liveVoices]) forceStopVoice(voice);
@@ -704,10 +708,7 @@ function isAnyCharacterHolding() {
 function renderKeyGrid() {
   keyGrid.style.setProperty('--key-grid-cols', String(cols));
   keyGrid.style.setProperty('--key-grid-rows', String(rows));
-  keyGrid.classList.toggle(
-    'is-visible',
-    performanceSettings.showGrid || performanceSettings.djMode
-  );
+  keyGrid.classList.toggle('is-visible', performanceSettings.showGrid);
   keyGrid.classList.toggle('is-dj-grid', performanceSettings.djMode);
 
   const fragment = document.createDocumentFragment();
@@ -1511,6 +1512,7 @@ const C = {
   blue:  '#3e7bfa',   // 点缀（少量）
 };
 const ACCENTS = [C.coral, C.teal, C.blue];
+const TOUCH_TRAIL_COLORS = Object.freeze([C.amber, C.teal, C.blue]);
 
 /* 形状取色：约 62% 主色黄，28% 灰，10% 点缀色 */
 function pickColor(rng) {
@@ -2519,6 +2521,75 @@ function drawPiece(g, kind, color, x, y, r, rot) {
   g.restore();
 }
 
+function drawTouchTrails(now) {
+  touchFx2d.clearRect(0, 0, fxW, fxH);
+
+  for (const [pointerId, trail] of touchTrails) {
+    trail.points = trail.points.filter(
+      point => now - point.at < TOUCH_TRAIL_POINT_LIFE
+    );
+    const releaseProgress = trail.releasedAt === null
+      ? 0
+      : clamp01((now - trail.releasedAt) / TOUCH_TRAIL_RELEASE);
+    if (releaseProgress >= 1) {
+      touchTrails.delete(pointerId);
+      continue;
+    }
+
+    const releaseAlpha = 1 - smooth(releaseProgress);
+    const pointCount = trail.points.length;
+    trail.points.forEach((point, index) => {
+      const age = clamp01((now - point.at) / TOUCH_TRAIL_POINT_LIFE);
+      const order = pointCount > 0 ? (index + 1) / pointCount : 1;
+      const alpha = (1 - smooth(age)) * (0.18 + order * 0.58) * releaseAlpha;
+      const size = (2.5 + order * 4.5) * (1 - age * 0.38);
+      touchFx2d.globalAlpha = alpha;
+      drawPiece(
+        touchFx2d,
+        TOUCH_TRAIL_SHAPES[index % TOUCH_TRAIL_SHAPES.length],
+        point.color,
+        point.x,
+        point.y,
+        size,
+        now * 2.2 + index * 0.7
+      );
+    });
+
+    const intro = easeOutBack(clamp01((now - trail.startedAt) / 0.12));
+    const pulse = 1 - clamp01((now - trail.pulseAt) / 0.18);
+    const radius = (24 + pulse * 9 + releaseProgress * 18) * intro;
+    touchFx2d.save();
+    touchFx2d.globalAlpha = releaseAlpha;
+    touchFx2d.strokeStyle = trail.color;
+    touchFx2d.lineWidth = 3 + pulse * 1.8;
+    touchFx2d.shadowColor = trail.color;
+    touchFx2d.shadowBlur = 10 + pulse * 7;
+    touchFx2d.beginPath();
+    touchFx2d.arc(trail.x, trail.y, radius, 0, Math.PI * 2);
+    touchFx2d.stroke();
+
+    touchFx2d.globalAlpha = 0.28 * releaseAlpha;
+    touchFx2d.lineWidth = 2;
+    touchFx2d.beginPath();
+    touchFx2d.arc(trail.x, trail.y, radius + 7 + pulse * 4, 0, Math.PI * 2);
+    touchFx2d.stroke();
+
+    touchFx2d.globalAlpha = 0.92 * releaseAlpha;
+    drawPiece(
+      touchFx2d,
+      'diamond',
+      trail.color,
+      trail.x,
+      trail.y,
+      5.5 * intro * (1 + pulse * 0.32),
+      Math.PI / 4 + now * 0.8
+    );
+    touchFx2d.restore();
+  }
+
+  touchFx2d.globalAlpha = 1;
+}
+
 /* ============================================================
  * 全屏特效引擎（仿 Mikutap）
  *  - 每次触发生成一个全屏特效实例，叠在旧特效之上
@@ -2527,6 +2598,11 @@ function drawPiece(g, kind, color, x, y, r, rot) {
  * ==========================================================*/
 const FX_IN = 0.55;    // 入场时长（秒）
 const FX_OUT = 0.4;    // 退场时长（秒）
+const TOUCH_TRAIL_MAX_POINTS = 10;
+const TOUCH_TRAIL_POINT_GAP = 8;
+const TOUCH_TRAIL_POINT_LIFE = 0.32;
+const TOUCH_TRAIL_RELEASE = 0.2;
+const TOUCH_TRAIL_SHAPES = Object.freeze(['circle', 'diamond', 'square']);
 
 let fxW = 0, fxH = 0;  // 画布尺寸（CSS 像素）
 let fxList = [];       // 活跃特效（数组顺序 = 叠放顺序）
@@ -2546,18 +2622,128 @@ function getStageMetrics() {
   };
 }
 
+function touchTrailNow() {
+  return performance.now() / 1000;
+}
+
+function getTouchTrailPoint(clientX, clientY) {
+  const { width, height, left, top } = getStageMetrics();
+  return {
+    x: Math.max(0, Math.min(width, clientX - left)),
+    y: Math.max(0, Math.min(height, clientY - top)),
+  };
+}
+
+function getTouchTrailColor(clientX, clientY) {
+  const zone = zones[zoneIndex(clientX, clientY)];
+  return Number.isInteger(zone?.deckSlot)
+    ? TOUCH_TRAIL_COLORS[zone.deckSlot]
+    : C.amber;
+}
+
+function beginTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
+  const point = getTouchTrailPoint(clientX, clientY);
+  const color = getTouchTrailColor(clientX, clientY);
+  touchTrails.set(pointerId, {
+    x: point.x,
+    y: point.y,
+    sampleX: point.x,
+    sampleY: point.y,
+    color,
+    startedAt: at,
+    updatedAt: at,
+    sampleAt: at,
+    pulseAt: at,
+    releasedAt: null,
+    points: [{ ...point, color, at }],
+  });
+}
+
+function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
+  const trail = touchTrails.get(pointerId);
+  if (!trail || trail.releasedAt !== null) return;
+
+  const point = getTouchTrailPoint(clientX, clientY);
+  const color = getTouchTrailColor(clientX, clientY);
+  const dx = point.x - trail.sampleX;
+  const dy = point.y - trail.sampleY;
+  const distance = Math.hypot(dx, dy);
+  const steps = Math.min(
+    TOUCH_TRAIL_MAX_POINTS,
+    Math.floor(distance / TOUCH_TRAIL_POINT_GAP)
+  );
+
+  for (let index = 1; index <= steps; index++) {
+    const progress = index / steps;
+    trail.points.push({
+      x: trail.sampleX + dx * progress,
+      y: trail.sampleY + dy * progress,
+      color,
+      at: trail.sampleAt + (at - trail.sampleAt) * progress,
+    });
+  }
+  if (steps > 0) {
+    trail.sampleX = point.x;
+    trail.sampleY = point.y;
+    trail.sampleAt = at;
+  }
+  if (trail.points.length > TOUCH_TRAIL_MAX_POINTS) {
+    trail.points.splice(0, trail.points.length - TOUCH_TRAIL_MAX_POINTS);
+  }
+
+  trail.x = point.x;
+  trail.y = point.y;
+  trail.color = color;
+  trail.updatedAt = at;
+}
+
+function pulseTouchTrail(pointerId, at = touchTrailNow()) {
+  const trail = touchTrails.get(pointerId);
+  if (trail && trail.releasedAt === null) trail.pulseAt = at;
+}
+
+function releaseTouchTrail(pointerId, at = touchTrailNow()) {
+  const trail = touchTrails.get(pointerId);
+  if (trail && trail.releasedAt === null) trail.releasedAt = at;
+}
+
+function releaseAllTouchTrails(at = touchTrailNow()) {
+  for (const pointerId of touchTrails.keys()) releaseTouchTrail(pointerId, at);
+}
+
 function fxResize() {
+  const previousWidth = fxW;
+  const previousHeight = fxH;
   const dpr = Math.min(devicePixelRatio || 1, 2);
   const { width, height } = getStageMetrics();
   fxW = width;
   fxH = height;
   const sceneUnit = fxW >= fxH ? fxH / 2 : fxW / 1.5;
   stage.style.setProperty('--scene-unit', `${sceneUnit}px`);
-  fxCanvas.width = Math.round(fxW * dpr);
-  fxCanvas.height = Math.round(fxH * dpr);
-  fxCanvas.style.width = fxW + 'px';
-  fxCanvas.style.height = fxH + 'px';
-  fx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const [canvas, context] of [
+    [fxCanvas, fx2d],
+    [touchFxCanvas, touchFx2d],
+  ]) {
+    canvas.width = Math.round(fxW * dpr);
+    canvas.height = Math.round(fxH * dpr);
+    canvas.style.width = fxW + 'px';
+    canvas.style.height = fxH + 'px';
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  if (previousWidth > 0 && previousHeight > 0) {
+    const scaleX = fxW / previousWidth;
+    const scaleY = fxH / previousHeight;
+    for (const trail of touchTrails.values()) {
+      trail.x *= scaleX;
+      trail.y *= scaleY;
+      trail.sampleX *= scaleX;
+      trail.sampleY *= scaleY;
+      for (const point of trail.points) {
+        point.x *= scaleX;
+        point.y *= scaleY;
+      }
+    }
+  }
   // 活跃特效重新对齐网页容器正中心
   for (const e of fxList) { e.cx = cx0(); e.cy = cy0(); }
 }
@@ -3431,6 +3617,7 @@ function tick() {
   }
 
   fxFrame(now);
+  drawTouchTrails(touchTrailNow());
 }
 
 /* ============================================================
@@ -3451,6 +3638,7 @@ function retuneHeldJiao(pointerId, state, zi) {
 
 function enterZone(pointerId, state, zi) {
   if (zi === state.zone) return;
+  pulseTouchTrail(pointerId);
   if (retuneHeldJiao(pointerId, state, zi)) return;
 
   if (state.voice) {
@@ -3489,6 +3677,7 @@ function tryActivate(pointerId, x, y, state) {
 
 stage.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  beginTouchTrail(e.pointerId, e.clientX, e.clientY);
   if (!started || !buffers.da) {
     pointers.set(e.pointerId, {
       zone: -1,
@@ -3510,8 +3699,9 @@ stage.addEventListener('pointerdown', (e) => {
 
 stage.addEventListener('pointermove', (e) => {
   if (!pointers.has(e.pointerId)) return;
-  if (!started || !buffers.da) return;
   e.preventDefault();
+  moveTouchTrail(e.pointerId, e.clientX, e.clientY);
+  if (!started || !buffers.da) return;
   pointers.set(
     e.pointerId,
     tryActivate(
@@ -3524,6 +3714,7 @@ stage.addEventListener('pointermove', (e) => {
 }, { passive: false });
 
 function endInput(pointerId, musical) {
+  releaseTouchTrail(pointerId);
   const state = pointers.get(pointerId);
   if (state && state.voice) {
     if (musical) releaseVoice(state.voice, true);

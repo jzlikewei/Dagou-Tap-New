@@ -215,6 +215,141 @@ assert.equal(
   'rotating the active layout must release input tied to the old grid',
 );
 
+const gridVisibilitySandbox = {};
+vm.runInNewContext(
+  `
+  let cols = 8;
+  let rows = 3;
+  const zones = [];
+  const performanceSettings = { djMode: true, showGrid: false };
+  const classState = new Map();
+  const keyGrid = {
+    style: { setProperty() {} },
+    classList: {
+      toggle(name, enabled) { classState.set(name, Boolean(enabled)); },
+    },
+    replaceChildren() {},
+  };
+  const document = {
+    createDocumentFragment() { return { appendChild() {} }; },
+    createElement() {
+      return {
+        className: '',
+        dataset: {},
+        classList: { add() {} },
+        appendChild() {},
+      };
+    },
+  };
+  ${extractFunction('renderKeyGrid')}
+
+  globalThis.gridVisibilityApi = {
+    render(showGrid) {
+      performanceSettings.showGrid = showGrid;
+      renderKeyGrid();
+      return Object.fromEntries(classState);
+    },
+  };
+  `,
+  gridVisibilitySandbox,
+);
+
+assert.deepEqual(
+  clone(gridVisibilitySandbox.gridVisibilityApi.render(false)),
+  { 'is-visible': false, 'is-dj-grid': true },
+  'DJ mode must let the grid setting hide fine cell boundaries',
+);
+assert.deepEqual(
+  clone(gridVisibilitySandbox.gridVisibilityApi.render(true)),
+  { 'is-visible': true, 'is-dj-grid': true },
+  'DJ mode must let the grid setting show fine cell boundaries',
+);
+
+const touchTrailSandbox = {};
+vm.runInNewContext(
+  `
+  const C = { amber: '#ffb400', teal: '#16c2a3', blue: '#3e7bfa' };
+  const TOUCH_TRAIL_COLORS = Object.freeze([C.amber, C.teal, C.blue]);
+  const TOUCH_TRAIL_MAX_POINTS = 10;
+  const TOUCH_TRAIL_POINT_GAP = 8;
+  const touchTrails = new Map();
+  const zones = [{ deckSlot: 0 }, { deckSlot: 2 }];
+  function zoneIndex(clientX) { return clientX < 500 ? 0 : 1; }
+  function getStageMetrics() {
+    return { width: 1000, height: 500, left: 100, top: 50 };
+  }
+  function touchTrailNow() { return 99; }
+  ${extractFunction('getTouchTrailPoint')}
+  ${extractFunction('getTouchTrailColor')}
+  ${extractFunction('beginTouchTrail')}
+  ${extractFunction('moveTouchTrail')}
+  ${extractFunction('pulseTouchTrail')}
+  ${extractFunction('releaseTouchTrail')}
+  ${extractFunction('releaseAllTouchTrails')}
+
+  function snapshot(pointerId) {
+    const trail = touchTrails.get(pointerId);
+    return trail ? {
+      x: trail.x,
+      y: trail.y,
+      sampleX: trail.sampleX,
+      color: trail.color,
+      pulseAt: trail.pulseAt,
+      releasedAt: trail.releasedAt,
+      pointCount: trail.points.length,
+    } : null;
+  }
+
+  globalThis.touchTrailApi = {
+    begin: beginTouchTrail,
+    move: moveTouchTrail,
+    pulse: pulseTouchTrail,
+    release: releaseTouchTrail,
+    releaseAll: releaseAllTouchTrails,
+    snapshot,
+    size() { return touchTrails.size; },
+  };
+  `,
+  touchTrailSandbox,
+);
+
+const touchTrailApi = touchTrailSandbox.touchTrailApi;
+touchTrailApi.begin(1, 200, 100, 1);
+touchTrailApi.move(1, 204, 100, 1.01);
+assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
+  x: 104,
+  y: 50,
+  sampleX: 100,
+  color: '#ffb400',
+  pulseAt: 1,
+  releasedAt: null,
+  pointCount: 1,
+});
+touchTrailApi.move(1, 208, 100, 1.02);
+assert.equal(
+  touchTrailApi.snapshot(1).pointCount,
+  2,
+  'small pointer moves must accumulate into a visible trail sample',
+);
+touchTrailApi.move(1, 700, 300, 1.2);
+assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
+  x: 600,
+  y: 250,
+  sampleX: 600,
+  color: '#3e7bfa',
+  pulseAt: 1,
+  releasedAt: null,
+  pointCount: 10,
+});
+touchTrailApi.begin(2, 250, 130, 1.2);
+touchTrailApi.pulse(1, 1.3);
+touchTrailApi.release(1, 1.4);
+touchTrailApi.releaseAll(1.5);
+assert.equal(touchTrailApi.size(), 2);
+assert.equal(touchTrailApi.snapshot(1).pulseAt, 1.3);
+assert.equal(touchTrailApi.snapshot(1).releasedAt, 1.4);
+assert.equal(touchTrailApi.snapshot(2).releasedAt, 1.5);
+
 const keyboardSandbox = {};
 vm.runInNewContext(
   `
@@ -246,6 +381,8 @@ vm.runInNewContext(
   }
   function releaseVoice(voice) { released.push(voice.id); }
   function forceStopVoice(voice) { forceStopped.push(voice.id); }
+  function releaseTouchTrail() {}
+  function releaseAllTouchTrails() {}
   function cancelQueuedInputs() {}
   function clearInputVisualTimers() { inputVisualTimers.clear(); }
   ${extractFunction('clearQueuedPerformanceInput')}
@@ -416,3 +553,5 @@ console.log('- all 36 physical keys map to the intended deck, syllable, and pitc
 console.log('- keyboard press, repeat suppression, release, settings guard, and blur cleanup work');
 console.log('- layout rotation releases input tied to the previous grid');
 console.log('- different decks sustain together while the newest voice wins within one deck');
+console.log('- the grid setting controls DJ cell boundaries while deck structure remains active');
+console.log('- multi-pointer touch trails follow movement, cap history, pulse, and release independently');

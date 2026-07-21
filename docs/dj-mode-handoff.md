@@ -7,6 +7,8 @@
 - 三套原有验证脚本已适配 DJ 数据模型并通过。
 - 新增 `tools/verify_dj_mode.mjs`，覆盖横竖屏 Deck 网格、36 键映射、键盘生命周期、旋转清理和多 Deck 长音。
 - 页面失焦统一释放队列、按键和活动声音；旋转布局时释放旧网格输入；移除 Deck 时清理嘴部计时器。
+- 新增独立多指跟手画布：每个触点显示圆环、短粒子尾迹和跨格脉冲，松手后独立淡出。
+- `显示网格` 已改为真正控制 DJ 细网格；Deck 分界由舞台结构独立保留。
 - `tools/README.md` 已补充 DJ 验证命令和键盘布局。
 - GitHub Pages 测试分支为 `codex/dj-mode-pages`，测试版临时开启 `DEBUG_UNLOCK_SFX`；正式发布前恢复为 `false`。
 
@@ -363,6 +365,7 @@ replacePerformanceSettings({ ...performanceSettings, djMode: true });
 - 桌面显示键帽，触屏隐藏键帽。
 - 顶部控制、作者链接和设置面板层级正常。
 - 点击闪光覆盖对应单元。
+- 每根手指拥有独立圆环和短粒子尾迹，跨格时圆环产生脉冲。
 - 各 Deck 张嘴和长按动画独立。
 
 交互检查项：
@@ -384,7 +387,7 @@ replacePerformanceSettings({ ...performanceSettings, djMode: true });
 - 模式切换调用 `stopActivePerformanceInput()` 后，所有声音是否在 Deck DOM 移除前完成释放。
 - 屏幕旋转触发 `buildGrid()` 时，活动指针是否需要主动结束。
 - DJ 特效目前仍使用全屏画布，发散中心位于对应 Deck；部分几何形状仍会越过 Deck 边界。若产品要求视觉严格分屏，需要给每台 Deck 增加裁剪区域或独立画布。
-- DJ 模式中基础网格始终显示，当前 `showGrid` 不会产生额外视觉差异。接手时需要决定隐藏该开关，或让它切换更强的网格边界。
+- DJ 模式的 `showGrid` 控制 `4 × 3` 细网格，Deck 之间的结构分界始终保留。
 - 旧云端数据缺少 DJ 键时会落回两台默认配置。
 
 ### 5. 文档和版本
