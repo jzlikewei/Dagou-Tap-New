@@ -2630,6 +2630,13 @@ function drawTouchTrails(now) {
     const intro = easeOutBack(clamp01((now - trail.startedAt) / 0.12));
     const pulse = 1 - clamp01((now - trail.pulseAt) / 0.18);
     if (emojiMode) {
+      const releasePop = Math.sin(
+        Math.min(1, releaseProgress / 0.5) * Math.PI / 2
+      );
+      const exitProgress = releaseProgress * releaseProgress;
+      const exitDistance = TOUCH_TRAIL_EXIT_DISTANCE * exitProgress;
+      const emojiX = trail.x + trail.exitX * exitDistance;
+      const emojiY = Math.max(24, trail.y - 30) + trail.exitY * exitDistance;
       touchFx2d.save();
       touchFx2d.globalAlpha = 0.58 * releaseAlpha;
       touchFx2d.fillStyle = trail.color;
@@ -2640,11 +2647,12 @@ function drawTouchTrails(now) {
       drawTouchEmoji(
         touchFx2d,
         trail.emoji,
-        trail.x,
-        Math.max(24, trail.y - 30),
-        (34 + pulse * 8 + releaseProgress * 7) * intro,
+        emojiX,
+        emojiY,
+        (34 + pulse * 8 + releasePop * 7) * intro,
         releaseAlpha,
         Math.sin(now * 5 + trail.x * 0.01) * 0.07
+          + trail.exitX * releaseProgress * 0.22
       );
       continue;
     }
@@ -2694,6 +2702,8 @@ const TOUCH_TRAIL_MAX_POINTS = 10;
 const TOUCH_TRAIL_POINT_GAP = 8;
 const TOUCH_TRAIL_POINT_LIFE = 0.32;
 const TOUCH_TRAIL_RELEASE = 0.2;
+const TOUCH_TRAIL_EXIT_MOMENTUM_WINDOW = 0.12;
+const TOUCH_TRAIL_EXIT_DISTANCE = 120;
 const TOUCH_TRAIL_SHAPES = Object.freeze(['circle', 'diamond', 'square']);
 
 let fxW = 0, fxH = 0;  // 画布尺寸（CSS 像素）
@@ -2751,6 +2761,8 @@ function beginTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
     sampleAt: at,
     pulseAt: at,
     releasedAt: null,
+    exitX: 0,
+    exitY: -1,
     points: [{ ...point, color, emoji, at }],
   });
 }
@@ -2802,7 +2814,19 @@ function pulseTouchTrail(pointerId, at = touchTrailNow()) {
 
 function releaseTouchTrail(pointerId, at = touchTrailNow()) {
   const trail = touchTrails.get(pointerId);
-  if (trail && trail.releasedAt === null) trail.releasedAt = at;
+  if (!trail || trail.releasedAt !== null) return;
+
+  const momentumPoint = trail.points.find(
+    point => at - point.at <= TOUCH_TRAIL_EXIT_MOMENTUM_WINDOW
+  );
+  const momentumX = momentumPoint ? trail.x - momentumPoint.x : 0;
+  const momentumY = momentumPoint ? trail.y - momentumPoint.y : 0;
+  const momentumDistance = Math.hypot(momentumX, momentumY);
+  if (momentumDistance >= TOUCH_TRAIL_POINT_GAP) {
+    trail.exitX = momentumX / momentumDistance;
+    trail.exitY = momentumY / momentumDistance;
+  }
+  trail.releasedAt = at;
 }
 
 function releaseAllTouchTrails(at = touchTrailNow()) {

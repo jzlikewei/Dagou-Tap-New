@@ -273,6 +273,7 @@ vm.runInNewContext(
   const SFX_EMOJIS = Object.freeze({ dagou: '🐶', dingdong: '🐔', hajimi: '🐱' });
   const TOUCH_TRAIL_MAX_POINTS = 10;
   const TOUCH_TRAIL_POINT_GAP = 8;
+  const TOUCH_TRAIL_EXIT_MOMENTUM_WINDOW = 0.12;
   const touchTrails = new Map();
   const zones = [
     { deckSlot: 0, sfxId: 'dagou' },
@@ -304,6 +305,8 @@ vm.runInNewContext(
       emoji: trail.emoji,
       pulseAt: trail.pulseAt,
       releasedAt: trail.releasedAt,
+      exitX: trail.exitX,
+      exitY: trail.exitY,
       pointCount: trail.points.length,
     } : null;
   }
@@ -332,6 +335,8 @@ assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
   emoji: '🐶',
   pulseAt: 1,
   releasedAt: null,
+  exitX: 0,
+  exitY: -1,
   pointCount: 1,
 });
 touchTrailApi.move(1, 208, 100, 1.02);
@@ -352,16 +357,29 @@ assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
   emoji: '🐱',
   pulseAt: 1,
   releasedAt: null,
+  exitX: 0,
+  exitY: -1,
   pointCount: 10,
 });
 touchTrailApi.begin(2, 250, 130, 1.2);
+touchTrailApi.begin(3, 200, 100, 1.2);
+touchTrailApi.move(3, 280, 100, 1.3);
+touchTrailApi.release(3, 1.31);
 touchTrailApi.pulse(1, 1.3);
 touchTrailApi.release(1, 1.4);
 touchTrailApi.releaseAll(1.5);
-assert.equal(touchTrailApi.size(), 2);
+assert.equal(touchTrailApi.size(), 3);
 assert.equal(touchTrailApi.snapshot(1).pulseAt, 1.3);
 assert.equal(touchTrailApi.snapshot(1).releasedAt, 1.4);
 assert.equal(touchTrailApi.snapshot(2).releasedAt, 1.5);
+assert.deepEqual(
+  clone({
+    exitX: touchTrailApi.snapshot(3).exitX,
+    exitY: touchTrailApi.snapshot(3).exitY,
+  }),
+  { exitX: 1, exitY: 0 },
+  'emoji release must keep the latest swipe direction for its fly-out',
+);
 assert.match(
   extractFunction('drawTouchTrails'),
   /performanceSettings\.djMode\s*&&\s*djSettings\.trailStyle === 'emoji'/,
@@ -371,6 +389,11 @@ assert.match(
   extractFunction('drawTouchEmoji'),
   /fillText\(emoji, 0, 0\)/,
   'emoji trails must draw the sound-matched glyph on the touch canvas',
+);
+assert.match(
+  extractFunction('drawTouchTrails'),
+  /TOUCH_TRAIL_EXIT_DISTANCE \* exitProgress/,
+  'emoji release must accelerate away from the finger while fading',
 );
 
 const keyboardSandbox = {};
@@ -578,4 +601,4 @@ console.log('- layout rotation releases input tied to the previous grid');
 console.log('- different decks sustain together while the newest voice wins within one deck');
 console.log('- the grid setting controls DJ cell boundaries while deck structure remains active');
 console.log('- multi-pointer touch trails follow movement, cap history, pulse, and release independently');
-console.log('- emoji trails map dog, chicken, and cat glyphs to each deck sound');
+console.log('- emoji trails map each deck sound and fly along the last swipe on release');
