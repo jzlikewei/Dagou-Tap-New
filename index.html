@@ -55,6 +55,71 @@
     pointer-events: none;
   }
 
+  /* 3D 音场控制：手动模式可拖动，重力模式作为实时倾斜指示器。 */
+  #sound-field-control {
+    position: absolute;
+    left: 50%;
+    top: max(12px, env(safe-area-inset-top));
+    z-index: 28;
+    width: min(340px, 46vw);
+    min-width: 250px;
+    min-height: 42px;
+    padding: 7px 9px;
+    display: none;
+    align-items: center;
+    gap: 7px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .9);
+    border: 1px solid rgba(255, 180, 0, .5);
+    border-radius: 11px;
+    box-shadow: 0 5px 16px rgba(135, 131, 126, .18);
+    transform: translateX(-50%);
+    pointer-events: auto;
+    touch-action: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  #stage.is-spatial-audio #sound-field-control { display: flex; }
+  .sound-field-badge {
+    flex: none;
+    color: #b57e00;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .04em;
+  }
+  .sound-field-edge {
+    flex: none;
+    color: rgba(111, 106, 99, .68);
+    font: 800 9px/1 system-ui, sans-serif;
+  }
+  #sound-field-slider {
+    flex: 1;
+    min-width: 80px;
+    height: 24px;
+    margin: 0;
+    accent-color: var(--amber);
+    cursor: ew-resize;
+    touch-action: none;
+  }
+  #sound-field-slider:disabled {
+    opacity: .72;
+    cursor: default;
+  }
+  #sound-field-center {
+    flex: none;
+    min-width: 42px;
+    min-height: 27px;
+    padding: 4px 7px;
+    border: 1px solid rgba(135, 131, 126, .34);
+    border-radius: 7px;
+    color: #77716b;
+    background: rgba(255, 255, 255, .72);
+    font: 750 9px/1 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #sound-field-center:active { transform: scale(.95); }
+
   /* 常驻创作署名：保留原作者入口，并补充 DJ 版改编者。 */
   #author-credits {
     position: absolute;
@@ -605,6 +670,16 @@
       font-size: 7px;
     }
     .dj-author-name { font-size: 9px; }
+    #sound-field-control {
+      top: max(8px, env(safe-area-inset-top));
+      width: min(280px, calc(100% - 126px));
+      min-width: 210px;
+      min-height: 38px;
+      padding: 5px 7px;
+      gap: 5px;
+    }
+    .sound-field-badge { font-size: 9px; }
+    #sound-field-center { min-width: 38px; padding-inline: 5px; }
   }
 
   /* 开始遮罩（首次点击解锁音频） */
@@ -868,6 +943,32 @@
     border-radius: 10px;
   }
   .dj-settings.is-visible { display: grid; }
+  .spatial-audio-settings {
+    display: none;
+    gap: 7px;
+    margin-top: 1px;
+    padding: 9px;
+    background: rgba(255, 244, 224, .54);
+    border: 1px solid rgba(255, 180, 0, .28);
+    border-radius: 10px;
+  }
+  .spatial-audio-settings.is-visible { display: grid; }
+  .spatial-mode-setting {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+  .spatial-mode-label {
+    color: rgba(111, 106, 99, .8);
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .spatial-mode-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
   .dj-count {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -875,7 +976,8 @@
   }
   .dj-count-button,
   .dj-sfx-choice,
-  .dj-trail-choice {
+  .dj-trail-choice,
+  .spatial-mode-button {
     border: 1px solid rgba(135, 131, 126, .32);
     color: #77716b;
     background: rgba(255, 255, 255, .66);
@@ -888,16 +990,22 @@
     min-height: 34px;
     border-radius: 8px;
   }
+  .spatial-mode-button {
+    min-height: 34px;
+    border-radius: 8px;
+  }
   .dj-count-button.is-active,
   .dj-sfx-choice.is-active,
-  .dj-trail-choice.is-active {
+  .dj-trail-choice.is-active,
+  .spatial-mode-button.is-active {
     color: #b57e00;
     border-color: rgba(255, 180, 0, .78);
     background: rgba(255, 250, 240, .96);
   }
   .dj-count-button:disabled,
   .dj-sfx-choice:disabled,
-  .dj-trail-choice:disabled {
+  .dj-trail-choice:disabled,
+  .spatial-mode-button:disabled {
     opacity: .52;
     cursor: wait;
   }
@@ -951,6 +1059,12 @@
     white-space: nowrap;
   }
   .dj-keyboard-hint {
+    color: rgba(135, 131, 126, .8);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+  }
+  .spatial-audio-hint {
     color: rgba(135, 131, 126, .8);
     font-size: 10px;
     line-height: 1.45;
@@ -1250,6 +1364,13 @@
   <div id="stage">
     <canvas id="fx"></canvas>
     <canvas id="touch-fx" aria-hidden="true"></canvas>
+    <div id="sound-field-control" role="group" aria-label="3D 音场控制" aria-hidden="true">
+      <span class="sound-field-badge" id="sound-field-mode-label">3D · 手动</span>
+      <span class="sound-field-edge" aria-hidden="true">L</span>
+      <input id="sound-field-slider" type="range" min="-100" max="100" step="1" value="0" aria-label="音场位置" aria-valuetext="居中" />
+      <span class="sound-field-edge" aria-hidden="true">R</span>
+      <button id="sound-field-center" type="button">回中</button>
+    </div>
     <div id="author-credits" aria-label="创作信息">
       <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开原作者马克杯 MarkCup 的哔哩哔哩主页">
         <span class="author-copy" aria-hidden="true">
@@ -1418,7 +1539,7 @@
                   <span class="dj-trail-label">跟手特效</span>
                   <div class="dj-trail-choices" role="radiogroup" aria-label="跟手特效">
                     <button class="dj-trail-choice is-active" type="button" role="radio" aria-checked="true" data-dj-trail-style="normal">普通</button>
-                    <button class="dj-trail-choice" type="button" role="radio" aria-checked="false" aria-label="动物 Emoji" data-dj-trail-style="emoji">🐶🐔🐱</button>
+                    <button class="dj-trail-choice" type="button" role="radio" aria-checked="false" aria-label="动物 Emoji" data-dj-trail-style="emoji">🐶🐱🐔</button>
                   </div>
                 </div>
                 <div class="dj-deck-assignment" data-dj-slot="0">
@@ -1468,6 +1589,23 @@
                 </span>
                 <span class="setting-switch" aria-hidden="true"></span>
               </button>
+              <button class="setting-row" id="spatial-audio-setting" type="button" role="switch" aria-checked="false" data-setting="spatialAudio" disabled>
+                <span class="setting-copy">
+                  <span class="setting-name">3D 音效</span>
+                  <span class="setting-description">左右 Deck 分离，并可拖动或倾斜音场</span>
+                </span>
+                <span class="setting-switch" aria-hidden="true"></span>
+              </button>
+              <div id="spatial-audio-settings" class="spatial-audio-settings" aria-hidden="true">
+                <div class="spatial-mode-setting">
+                  <span class="spatial-mode-label">控制方式</span>
+                  <div class="spatial-mode-choices" role="radiogroup" aria-label="3D 音场控制方式">
+                    <button class="spatial-mode-button is-active" type="button" role="radio" aria-checked="true" data-spatial-mode="manual">手动</button>
+                    <button class="spatial-mode-button" type="button" role="radio" aria-checked="false" data-spatial-mode="gravity">重力</button>
+                  </div>
+                </div>
+                <div class="spatial-audio-hint">手动模式拖动舞台顶部滑杆；重力模式倾斜 iPad，点“校准”重设中央位置</div>
+              </div>
             </div>
             <div id="performance-settings-status" role="status">正在读取哔哩哔哩云端设置…</div>
           </section>
@@ -1484,6 +1622,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-dj-default-on-test"></script>
+<script src="main.js?v=20260721-spatial-audio"></script>
 </body>
 </html>

@@ -40,6 +40,7 @@ function extractConst(name) {
 const gridSandbox = {};
 vm.runInNewContext(
   `
+  ${extractConst('DEFAULT_DJ_SETTINGS')}
   ${extractConst('DJ_ACTIVE_SLOTS')}
   ${extractConst('DJ_KEY_GROUPS')}
   let cols = 4;
@@ -50,8 +51,8 @@ vm.runInNewContext(
   const pointers = new Map();
   const performanceSettings = { djMode: true, pianoMode: true };
   const djSettings = {
-    deckCount: 2,
-    deckSfxIds: ['dagou', 'dingdong', 'hajimi'],
+    deckCount: DEFAULT_DJ_SETTINGS.deckCount,
+    deckSfxIds: [...DEFAULT_DJ_SETTINGS.deckSfxIds],
   };
   let stageMetrics = { width: 1200, height: 800 };
   let stopCalls = 0;
@@ -191,6 +192,13 @@ assertDeckLayout(landscapeThree, {
   landscape: true,
   slots: [0, 1, 2],
 });
+assert.deepEqual(
+  [0, 1, 2].map(slot =>
+    clone(landscapeThree).zones.find(zone => zone.deckSlot === slot).sfxId
+  ),
+  ['dagou', 'hajimi', 'dingdong'],
+  'three-deck mode must default to dog, cat, and chicken from left to right',
+);
 assert.equal(
   new Set(clone(landscapeThree).keyboardEntries.map(([code]) => code)).size,
   36,
@@ -277,8 +285,8 @@ vm.runInNewContext(
   const touchTrails = new Map();
   const zones = [
     { deckSlot: 0, sfxId: 'dagou' },
-    { deckSlot: 1, sfxId: 'dingdong' },
-    { deckSlot: 2, sfxId: 'hajimi' },
+    { deckSlot: 1, sfxId: 'hajimi' },
+    { deckSlot: 2, sfxId: 'dingdong' },
   ];
   function zoneIndex(clientX) {
     return clientX < 400 ? 0 : clientX < 700 ? 1 : 2;
@@ -347,14 +355,14 @@ assert.equal(
 );
 touchTrailApi.move(1, 550, 300, 1.15);
 assert.equal(touchTrailApi.snapshot(1).color, '#16c2a3');
-assert.equal(touchTrailApi.snapshot(1).emoji, '🐔');
+assert.equal(touchTrailApi.snapshot(1).emoji, '🐱');
 touchTrailApi.move(1, 800, 300, 1.2);
 assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
   x: 700,
   y: 250,
   sampleX: 700,
   color: '#3e7bfa',
-  emoji: '🐱',
+  emoji: '🐔',
   pulseAt: 1,
   releasedAt: null,
   exitX: 0,

@@ -8,9 +8,11 @@
 - 新增 `tools/verify_dj_mode.mjs`，覆盖横竖屏 Deck 网格、36 键映射、键盘生命周期、旋转清理和多 Deck 长音。
 - 页面失焦统一释放队列、按键和活动声音；旋转布局时释放旧网格输入；移除 Deck 时清理嘴部计时器。
 - 新增独立多指跟手画布：每个触点显示圆环、短粒子尾迹和跨格脉冲，松手后独立淡出。
-- DJ 设置可在普通几何尾迹与 `🐶🐔🐱` 尾迹之间切换，emoji 跟随所在 Deck 当前绑定的音色变化；松手时轻微放大，并在约 200 毫秒内沿滑动方向飞出、淡出，原地松手默认向上飞。
+- DJ 设置可在普通几何尾迹与 `🐶🐱🐔` 尾迹之间切换，emoji 跟随所在 Deck 当前绑定的音色变化；松手时轻微放大，并在约 200 毫秒内沿滑动方向飞出、淡出，原地松手默认向上飞。
 - 页面标题更新为“大狗Tap DJ版”；创作信息保留原作者马克杯 MarkCup，并加入 DJ 版改编者 `jzlikewei` 的 GitHub 入口。
+- 音频首次加载时随机显示“狗叫加载中”或“基米哈气中”。
 - DJ 模式在音效可用时默认开启；已保存的手动开关选择继续优先恢复。
+- 新增 3D 音效开关：Deck 音效按左、中、右声像进入总线，舞台滑杆可实时移动音场；iPad 可授权重力感应控制，权限或传感器不可用时回到手动模式，背景音乐保持居中。
 - `显示网格` 已改为真正控制 DJ 细网格；Deck 分界由舞台结构独立保留。
 - GitHub Pages 等顶层网页会立即进入本地设置模式，DJ 开关不再等待 Toy SDK 父页面握手。
 - `tools/README.md` 已补充 DJ 验证命令和键盘布局。
@@ -99,7 +101,7 @@ DJ 模式作为独立演奏模式，由设置页开关启用。
 ```js
 const DEFAULT_DJ_SETTINGS = {
   deckCount: 2,
-  deckSfxIds: ['dagou', 'dingdong', 'hajimi'],
+  deckSfxIds: ['dagou', 'hajimi', 'dingdong'],
   trailStyle: 'normal',
 };
 ```
@@ -119,7 +121,7 @@ Deck 使用三个固定槽位：
 3 Deck：[0, 1, 2]
 ```
 
-默认两台 Deck 因此使用大狗叫和哈基米；切换到三台后，中间 Deck 使用叮咚鸡。
+默认两台 Deck 使用大狗叫和叮咚鸡；切换到三台后，中间 Deck 加入哈基米，三区顺序为狗、猫、鸡。
 
 ### 网格
 
@@ -223,6 +225,7 @@ DJ 模式中的哈基米使用静态开嘴、闭嘴图片。东海帝皇循环�
 
 ```text
 dagou_dj_mode_v1
+dagou_spatial_audio_v1
 dagou_dj_deck_count_v1
 dagou_dj_deck_left_v1
 dagou_dj_deck_center_v1
@@ -236,6 +239,7 @@ dagou_dj_deck_right_v1
 - 节奏吸附增加每台 Deck 的独立时间线。
 - 长音归属改为 `activeSustainVoices`。
 - `playPressVoice()`、视觉调度、张嘴控制和特效触发开始携带 `deckId`。
+- 每个短音、长音纹理和释放尾音共用同一 Deck 声像输出，关闭 3D 音效时恢复中央声像。
 - 同一 Deck 的新特效接替旧特效，不同 Deck 可以各自保留一个活动特效。
 - 新增键盘按下、松开、失焦清理。
 - `start()` 改用共享 `startPromise`，首个键盘输入可以等待音频加载完成后继续触发。

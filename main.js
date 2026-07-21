@@ -20,10 +20,11 @@ const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
   pianoMode: false,
   rhythmSnap: true,
   showGrid: false,
+  spatialAudio: false,
 });
 const DEFAULT_DJ_SETTINGS = Object.freeze({
   deckCount: 2,
-  deckSfxIds: Object.freeze(['dagou', 'dingdong', 'hajimi']),
+  deckSfxIds: Object.freeze(['dagou', 'hajimi', 'dingdong']),
   trailStyle: 'normal',
 });
 
@@ -80,6 +81,7 @@ const SFX_EMOJIS = Object.freeze({
   dingdong: '🐔',
   hajimi: '🐱',
 });
+const LOADING_MESSAGES = Object.freeze(['狗叫加载中', '基米哈气中']);
 const DJ_DECK_LABELS = Object.freeze(['LEFT', 'CENTER', 'RIGHT']);
 const DJ_ACTIVE_SLOTS = Object.freeze({
   2: Object.freeze([0, 2]),
@@ -175,11 +177,26 @@ const SUSTAIN_REGIONS = {
 const SUSTAIN_CLAIM_LEAD = 0.008; // 提前声明长音，避免多指延音短暂重叠
 const RELEASE_SCHEDULE_LEAD = 0.006;
 const EMERGENCY_FADE = 0.018;
+const SPATIAL_DECK_PANS = Object.freeze([-0.72, 0, 0.72]);
+const SPATIAL_FIELD_SHIFT = 0.3;
+const SPATIAL_FOCUS_GAIN = 0.12;
+const GRAVITY_DEAD_ZONE = 3;
+const GRAVITY_FULL_TILT = 22;
+const GRAVITY_SMOOTHING = 0.2;
 
 const liveVoices = new Set();
+const liveSpatialOutputs = new Set();
 let voiceSerial = 0;
 const activeSustainVoices = new Map();
 let mouthVoice = null;
+let spatialControlMode = 'manual';
+let soundFieldPosition = 0;
+let manualSoundFieldPosition = 0;
+let gravityBaseline = null;
+let lastGravityTilt = null;
+let gravityListenerActive = false;
+let gravityPermissionPending = false;
+let gravitySensorTimer = 0;
 
 let cols = 4, rows = 3;   // 分区网格（纯逻辑分区，无可见格子）
 let zones = [];           // 每个分区的音色配置
@@ -219,6 +236,7 @@ const TOY_CLOUD_KEYS = Object.freeze({
   pianoMode: 'dagou_piano_mode_v1',
   rhythmSnap: 'dagou_rhythm_snap_v1',
   showGrid: 'dagou_show_grid_v1',
+  spatialAudio: 'dagou_spatial_audio_v1',
   djMode: 'dagou_dj_mode_v1',
   djDeckCount: 'dagou_dj_deck_count_v1',
   djDeckLeft: 'dagou_dj_deck_left_v1',
@@ -291,6 +309,16 @@ const djDeckAssignmentRows = [
   ...document.querySelectorAll('.dj-deck-assignment[data-dj-slot]'),
 ];
 const djSfxChoiceButtons = [...document.querySelectorAll('[data-dj-sfx]')];
+const spatialAudioSettingsPanel = document.getElementById(
+  'spatial-audio-settings'
+);
+const spatialModeButtons = [
+  ...document.querySelectorAll('[data-spatial-mode]'),
+];
+const soundFieldControl = document.getElementById('sound-field-control');
+const soundFieldModeLabel = document.getElementById('sound-field-mode-label');
+const soundFieldSlider = document.getElementById('sound-field-slider');
+const soundFieldCenterButton = document.getElementById('sound-field-center');
 const performanceSettingsStatus = document.getElementById(
   'performance-settings-status'
 );
@@ -583,6 +611,7 @@ const PERFORMANCE_SETTING_KEYS = Object.freeze({
   pianoMode: TOY_CLOUD_KEYS.pianoMode,
   rhythmSnap: TOY_CLOUD_KEYS.rhythmSnap,
   showGrid: TOY_CLOUD_KEYS.showGrid,
+  spatialAudio: TOY_CLOUD_KEYS.spatialAudio,
 });
 const DJ_DECK_CLOUD_KEYS = Object.freeze([
   TOY_CLOUD_KEYS.djDeckLeft,
@@ -617,6 +646,206 @@ function stopActivePerformanceInput() {
   pointers.clear();
   if (!ctx) return;
   for (const voice of [...liveVoices]) forceStopVoice(voice);
+}
+
+function clampSoundFieldPosition(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(-1, Math.min(1, number));
+}
+
+function getDeckBaseSpatialPan(deckId) {
+  if (typeof deckId !== 'string' || !deckId.startsWith('dj-')) return 0;
+  const slot = Number(deckId.slice(3));
+  return SPATIAL_DECK_PANS[slot] ?? 0;
+}
+
+function getSpatialOutputTargets(deckId) {
+  if (!performanceSettings.spatialAudio) return { pan: 0, gain: 1 };
+  const basePan = getDeckBaseSpatialPan(deckId);
+  return {
+    pan: clampSoundFieldPosition(
+      basePan + soundFieldPosition * SPATIAL_FIELD_SHIFT
+    ),
+    gain: Math.max(
+      0.82,
+      Math.min(
+        1.18,
+        1 + basePan * soundFieldPosition * SPATIAL_FOCUS_GAIN
+      )
+    ),
+  };
+}
+
+function setSpatialAudioParam(param, value, immediate = false) {
+  if (!param || !ctx) return;
+  const now = ctx.currentTime;
+  param.cancelScheduledValues(now);
+  if (immediate) param.setValueAtTime(value, now);
+  else param.setTargetAtTime(value, now, 0.035);
+}
+
+function updateSpatialOutput(output, immediate = false) {
+  if (!output) return;
+  const targets = getSpatialOutputTargets(output.deckId);
+  setSpatialAudioParam(output.gain.gain, targets.gain, immediate);
+  if (output.panner) {
+    setSpatialAudioParam(output.panner.pan, targets.pan, immediate);
+  }
+}
+
+function updateLiveSpatialOutputs(immediate = false) {
+  for (const output of liveSpatialOutputs) {
+    updateSpatialOutput(output, immediate);
+  }
+}
+
+function renderSoundFieldPosition() {
+  const percent = Math.round(soundFieldPosition * 100);
+  soundFieldSlider.value = String(percent);
+  const valueText = percent === 0
+    ? '居中'
+    : `${Math.abs(percent)}% 偏${percent < 0 ? '左' : '右'}`;
+  soundFieldSlider.setAttribute('aria-valuetext', valueText);
+}
+
+function renderSpatialAudioControls() {
+  const enabled = performanceSettings.spatialAudio;
+  const gravityMode = spatialControlMode === 'gravity';
+  spatialAudioSettingsPanel.classList.toggle('is-visible', enabled);
+  spatialAudioSettingsPanel.setAttribute('aria-hidden', String(!enabled));
+  stage.classList.toggle('is-spatial-audio', enabled);
+  stage.classList.toggle('is-spatial-gravity', enabled && gravityMode);
+  soundFieldControl.setAttribute('aria-hidden', String(!enabled));
+  soundFieldSlider.disabled = !enabled || gravityMode;
+  soundFieldModeLabel.textContent = gravityMode ? '3D · 重力' : '3D · 手动';
+  soundFieldCenterButton.textContent = gravityMode ? '校准' : '回中';
+
+  for (const button of spatialModeButtons) {
+    const selected = button.dataset.spatialMode === spatialControlMode;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = !enabled || gravityPermissionPending;
+  }
+  renderSoundFieldPosition();
+}
+
+function setSoundFieldPosition(value, rememberManual = false) {
+  soundFieldPosition = clampSoundFieldPosition(value);
+  if (rememberManual) manualSoundFieldPosition = soundFieldPosition;
+  renderSoundFieldPosition();
+  updateLiveSpatialOutputs();
+}
+
+function stopGravitySoundField() {
+  clearTimeout(gravitySensorTimer);
+  gravitySensorTimer = 0;
+  if (gravityListenerActive) {
+    window.removeEventListener('deviceorientation', handleDeviceOrientation);
+  }
+  gravityListenerActive = false;
+  gravityBaseline = null;
+  lastGravityTilt = null;
+}
+
+function activateManualSoundField() {
+  stopGravitySoundField();
+  spatialControlMode = 'manual';
+  setSoundFieldPosition(manualSoundFieldPosition, true);
+  renderSpatialAudioControls();
+}
+
+function screenRelativeTilt(event) {
+  const angle = Number(
+    window.screen?.orientation?.angle ?? window.orientation ?? 0
+  );
+  const normalizedAngle = ((angle % 360) + 360) % 360;
+  if (normalizedAngle === 90) return Number(event.beta);
+  if (normalizedAngle === 270) return -Number(event.beta);
+  return Number(event.gamma);
+}
+
+function handleDeviceOrientation(event) {
+  if (spatialControlMode !== 'gravity' || !performanceSettings.spatialAudio) {
+    return;
+  }
+  const tilt = screenRelativeTilt(event);
+  if (!Number.isFinite(tilt)) return;
+
+  clearTimeout(gravitySensorTimer);
+  gravitySensorTimer = 0;
+  lastGravityTilt = tilt;
+  if (!Number.isFinite(gravityBaseline)) gravityBaseline = tilt;
+
+  const delta = tilt - gravityBaseline;
+  const magnitude = Math.abs(delta);
+  const target = magnitude <= GRAVITY_DEAD_ZONE
+    ? 0
+    : Math.sign(delta) * clampSoundFieldPosition(
+        (magnitude - GRAVITY_DEAD_ZONE) /
+        (GRAVITY_FULL_TILT - GRAVITY_DEAD_ZONE)
+      );
+  setSoundFieldPosition(
+    soundFieldPosition + (target - soundFieldPosition) * GRAVITY_SMOOTHING
+  );
+}
+
+function fallBackToManualSoundField(message) {
+  activateManualSoundField();
+  showToyNotice(message, true);
+}
+
+async function enableGravitySoundField() {
+  if (!performanceSettings.spatialAudio || gravityPermissionPending) return;
+  const OrientationEvent = window.DeviceOrientationEvent;
+  if (typeof OrientationEvent !== 'function') {
+    fallBackToManualSoundField('当前设备无法使用重力感应，已切换为手动拖动。');
+    return;
+  }
+
+  gravityPermissionPending = true;
+  renderSpatialAudioControls();
+  try {
+    if (typeof OrientationEvent.requestPermission === 'function') {
+      const permission = await OrientationEvent.requestPermission();
+      if (permission !== 'granted') {
+        fallBackToManualSoundField(
+          '重力感应权限没有开启，已切换为手动拖动。'
+        );
+        return;
+      }
+    }
+
+    stopGravitySoundField();
+    spatialControlMode = 'gravity';
+    soundFieldPosition = 0;
+    gravityListenerActive = true;
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+    gravitySensorTimer = setTimeout(() => {
+      if (spatialControlMode === 'gravity' && lastGravityTilt === null) {
+        fallBackToManualSoundField(
+          '没有读取到重力感应数据，已切换为手动拖动。'
+        );
+      }
+    }, 2200);
+  } catch (error) {
+    console.warn('[大狗Tap] 重力感应启动失败。', error);
+    fallBackToManualSoundField(
+      '重力感应启动失败，已切换为手动拖动。'
+    );
+  } finally {
+    gravityPermissionPending = false;
+    renderSpatialAudioControls();
+  }
+}
+
+function centerSoundField() {
+  if (spatialControlMode === 'gravity') {
+    gravityBaseline = Number.isFinite(lastGravityTilt) ? lastGravityTilt : null;
+    setSoundFieldPosition(0);
+    return;
+  }
+  setSoundFieldPosition(0, true);
 }
 
 function getActiveDjSlots() {
@@ -764,6 +993,14 @@ function applyPerformanceSettings(previousSettings) {
   }
 
   if (
+    previousSettings &&
+    previousSettings.spatialAudio !== performanceSettings.spatialAudio
+  ) {
+    if (!performanceSettings.spatialAudio) activateManualSoundField();
+    updateLiveSpatialOutputs();
+  }
+
+  if (
     zones.length === 0 ||
     !previousSettings ||
     previousSettings.pianoMode !== performanceSettings.pianoMode ||
@@ -898,6 +1135,7 @@ function renderPerformanceSettings() {
     ? 'DJ 模式固定使用 4 × 3 网格'
     : '开放一个八度的音阶';
   renderDjSettings();
+  renderSpatialAudioControls();
 
   performanceSettingsStatus.classList.toggle(
     'is-error',
@@ -1306,6 +1544,38 @@ for (const button of performanceSettingButtons) {
     void handlePerformanceSettingClick(button);
   });
 }
+
+soundFieldSlider.addEventListener('input', () => {
+  if (spatialControlMode !== 'manual') return;
+  setSoundFieldPosition(Number(soundFieldSlider.value) / 100, true);
+});
+soundFieldCenterButton.addEventListener('click', centerSoundField);
+for (const button of spatialModeButtons) {
+  button.addEventListener('click', () => {
+    const mode = button.dataset.spatialMode;
+    if (mode === spatialControlMode || gravityPermissionPending) return;
+    if (mode === 'gravity') void enableGravitySoundField();
+    else activateManualSoundField();
+  });
+}
+for (const eventName of [
+  'pointerdown',
+  'pointermove',
+  'pointerup',
+  'pointercancel',
+  'click',
+]) {
+  soundFieldControl.addEventListener(
+    eventName,
+    (event) => event.stopPropagation()
+  );
+}
+window.addEventListener('orientationchange', () => {
+  if (spatialControlMode !== 'gravity') return;
+  gravityBaseline = null;
+  lastGravityTilt = null;
+  setSoundFieldPosition(0);
+});
 
 async function persistDjSettings(nextSettings, cloudItems) {
   if (djSettingsSaving) return;
@@ -2010,6 +2280,33 @@ function safeStop(source, when = ctx.currentTime) {
   try { source.stop(when); } catch (_) { /* 已经结束或尚未启动均可忽略 */ }
 }
 
+function createSpatialOutput(deckId) {
+  const gain = ctx.createGain();
+  const panner = typeof ctx.createStereoPanner === 'function'
+    ? ctx.createStereoPanner()
+    : null;
+  if (panner) {
+    gain.connect(panner);
+    panner.connect(sfxBus);
+  } else {
+    gain.connect(sfxBus);
+  }
+
+  const output = { deckId, gain, panner };
+  liveSpatialOutputs.add(output);
+  updateSpatialOutput(output, true);
+  return output;
+}
+
+function disconnectSpatialOutput(output) {
+  if (!output) return;
+  liveSpatialOutputs.delete(output);
+  try { output.gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  if (output.panner) {
+    try { output.panner.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  }
+}
+
 function cleanupVoice(voice) {
   if (!voice || voice.cleaned) return;
   voice.cleaned = true;
@@ -2030,6 +2327,7 @@ function cleanupVoice(voice) {
     if (!node) continue;
     try { node.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   }
+  disconnectSpatialOutput(voice.spatialOutput);
 }
 
 function createTailSource(voice, boundary, sourceOffset) {
@@ -2039,7 +2337,7 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.playbackRate.setValueAtTime(voice.rate, boundary);
   gain.gain.setValueAtTime(voice.sampleGain, boundary);
   source.connect(gain);
-  gain.connect(sfxBus);
+  gain.connect(voice.spatialOutput.gain);
   source.start(boundary, sourceOffset);
 
   voice.tailSource = source;
@@ -2058,20 +2356,23 @@ function playPressVoice(name, rate, when, deckId = null) {
   if (!sustain) {
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
+    const spatialOutput = createSpatialOutput(deckId);
     source.buffer = sourceBuffer;
     source.playbackRate.setValueAtTime(rate, when);
     gain.gain.setValueAtTime(sampleGain, when);
     source.connect(gain);
-    gain.connect(sfxBus);
+    gain.connect(spatialOutput.gain);
     source.onended = () => {
       try { source.disconnect(); } catch (_) { /* 节点可能已断开 */ }
       try { gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+      disconnectSpatialOutput(spatialOutput);
     };
     source.start(when);
     return null;
   }
 
   const handoffAt = when + sustain.tailOffset / rate;
+  const spatialOutput = createSpatialOutput(deckId);
 
   // 完整原音始终先启动；短按只需取消未来的静音事件即可保持原效果。
   const drySource = ctx.createBufferSource();
@@ -2081,7 +2382,7 @@ function playPressVoice(name, rate, when, deckId = null) {
   dryGain.gain.setValueAtTime(sampleGain, when);
   dryGain.gain.setValueAtTime(0, handoffAt);
   drySource.connect(dryGain);
-  dryGain.connect(sfxBus);
+  dryGain.connect(spatialOutput.gain);
 
   // 延音源从原音尾段起点开始，起音源在同一采样时刻静音。
   const loopSource = ctx.createBufferSource();
@@ -2091,7 +2392,7 @@ function playPressVoice(name, rate, when, deckId = null) {
   loopSource.playbackRate.setValueAtTime(rate, handoffAt);
   loopGain.gain.setValueAtTime(sampleGain, handoffAt);
   loopSource.connect(loopGain);
-  loopGain.connect(sfxBus);
+  loopGain.connect(spatialOutput.gain);
 
   const voice = {
     id: ++voiceSerial,
@@ -2108,6 +2409,7 @@ function playPressVoice(name, rate, when, deckId = null) {
     dryGain,
     loopSource,
     loopGain,
+    spatialOutput,
     tailSource: null,
     tailGain: null,
     tailEndAt: 0,
@@ -3923,7 +4225,9 @@ async function start() {
   started = true;
   startPromise = (async () => {
     hideControlsUntilIdle();
-    subEl.textContent = '狗 叫 加 载 中 …';
+    subEl.textContent = LOADING_MESSAGES[
+      Math.floor(Math.random() * LOADING_MESSAGES.length)
+    ];
 
     initAudio();
     if (ctx.state === 'suspended') await ctx.resume();
