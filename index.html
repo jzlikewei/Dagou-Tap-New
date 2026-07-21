@@ -116,14 +116,14 @@
   #zoneflash {
     position: absolute;
     inset: 0;
-    z-index: 5;
+    z-index: 8;
     pointer-events: none;
   }
   /* 可选的按键网格：默认透明，开启后只显示边界，不改变原有白色触发闪光。 */
   #key-grid {
     position: absolute;
     inset: 0;
-    z-index: 4;
+    z-index: 7;
     display: grid;
     grid-template-columns: repeat(var(--key-grid-cols, 4), minmax(0, 1fr));
     grid-template-rows: repeat(var(--key-grid-rows, 3), minmax(0, 1fr));
@@ -133,8 +133,37 @@
   }
   #key-grid.is-visible { opacity: 1; }
   .key-grid-cell {
+    position: relative;
     box-shadow: inset 0 0 0 1px rgba(135, 131, 126, .24);
     background: rgba(255, 255, 255, .025);
+  }
+  #key-grid.is-dj-grid .key-grid-cell {
+    box-shadow: inset 0 0 0 1px rgba(135, 131, 126, .28);
+    background: rgba(255, 255, 255, .045);
+  }
+  #key-grid.is-dj-grid .key-grid-cell.is-deck-start-landscape {
+    border-left: 3px solid rgba(255, 180, 0, .72);
+  }
+  #key-grid.is-dj-grid .key-grid-cell.is-deck-start-portrait {
+    border-top: 3px solid rgba(255, 180, 0, .72);
+  }
+  .key-grid-key {
+    position: absolute;
+    top: 7px;
+    left: 8px;
+    min-width: 22px;
+    padding: 3px 5px;
+    color: rgba(111, 106, 99, .78);
+    background: rgba(255, 250, 240, .8);
+    border: 1px solid rgba(135, 131, 126, .28);
+    border-radius: 5px;
+    font: 700 10px/1 system-ui, sans-serif;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(135, 131, 126, .14);
+    opacity: 0;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    #key-grid.is-dj-grid .key-grid-key { opacity: 1; }
   }
   .zone-flash {
     position: absolute;
@@ -215,6 +244,105 @@
   #dog-inner.is-hajimi.is-hajimi-animation #dog-animation {
     opacity: 1;
     visibility: visible;
+  }
+
+  /* DJ 舞台：横屏并排、竖屏堆叠；每台 Deck 保留完整 4 × 3 网格。 */
+  #dj-stage {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: none;
+    pointer-events: none;
+  }
+  #stage.is-dj-mode #dog {
+    opacity: 0;
+    visibility: hidden;
+  }
+  #stage.is-dj-mode #dj-stage { display: grid; }
+  #dj-stage.is-landscape {
+    grid-template-columns: repeat(var(--dj-deck-count, 2), minmax(0, 1fr));
+  }
+  #dj-stage.is-portrait {
+    grid-template-rows: repeat(var(--dj-deck-count, 2), minmax(0, 1fr));
+  }
+  .dj-deck {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: linear-gradient(145deg, rgba(255, 255, 255, .06), rgba(255, 180, 0, .035));
+  }
+  .dj-deck-label {
+    position: absolute;
+    left: 50%;
+    bottom: max(11px, env(safe-area-inset-bottom));
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 9px;
+    color: rgba(111, 106, 99, .78);
+    background: rgba(255, 250, 240, .78);
+    border: 1px solid rgba(255, 180, 0, .34);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+  .dj-deck-label strong {
+    color: #c48800;
+    font-size: 9px;
+    letter-spacing: .1em;
+  }
+  .dj-character {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: 50% 62%;
+    will-change: transform;
+  }
+  .dj-character-inner {
+    position: relative;
+    width: min(58%, 190px);
+    max-height: 72%;
+    will-change: transform;
+  }
+  .dj-character-jelly {
+    position: relative;
+    will-change: transform, filter;
+  }
+  .dj-character img {
+    width: 100%;
+    max-height: 100%;
+    display: block;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 25px rgba(135, 131, 126, .32));
+  }
+  .dj-character-open {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    transition: opacity .08s linear;
+  }
+  .dj-character-inner.bark-image .dj-character-open { opacity: 1; }
+  .dj-character-inner.is-hajimi .dj-character-open {
+    visibility: hidden;
+    transition: none;
+  }
+  .dj-character-inner.is-hajimi.bark-image .dj-character-close { visibility: hidden; }
+  .dj-character-inner.is-hajimi.bark-image .dj-character-open {
+    visibility: visible;
+    opacity: 1;
+  }
+  @media (max-height: 620px), (max-width: 620px) {
+    .dj-character-inner { width: min(52%, 150px); }
+    .dj-deck-label { bottom: 7px; }
   }
 
   /* 顶部控制：互动时隐藏，闲置 2 秒后由 JS 淡入 */
@@ -660,6 +788,79 @@
   }
   #performance-settings-status.is-error { color: #9e4145; }
 
+  /* DJ 配置：选择 Deck 数量，并为左/中/右 Deck 绑定独立音色。 */
+  .dj-settings {
+    display: none;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 9px;
+    background: rgba(255, 244, 224, .54);
+    border: 1px solid rgba(255, 180, 0, .28);
+    border-radius: 10px;
+  }
+  .dj-settings.is-visible { display: grid; }
+  .dj-count {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .dj-count-button,
+  .dj-sfx-choice {
+    border: 1px solid rgba(135, 131, 126, .32);
+    color: #77716b;
+    background: rgba(255, 255, 255, .66);
+    font: 700 11px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .dj-count-button {
+    min-height: 34px;
+    border-radius: 8px;
+  }
+  .dj-count-button.is-active,
+  .dj-sfx-choice.is-active {
+    color: #b57e00;
+    border-color: rgba(255, 180, 0, .78);
+    background: rgba(255, 250, 240, .96);
+  }
+  .dj-count-button:disabled,
+  .dj-sfx-choice:disabled {
+    opacity: .52;
+    cursor: wait;
+  }
+  .dj-deck-assignment {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+  .dj-deck-assignment.is-hidden { display: none; }
+  .dj-deck-name {
+    color: rgba(111, 106, 99, .8);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+  .dj-sfx-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .dj-sfx-choice {
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 3px;
+    border-radius: 7px;
+    white-space: nowrap;
+  }
+  .dj-keyboard-hint {
+    color: rgba(135, 131, 126, .8);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+  }
+
   /* 作者卡：八边形头像 + 主页按钮 */
   .author-card {
     display: flex;
@@ -945,6 +1146,7 @@
     </a>
     <div id="key-grid" aria-hidden="true"></div>
     <div id="zoneflash"></div>
+    <div id="dj-stage" aria-hidden="true"></div>
 
     <div id="dog">
       <div id="dog-inner">
@@ -1065,6 +1267,44 @@
           <section class="settings-section" aria-label="演奏设置">
             <div class="settings-label">演奏 · Performance</div>
             <div class="performance-settings">
+              <button class="setting-row" id="dj-mode-setting" type="button" role="switch" aria-checked="false" data-setting="djMode" disabled>
+                <span class="setting-copy">
+                  <span class="setting-name">DJ 模式</span>
+                  <span class="setting-description">2–3 台独立 Deck，多指与键盘演奏</span>
+                </span>
+                <span class="setting-switch" aria-hidden="true"></span>
+              </button>
+              <div id="dj-settings" class="dj-settings" aria-hidden="true">
+                <div class="dj-count" role="radiogroup" aria-label="Deck 数量">
+                  <button class="dj-count-button is-active" type="button" role="radio" aria-checked="true" data-dj-count="2">2 Deck</button>
+                  <button class="dj-count-button" type="button" role="radio" aria-checked="false" data-dj-count="3">3 Deck</button>
+                </div>
+                <div class="dj-deck-assignment" data-dj-slot="0">
+                  <span class="dj-deck-name">LEFT</span>
+                  <div class="dj-sfx-choices" role="radiogroup" aria-label="左侧 Deck 音效">
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dingdong">叮咚鸡</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
+                  </div>
+                </div>
+                <div class="dj-deck-assignment is-hidden" data-dj-slot="1">
+                  <span class="dj-deck-name">CENTER</span>
+                  <div class="dj-sfx-choices" role="radiogroup" aria-label="中间 Deck 音效">
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dingdong">叮咚鸡</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
+                  </div>
+                </div>
+                <div class="dj-deck-assignment" data-dj-slot="2">
+                  <span class="dj-deck-name">RIGHT</span>
+                  <div class="dj-sfx-choices" role="radiogroup" aria-label="右侧 Deck 音效">
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dingdong">叮咚鸡</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
+                  </div>
+                </div>
+                <div class="dj-keyboard-hint">键盘按区分为 LEFT / CENTER / RIGHT，按住第三行可延音</div>
+              </div>
               <button class="setting-row" id="piano-mode-setting" type="button" role="switch" aria-checked="false" data-setting="pianoMode" disabled>
                 <span class="setting-copy">
                   <span class="setting-name">钢琴模式</span>
@@ -1102,6 +1342,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260721-hajimi-beat-synced-raised"></script>
+<script src="main.js?v=20260721-dj-unlocked-test"></script>
 </body>
 </html>

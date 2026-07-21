@@ -16,9 +16,14 @@ const S16 = SPB / 4;      // 16 分音符（调度步长）
 const S8  = SPB / 2;      // 8 分音符（点击量化的最小节奏点）
 const MASTER_GAIN = 0.85;
 const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
+  djMode: false,
   pianoMode: false,
   rhythmSnap: true,
   showGrid: false,
+});
+const DEFAULT_DJ_SETTINGS = Object.freeze({
+  deckCount: 2,
+  deckSfxIds: Object.freeze(['dagou', 'dingdong', 'hajimi']),
 });
 
 /* ---------- 全局状态 ---------- */
@@ -28,6 +33,7 @@ let bgmBus = null;        // 循环音乐总线
 let sfxBus = null;        // 狗叫音效总线
 let noiseBuf = null;      // 白噪声（鼓组用）
 let started = false;
+let startPromise = null;
 let bgmMuted = false;
 let sfxMuted = false;
 const performanceSettings = { ...DEFAULT_PERFORMANCE_SETTINGS };
@@ -63,6 +69,33 @@ const CHARACTER_IMAGE_SETS = Object.freeze({
     alt: '哈基米',
   }),
 });
+const SFX_LABELS = Object.freeze({
+  dagou: '大狗叫',
+  dingdong: '叮咚鸡',
+  hajimi: '哈基米',
+});
+const DJ_DECK_LABELS = Object.freeze(['LEFT', 'CENTER', 'RIGHT']);
+const DJ_ACTIVE_SLOTS = Object.freeze({
+  2: Object.freeze([0, 2]),
+  3: Object.freeze([0, 1, 2]),
+});
+const DJ_KEY_GROUPS = Object.freeze([
+  Object.freeze([
+    Object.freeze([{ code: 'Digit1', label: '1' }, { code: 'Digit2', label: '2' }, { code: 'Digit3', label: '3' }, { code: 'Digit4', label: '4' }]),
+    Object.freeze([{ code: 'KeyQ', label: 'Q' }, { code: 'KeyW', label: 'W' }, { code: 'KeyE', label: 'E' }, { code: 'KeyR', label: 'R' }]),
+    Object.freeze([{ code: 'KeyA', label: 'A' }, { code: 'KeyS', label: 'S' }, { code: 'KeyD', label: 'D' }, { code: 'KeyF', label: 'F' }]),
+  ]),
+  Object.freeze([
+    Object.freeze([{ code: 'Digit5', label: '5' }, { code: 'Digit6', label: '6' }, { code: 'Digit7', label: '7' }, { code: 'Digit8', label: '8' }]),
+    Object.freeze([{ code: 'KeyT', label: 'T' }, { code: 'KeyY', label: 'Y' }, { code: 'KeyU', label: 'U' }, { code: 'KeyI', label: 'I' }]),
+    Object.freeze([{ code: 'KeyG', label: 'G' }, { code: 'KeyH', label: 'H' }, { code: 'KeyJ', label: 'J' }, { code: 'KeyK', label: 'K' }]),
+  ]),
+  Object.freeze([
+    Object.freeze([{ code: 'Digit9', label: '9' }, { code: 'Digit0', label: '0' }, { code: 'Minus', label: '-' }, { code: 'Equal', label: '=' }]),
+    Object.freeze([{ code: 'KeyO', label: 'O' }, { code: 'KeyP', label: 'P' }, { code: 'BracketLeft', label: '[' }, { code: 'BracketRight', label: ']' }]),
+    Object.freeze([{ code: 'KeyL', label: 'L' }, { code: 'Semicolon', label: ';' }, { code: 'Quote', label: "'" }, { code: 'Backslash', label: '\\' }]),
+  ]),
+]);
 const HAJIMI_ATLAS_URL =
   'Image/donghaidihuang_atlas.webp?v=20260721-beat-synced';
 const HAJIMI_STATIC_ICON_URL = 'Image/maodie_close_mouth.png';
@@ -80,6 +113,15 @@ const RUNTIME_SAMPLE_NAMES = Object.freeze(
 const buffers = {};       // 解码后的音效样本
 const sustainLoops = {};  // 从原样本中实时构建的 WSOLA 延音纹理
 let selectedSfxId = 'dagou';
+const djSettings = {
+  deckCount: DEFAULT_DJ_SETTINGS.deckCount,
+  deckSfxIds: [...DEFAULT_DJ_SETTINGS.deckSfxIds],
+};
+let djSettingsSaving = false;
+let djLandscape = true;
+let djDecks = [];
+const keyboardZoneByCode = new Map();
+const pressedKeyboardCodes = new Set();
 let hajimiAnimationEnabled = false;
 let hajimiAnimationReady = false;
 let hajimiAnimationRequested = false;
@@ -129,7 +171,7 @@ const EMERGENCY_FADE = 0.018;
 
 const liveVoices = new Set();
 let voiceSerial = 0;
-let activeSustainVoice = null;
+const activeSustainVoices = new Map();
 let mouthVoice = null;
 
 let cols = 4, rows = 3;   // 分区网格（纯逻辑分区，无可见格子）
@@ -152,6 +194,7 @@ const inputQueue = [];     // 滑动经过的分区按进入顺序排到连续�
 const inputVisualTimers = new Set();
 let inputSerial = 0;
 let lastCommittedInputTime = -Infinity;
+const lastCommittedDjInputTimes = new Map();
 const pointers = new Map();// pointerId -> { zone, voice, pendingEntryId, lastX, lastY }
 const CONTROLS_IDLE_MS = 2000;
 const CONTROLS_HOVER_IDLE_MS = 250;
@@ -168,6 +211,11 @@ const TOY_CLOUD_KEYS = Object.freeze({
   pianoMode: 'dagou_piano_mode_v1',
   rhythmSnap: 'dagou_rhythm_snap_v1',
   showGrid: 'dagou_show_grid_v1',
+  djMode: 'dagou_dj_mode_v1',
+  djDeckCount: 'dagou_dj_deck_count_v1',
+  djDeckLeft: 'dagou_dj_deck_left_v1',
+  djDeckCenter: 'dagou_dj_deck_center_v1',
+  djDeckRight: 'dagou_dj_deck_right_v1',
 });
 const TOY_CLOUD_KEY_LIST = Object.freeze(Object.values(TOY_CLOUD_KEYS));
 const TOY_REQUIRED_ABILITIES = Object.freeze([
@@ -177,7 +225,7 @@ const TOY_REQUIRED_ABILITIES = Object.freeze([
   'navigate',
 ]);
 const LOCKED_SFX_IDS = new Set(['dingdong', 'hajimi']);
-const DEBUG_UNLOCK_SFX = false; // 临时调试：发布前改回 false，恢复 Toy 云端锁定。
+const DEBUG_UNLOCK_SFX = true; // 临时调试：发布前改回 false，恢复 Toy 云端锁定。
 let controlsIdleTimer = 0;
 let navigationMuted = false;
 
@@ -202,6 +250,7 @@ const dogAnimation2d = dogAnimationCanvas.getContext('2d', { alpha: true });
 const overlay   = document.getElementById('overlay');
 const keyGrid   = document.getElementById('key-grid');
 const flashLayer = document.getElementById('zoneflash');
+const djStage = document.getElementById('dj-stage');
 const subEl     = overlay.querySelector('.sub');
 const fx2d      = fxCanvas.getContext('2d');
 const topControls = document.getElementById('top-controls');
@@ -220,6 +269,14 @@ const hajimiOptionImage = document.getElementById('hajimi-option-image');
 const performanceSettingButtons = [
   ...document.querySelectorAll('.setting-row[data-setting]'),
 ];
+const pianoModeSetting = document.getElementById('piano-mode-setting');
+const pianoModeDescription = pianoModeSetting.querySelector('.setting-description');
+const djSettingsPanel = document.getElementById('dj-settings');
+const djCountButtons = [...document.querySelectorAll('[data-dj-count]')];
+const djDeckAssignmentRows = [
+  ...document.querySelectorAll('.dj-deck-assignment[data-dj-slot]'),
+];
+const djSfxChoiceButtons = [...document.querySelectorAll('[data-dj-sfx]')];
 const performanceSettingsStatus = document.getElementById(
   'performance-settings-status'
 );
@@ -228,7 +285,7 @@ const authorLink = document.getElementById('author-link');
 const reduceUiMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function showControls() {
-  if (pointers.size > 0 || holding) return;
+  if (pointers.size > 0 || isAnyCharacterHolding()) return;
   topControls.classList.add('is-visible');
 }
 
@@ -243,7 +300,7 @@ function accelerateControlsReveal() {
   if (
     topControls.classList.contains('is-visible') ||
     pointers.size > 0 ||
-    holding
+    isAnyCharacterHolding()
   ) return;
   topControls.classList.add('is-revealing-fast');
   clearTimeout(controlsIdleTimer);
@@ -301,8 +358,14 @@ function toggleSoundEffects() {
 
   if (sfxMuted) {
     dogInner.classList.remove('bark-image');
+    for (const deck of djDecks) deck.inner.classList.remove('bark-image');
   } else if (mouthVoice) {
     dogInner.classList.add('bark-image');
+  }
+  if (!sfxMuted) {
+    for (const deck of djDecks) {
+      if (deck.mouthVoice) deck.inner.classList.add('bark-image');
+    }
   }
 }
 
@@ -501,10 +564,16 @@ const toyCloudState = {
   },
 };
 const PERFORMANCE_SETTING_KEYS = Object.freeze({
+  djMode: TOY_CLOUD_KEYS.djMode,
   pianoMode: TOY_CLOUD_KEYS.pianoMode,
   rhythmSnap: TOY_CLOUD_KEYS.rhythmSnap,
   showGrid: TOY_CLOUD_KEYS.showGrid,
 });
+const DJ_DECK_CLOUD_KEYS = Object.freeze([
+  TOY_CLOUD_KEYS.djDeckLeft,
+  TOY_CLOUD_KEYS.djDeckCenter,
+  TOY_CLOUD_KEYS.djDeckRight,
+]);
 
 function showToyNotice(message, isError = false) {
   clearTimeout(toyNoticeTimer);
@@ -521,14 +590,125 @@ function showToyNotice(message, isError = false) {
 function clearQueuedPerformanceInput() {
   inputQueue.length = 0;
   lastCommittedInputTime = -Infinity;
+  lastCommittedDjInputTimes.clear();
   clearInputVisualTimers();
   for (const state of pointers.values()) state.pendingEntryId = null;
+}
+
+function stopActivePerformanceInput() {
+  clearQueuedPerformanceInput();
+  pressedKeyboardCodes.clear();
+  pointers.clear();
+  if (!ctx) return;
+  for (const voice of [...liveVoices]) forceStopVoice(voice);
+}
+
+function getActiveDjSlots() {
+  return DJ_ACTIVE_SLOTS[djSettings.deckCount] ?? DJ_ACTIVE_SLOTS[2];
+}
+
+function createDjDeckVisual(slot) {
+  const sfxId = djSettings.deckSfxIds[slot];
+  const images = CHARACTER_IMAGE_SETS[sfxId];
+  const element = document.createElement('section');
+  element.className = 'dj-deck';
+  element.dataset.deckId = `dj-${slot}`;
+
+  const label = document.createElement('div');
+  label.className = 'dj-deck-label';
+  const deckName = document.createElement('strong');
+  deckName.textContent = DJ_DECK_LABELS[slot];
+  const sfxName = document.createElement('span');
+  sfxName.textContent = SFX_LABELS[sfxId];
+  label.append(deckName, sfxName);
+
+  const character = document.createElement('div');
+  character.className = 'dj-character';
+  const inner = document.createElement('div');
+  inner.className = 'dj-character-inner';
+  inner.classList.toggle('is-hajimi', sfxId === 'hajimi');
+  const jelly = document.createElement('div');
+  jelly.className = 'dj-character-jelly';
+  const closeImage = document.createElement('img');
+  closeImage.className = 'dj-character-close';
+  closeImage.src = images.close;
+  closeImage.alt = images.alt;
+  closeImage.draggable = false;
+  const openImage = document.createElement('img');
+  openImage.className = 'dj-character-open';
+  openImage.src = images.open;
+  openImage.alt = '';
+  openImage.draggable = false;
+  jelly.append(closeImage, openImage);
+  inner.appendChild(jelly);
+  character.appendChild(inner);
+  element.append(label, character);
+
+  return {
+    id: `dj-${slot}`,
+    slot,
+    sfxId,
+    element,
+    character,
+    inner,
+    jelly,
+    mouthTimer: 0,
+    mouthVoice: null,
+    mouthPopped: false,
+    barkPop: 0,
+    barkPopVel: 0,
+    holding: false,
+    holdLevel: 0,
+    jellyScale: 1,
+    jellyVel: 0,
+  };
+}
+
+function renderDjStage() {
+  const enabled = performanceSettings.djMode;
+  stage.classList.toggle('is-dj-mode', enabled);
+  djStage.setAttribute('aria-hidden', String(!enabled));
+  if (!enabled) {
+    for (const deck of djDecks) clearTimeout(deck.mouthTimer);
+    djStage.replaceChildren();
+    djDecks = [];
+    return;
+  }
+
+  const previousDecks = new Map(djDecks.map(deck => [deck.slot, deck]));
+  const nextDecks = getActiveDjSlots().map((slot) => {
+    const previous = previousDecks.get(slot);
+    return previous?.sfxId === djSettings.deckSfxIds[slot]
+      ? previous
+      : createDjDeckVisual(slot);
+  });
+  const retainedDecks = new Set(nextDecks);
+  for (const deck of previousDecks.values()) {
+    if (!retainedDecks.has(deck)) clearTimeout(deck.mouthTimer);
+  }
+  djDecks = nextDecks;
+  djStage.classList.toggle('is-landscape', djLandscape);
+  djStage.classList.toggle('is-portrait', !djLandscape);
+  djStage.style.setProperty('--dj-deck-count', String(djDecks.length));
+  djStage.replaceChildren(...djDecks.map(deck => deck.element));
+}
+
+function getDjDeck(deckId) {
+  return djDecks.find(deck => deck.id === deckId) ?? null;
+}
+
+function isAnyCharacterHolding() {
+  return holding || djDecks.some(deck => deck.holding);
 }
 
 function renderKeyGrid() {
   keyGrid.style.setProperty('--key-grid-cols', String(cols));
   keyGrid.style.setProperty('--key-grid-rows', String(rows));
-  keyGrid.classList.toggle('is-visible', performanceSettings.showGrid);
+  keyGrid.classList.toggle(
+    'is-visible',
+    performanceSettings.showGrid || performanceSettings.djMode
+  );
+  keyGrid.classList.toggle('is-dj-grid', performanceSettings.djMode);
 
   const fragment = document.createDocumentFragment();
   for (const zone of zones) {
@@ -536,6 +716,19 @@ function renderKeyGrid() {
     cell.className = 'key-grid-cell';
     cell.dataset.sample = zone.sample;
     if (zone.note) cell.dataset.note = zone.note;
+    if (performanceSettings.djMode) {
+      cell.dataset.deckId = zone.deckId;
+      if (zone.deckIndex > 0 && zone.localColumn === 0 && djLandscape) {
+        cell.classList.add('is-deck-start-landscape');
+      }
+      if (zone.deckIndex > 0 && zone.localRow === 0 && !djLandscape) {
+        cell.classList.add('is-deck-start-portrait');
+      }
+      const key = document.createElement('span');
+      key.className = 'key-grid-key';
+      key.textContent = zone.keyboardLabel;
+      cell.appendChild(key);
+    }
     fragment.appendChild(cell);
   }
   keyGrid.replaceChildren(fragment);
@@ -551,9 +744,17 @@ function applyPerformanceSettings(previousSettings) {
   }
 
   if (
+    previousSettings &&
+    previousSettings.djMode !== performanceSettings.djMode
+  ) {
+    stopActivePerformanceInput();
+  }
+
+  if (
     zones.length === 0 ||
     !previousSettings ||
-    previousSettings.pianoMode !== performanceSettings.pianoMode
+    previousSettings.pianoMode !== performanceSettings.pianoMode ||
+    previousSettings.djMode !== performanceSettings.djMode
   ) {
     buildGrid();
   } else {
@@ -570,7 +771,27 @@ function replacePerformanceSettings(nextSettings) {
 }
 
 function resetPerformanceSettingsToDefaults() {
+  replaceDjSettings(DEFAULT_DJ_SETTINGS, false);
   replacePerformanceSettings(DEFAULT_PERFORMANCE_SETTINGS);
+}
+
+function replaceDjSettings(nextSettings, rebuild = true) {
+  const deckCount = nextSettings?.deckCount === 3 ? 3 : 2;
+  const deckSfxIds = DEFAULT_DJ_SETTINGS.deckSfxIds.map((fallback, slot) => {
+    const candidate = nextSettings?.deckSfxIds?.[slot];
+    return SFX_SAMPLE_SETS[candidate] ? candidate : fallback;
+  });
+  const changed =
+    deckCount !== djSettings.deckCount ||
+    deckSfxIds.some((sfxId, slot) => sfxId !== djSettings.deckSfxIds[slot]);
+
+  djSettings.deckCount = deckCount;
+  djSettings.deckSfxIds = deckSfxIds;
+  if (changed && rebuild) {
+    stopActivePerformanceInput();
+    buildGrid();
+  }
+  renderDjSettings();
 }
 
 function markToyCloudUnavailable(state = toyCloudState) {
@@ -588,6 +809,42 @@ function readCloudPerformanceSettings(cloud) {
   return settings;
 }
 
+function readCloudDjSettings(cloud) {
+  return {
+    deckCount: cloud[TOY_CLOUD_KEYS.djDeckCount] === '3' ? 3 : 2,
+    deckSfxIds: DJ_DECK_CLOUD_KEYS.map((key, slot) => {
+      const sfxId = cloud[key];
+      return SFX_SAMPLE_SETS[sfxId]
+        ? sfxId
+        : DEFAULT_DJ_SETTINGS.deckSfxIds[slot];
+    }),
+  };
+}
+
+function renderDjSettings() {
+  const visible = performanceSettings.djMode;
+  djSettingsPanel.classList.toggle('is-visible', visible);
+  djSettingsPanel.setAttribute('aria-hidden', String(!visible));
+
+  for (const button of djCountButtons) {
+    const selected = Number(button.dataset.djCount) === djSettings.deckCount;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = djSettingsSaving;
+  }
+
+  for (const row of djDeckAssignmentRows) {
+    const slot = Number(row.dataset.djSlot);
+    row.classList.toggle('is-hidden', djSettings.deckCount === 2 && slot === 1);
+    for (const button of row.querySelectorAll('[data-dj-sfx]')) {
+      const selected = button.dataset.djSfx === djSettings.deckSfxIds[slot];
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-checked', String(selected));
+      button.disabled = djSettingsSaving;
+    }
+  }
+}
+
 function renderPerformanceSettings() {
   const cloudAvailable =
     toyCloudState.initialized &&
@@ -600,14 +857,22 @@ function renderPerformanceSettings() {
       'aria-checked',
       String(performanceSettings[settingName] === true)
     );
-    button.disabled = !toyCloudState.initialized || performanceSettingsSaving;
+    button.disabled =
+      !toyCloudState.initialized ||
+      performanceSettingsSaving ||
+      djSettingsSaving ||
+      (settingName === 'pianoMode' && performanceSettings.djMode);
   }
+  pianoModeDescription.textContent = performanceSettings.djMode
+    ? 'DJ 模式固定使用 4 × 3 网格'
+    : '开放一个八度的音阶';
+  renderDjSettings();
 
   performanceSettingsStatus.classList.toggle(
     'is-error',
     toyCloudState.initialized && !cloudAvailable
   );
-  if (performanceSettingsSaving) {
+  if (performanceSettingsSaving || djSettingsSaving) {
     performanceSettingsStatus.textContent = '正在保存到哔哩哔哩云端…';
   } else if (!toyCloudState.initialized) {
     performanceSettingsStatus.textContent = '正在读取哔哩哔哩云端设置…';
@@ -691,7 +956,10 @@ async function initializeToyCloudState() {
     toyCloudState.cloudReadable = true;
     toyCloudState.sfxUnlocked =
       DEBUG_UNLOCK_SFX || cloud[TOY_CLOUD_KEYS.sfxUnlocked] === '1';
-    replacePerformanceSettings(readCloudPerformanceSettings(cloud));
+    replaceDjSettings(readCloudDjSettings(cloud), false);
+    const cloudPerformanceSettings = readCloudPerformanceSettings(cloud);
+    if (!toyCloudState.sfxUnlocked) cloudPerformanceSettings.djMode = false;
+    replacePerformanceSettings(cloudPerformanceSettings);
 
     if (!toyCloudState.locallyChanged.settingsSeen) {
       toyCloudState.settingsSeen =
@@ -954,6 +1222,16 @@ async function handlePerformanceSettingClick(button) {
 
   const state = await toyStateReady;
   const nextValue = !performanceSettings[settingName];
+  if (settingName === 'djMode' && nextValue && !state.sfxUnlocked) {
+    if (!state.environmentAvailable || !state.toy) {
+      showToyNotice('请在哔哩哔哩内打开并解锁音效后使用 DJ 模式', true);
+    } else if (!state.cloudReadable) {
+      showToyNotice('云端状态读取失败，请刷新后重试。', true);
+    } else {
+      showToyNotice('DJ 模式需要多套音效，请先点击开发视频完成解锁。');
+    }
+    return;
+  }
   if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
     replacePerformanceSettings({
       ...performanceSettings,
@@ -992,6 +1270,64 @@ async function handlePerformanceSettingClick(button) {
 for (const button of performanceSettingButtons) {
   button.addEventListener('click', () => {
     void handlePerformanceSettingClick(button);
+  });
+}
+
+async function persistDjSettings(nextSettings, cloudItems) {
+  if (djSettingsSaving) return;
+  const state = await toyStateReady;
+  if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
+    replaceDjSettings(nextSettings);
+    renderToyCloudState();
+    showToyNotice('云存储不可用，本次 DJ 设置仅在当前页面有效。');
+    return;
+  }
+
+  djSettingsSaving = true;
+  renderToyCloudState();
+  try {
+    await state.toy.setCloudStorage(cloudItems);
+    replaceDjSettings(nextSettings);
+  } catch (error) {
+    markToyCloudUnavailable(state);
+    replaceDjSettings(nextSettings);
+    console.warn('[大狗Tap] DJ 设置写入失败。', error);
+    showToyNotice('云存储不可用，本次 DJ 设置仅在当前页面有效。');
+  } finally {
+    djSettingsSaving = false;
+    renderToyCloudState();
+  }
+}
+
+for (const button of djCountButtons) {
+  button.addEventListener('click', () => {
+    const deckCount = Number(button.dataset.djCount) === 3 ? 3 : 2;
+    if (deckCount === djSettings.deckCount) return;
+    void persistDjSettings(
+      { ...djSettings, deckCount },
+      { [TOY_CLOUD_KEYS.djDeckCount]: String(deckCount) }
+    );
+  });
+}
+
+for (const button of djSfxChoiceButtons) {
+  button.addEventListener('click', () => {
+    const row = button.closest('.dj-deck-assignment');
+    const slot = Number(row?.dataset.djSlot);
+    const sfxId = button.dataset.djSfx;
+    if (!Number.isInteger(slot) || !SFX_SAMPLE_SETS[sfxId]) return;
+    if (djSettings.deckSfxIds[slot] === sfxId) return;
+    if (LOCKED_SFX_IDS.has(sfxId) && !toyCloudState.sfxUnlocked) {
+      showToyNotice('该音效尚未解锁，请先点击开发视频完成解锁。');
+      return;
+    }
+
+    const deckSfxIds = [...djSettings.deckSfxIds];
+    deckSfxIds[slot] = sfxId;
+    void persistDjSettings(
+      { ...djSettings, deckSfxIds },
+      { [DJ_DECK_CLOUD_KEYS[slot]]: sfxId }
+    );
   });
 }
 
@@ -1630,8 +1966,11 @@ function cleanupVoice(voice) {
   clearTimeout(voice.cleanupTimer);
   liveVoices.delete(voice);
 
-  if (activeSustainVoice === voice) activeSustainVoice = null;
-  if (mouthVoice === voice) unlockMouth(voice, 0);
+  const scopeId = voice.deckId ?? 'solo';
+  if (activeSustainVoices.get(scopeId) === voice) {
+    activeSustainVoices.delete(scopeId);
+  }
+  unlockMouth(voice, 0);
 
   for (const node of [
     voice.drySource, voice.dryGain,
@@ -1660,7 +1999,7 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.onended = () => cleanupVoice(voice);
 }
 
-function playPressVoice(name, rate, when) {
+function playPressVoice(name, rate, when, deckId = null) {
   const sourceBuffer = buffers[name];
   const sustain = sustainLoops[name];
   const sampleGain = SFX_SAMPLE_GAIN[name] ?? 1;
@@ -1707,6 +2046,7 @@ function playPressVoice(name, rate, when) {
   const voice = {
     id: ++voiceSerial,
     name,
+    deckId,
     rate,
     sampleGain,
     when,
@@ -1830,12 +2170,13 @@ function nextTextureRelease(voice, now) {
 function claimSustainVoice(voice) {
   if (!voice || !voice.held || voice.released || voice.claimed) return;
 
-  const previous = activeSustainVoice;
+  const scopeId = voice.deckId ?? 'solo';
+  const previous = activeSustainVoices.get(scopeId);
   if (previous && previous !== voice) releaseVoice(previous, true);
 
   voice.claimed = true;
   voice.mode = 'sustain';
-  activeSustainVoice = voice;
+  activeSustainVoices.set(scopeId, voice);
   lockMouth(voice);
 }
 
@@ -1852,7 +2193,7 @@ function updateSustainClaims(audioNow) {
     }
   }
 
-  // 同一帧有多个候选时，最后触发的指针取得唯一长音。
+  // 每台 Deck 各自保留一个长音；同一 Deck 的后触发声音接管前一个。
   due.sort((a, b) => a.id - b.id);
   for (const voice of due) claimSustainVoice(voice);
 }
@@ -1864,7 +2205,10 @@ function releaseVoice(voice, musical = true) {
   voice.held = false;
   voice.released = true;
 
-  if (activeSustainVoice === voice) activeSustainVoice = null;
+  const scopeId = voice.deckId ?? 'solo';
+  if (activeSustainVoices.get(scopeId) === voice) {
+    activeSustainVoices.delete(scopeId);
+  }
 
   if (!musical) {
     forceStopVoice(voice);
@@ -1878,7 +2222,7 @@ function releaseVoice(voice, musical = true) {
     voice.dryGain.gain.setValueAtTime(voice.sampleGain, now);
     safeStop(voice.loopSource, now);
 
-    if (mouthVoice === voice) {
+    if (isMouthVoice(voice)) {
       const remainMs = Math.max(0, (voice.visualEndAt - now) * 1000);
       unlockMouth(voice, remainMs);
     }
@@ -1899,8 +2243,8 @@ function releaseVoice(voice, musical = true) {
   createTailSource(voice, release.boundary, release.sourceOffset);
 
   const remainMs = Math.max(0, (voice.tailEndAt - now) * 1000);
-  if (mouthVoice === voice) unlockMouth(voice, remainMs);
-  else openMouth(remainMs);
+  if (isMouthVoice(voice)) unlockMouth(voice, remainMs);
+  else openMouth(remainMs, voice.deckId);
 }
 
 function fadeGain(gainNode, now, stopAt) {
@@ -1922,7 +2266,10 @@ function forceStopVoice(voice) {
   voice.stopped = true;
   voice.mode = 'stopped';
 
-  if (activeSustainVoice === voice) activeSustainVoice = null;
+  const scopeId = voice.deckId ?? 'solo';
+  if (activeSustainVoices.get(scopeId) === voice) {
+    activeSustainVoices.delete(scopeId);
+  }
   fadeGain(voice.dryGain, now, stopAt);
   fadeGain(voice.loopGain, now, stopAt);
   fadeGain(voice.tailGain, now, stopAt);
@@ -1930,7 +2277,7 @@ function forceStopVoice(voice) {
   safeStop(voice.loopSource, stopAt);
   safeStop(voice.tailSource, stopAt);
 
-  if (mouthVoice === voice) unlockMouth(voice, EMERGENCY_FADE * 1000);
+  if (isMouthVoice(voice)) unlockMouth(voice, EMERGENCY_FADE * 1000);
   voice.cleanupTimer = setTimeout(
     () => cleanupVoice(voice),
     (EMERGENCY_FADE + 0.05) * 1000
@@ -1943,11 +2290,53 @@ function forceStopVoice(voice) {
 function buildGrid() {
   const { width, height } = getStageMetrics();
   const landscape = width >= height;
-  cols = landscape ? (performanceSettings.pianoMode ? 8 : 4) : 3;
-  rows = landscape ? 3 : (performanceSettings.pianoMode ? 8 : 4);
-
+  if (zones.length > 0 && landscape !== djLandscape && pointers.size > 0) {
+    stopActivePerformanceInput();
+  }
+  djLandscape = landscape;
   zones = [];
-  if (landscape) {
+  keyboardZoneByCode.clear();
+
+  if (performanceSettings.djMode) {
+    const activeSlots = getActiveDjSlots();
+    cols = landscape ? activeSlots.length * 4 : 4;
+    rows = landscape ? 3 : activeSlots.length * 3;
+    const rowMap = [
+      { n: 'da', s: '大' },
+      { n: 'gou', s: '狗' },
+      { n: 'jiao', s: '叫' },
+    ];
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const deckIndex = landscape ? Math.floor(c / 4) : Math.floor(r / 3);
+        const localRow = landscape ? r : r % 3;
+        const localColumn = landscape ? c % 4 : c;
+        const deckSlot = activeSlots[deckIndex];
+        const key = DJ_KEY_GROUPS[deckSlot][localRow][localColumn];
+        const zone = {
+          sample: rowMap[localRow].n,
+          syllable: rowMap[localRow].s,
+          pitchTier: localColumn,
+          targetMidi: undefined,
+          note: undefined,
+          solfege: undefined,
+          deckId: `dj-${deckSlot}`,
+          deckSlot,
+          deckIndex,
+          sfxId: djSettings.deckSfxIds[deckSlot],
+          localRow,
+          localColumn,
+          keyboardCode: key.code,
+          keyboardLabel: key.label,
+        };
+        keyboardZoneByCode.set(key.code, zones.length);
+        zones.push(zone);
+      }
+    }
+  } else if (landscape) {
+    cols = performanceSettings.pianoMode ? 8 : 4;
+    rows = 3;
     // 横屏：纵向依次 da / gou / jiao；钢琴模式横向 do 到高音 do。
     const rowMap = [{ n: 'da', s: '大' }, { n: 'gou', s: '狗' }, { n: 'jiao', s: '叫' }];
     for (let r = 0; r < rows; r++) {
@@ -1960,10 +2349,14 @@ function buildGrid() {
           targetMidi: pianoKey?.midi,
           note: pianoKey?.note,
           solfege: pianoKey?.solfege,
+          deckId: null,
+          sfxId: selectedSfxId,
         });
       }
     }
   } else {
+    cols = 3;
+    rows = performanceSettings.pianoMode ? 8 : 4;
     // 竖屏：横向依次 da / gou / jiao；钢琴模式纵向从高音 do 降到 do。
     const colMap = [{ n: 'da', s: '大' }, { n: 'gou', s: '狗' }, { n: 'jiao', s: '叫' }];
     for (let r = 0; r < rows; r++) {
@@ -1981,11 +2374,14 @@ function buildGrid() {
           targetMidi: pianoKey?.midi,
           note: pianoKey?.note,
           solfege: pianoKey?.solfege,
+          deckId: null,
+          sfxId: selectedSfxId,
         });
       }
     }
   }
 
+  if (typeof renderDjStage === 'function') renderDjStage();
   if (typeof renderKeyGrid === 'function') renderKeyGrid();
 }
 
@@ -2583,12 +2979,12 @@ function strokePartial(g, pts, lens, vis) {
   return pts[pts.length - 1];
 }
 
-/* 生成一个全屏特效实例（原点固定在屏幕正中心） */
-function buildEffect(type) {
+/* 生成一个特效实例；DJ 模式从对应 Deck 中心发散。 */
+function buildEffect(type, origin = null) {
   const rng = mulberry32((Math.random() * 1e9) | 0);
   const inst = {
     type,
-    cx: cx0(), cy: cy0(),
+    cx: origin?.x ?? cx0(), cy: origin?.y ?? cy0(),
     t0: 0, state: 'in', outT0: 0,
     rot0: rng() * Math.PI * 2,
     dir: rng() < 0.5 ? -1 : 1,
@@ -2598,17 +2994,33 @@ function buildEffect(type) {
   return inst;
 }
 
-/* 触发全屏特效：新特效叠上，旧特效退场 */
-function spawnEffect(zi, when) {
+function getDeckEffectOrigin(deckId) {
+  const deck = getDjDeck(deckId);
+  if (!deck) return null;
+  const deckRect = deck.element.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  return {
+    x: deckRect.left - stageRect.left + deckRect.width / 2,
+    y: deckRect.top - stageRect.top + deckRect.height / 2,
+  };
+}
+
+/* 同一 Deck 的新特效接替旧特效，多台 Deck 可以同时保留各自画面。 */
+function spawnEffect(zi, when, deckId = null) {
   const type = EFFECTS[zi % EFFECTS.length];
   const now = nowSec();
+  const effectScope = deckId ?? 'solo';
 
   for (const e of fxList) {
-    if (e.state !== 'out') { e.state = 'out'; e.outT0 = now; }
+    if (e.scope === effectScope && e.state !== 'out') {
+      e.state = 'out';
+      e.outT0 = now;
+    }
   }
-  while (fxList.length > 6) fxList.shift();   // 快速连打时兜底清理
+  while (fxList.length > 12) fxList.shift();   // 多台 Deck 快速连打时兜底清理
 
-  const inst = buildEffect(type);
+  const inst = buildEffect(type, deckId ? getDeckEffectOrigin(deckId) : null);
+  inst.scope = effectScope;
   inst.t0 = Math.min(when, now + 0.05);       // 尽量贴节拍，最多延迟 50ms
   fxList.push(inst);
 }
@@ -2640,7 +3052,27 @@ function fxFrame(now) {
 }
 
 /* ---------- 张嘴 / 闭嘴（JS 弹簧驱动，快速果断带 Q 弹） ---------- */
-function openMouth(holdMs) {
+function isMouthVoice(voice) {
+  if (!voice) return false;
+  const deck = voice.deckId ? getDjDeck(voice.deckId) : null;
+  return deck ? deck.mouthVoice === voice : mouthVoice === voice;
+}
+
+function openMouth(holdMs, deckId = null) {
+  const deck = deckId ? getDjDeck(deckId) : null;
+  if (deck) {
+    deck.mouthPopped = true;
+    deck.inner.classList.toggle('bark-image', !sfxMuted);
+    clearTimeout(deck.mouthTimer);
+    deck.mouthTimer = setTimeout(() => {
+      if (!deck.mouthVoice) {
+        deck.mouthPopped = false;
+        deck.inner.classList.remove('bark-image');
+      }
+    }, holdMs);
+    return;
+  }
+
   mouthPopped = true;
   dogInner.classList.toggle('bark-image', !sfxMuted);
   clearTimeout(mouthTimer);
@@ -2653,6 +3085,16 @@ function openMouth(holdMs) {
 }
 
 function lockMouth(voice) {
+  const deck = voice.deckId ? getDjDeck(voice.deckId) : null;
+  if (deck) {
+    deck.mouthVoice = voice;
+    clearTimeout(deck.mouthTimer);
+    deck.mouthPopped = true;
+    deck.inner.classList.toggle('bark-image', !sfxMuted);
+    deck.holding = true;
+    return;
+  }
+
   mouthVoice = voice;
   clearTimeout(mouthTimer);
   mouthPopped = true;
@@ -2661,10 +3103,28 @@ function lockMouth(voice) {
 }
 
 function unlockMouth(voice, holdMs) {
+  const deck = voice.deckId ? getDjDeck(voice.deckId) : null;
+  if (deck) {
+    if (deck.mouthVoice !== voice) return;
+    deck.mouthVoice = null;
+    deck.holding = false;
+    openMouth(holdMs, deck.id);
+    return;
+  }
+
   if (mouthVoice !== voice) return;
   mouthVoice = null;
   holding = false;  // 松手：果冻动画 Q 弹回落
   openMouth(holdMs);
+}
+
+function kickCharacter(deckId = null) {
+  const deck = deckId ? getDjDeck(deckId) : null;
+  if (deck) {
+    deck.barkPopVel = Math.min(deck.barkPopVel + BARK_KICK, BARK_KICK_MAX);
+    return;
+  }
+  barkPopVel = Math.min(barkPopVel + BARK_KICK, BARK_KICK_MAX);
 }
 
 /* ============================================================
@@ -2690,7 +3150,22 @@ function reflowQueuedInputTimes() {
     return;
   }
 
-  let when = quantize(S8);
+  const quantizedWhen = quantize(S8);
+  if (performanceSettings.djMode) {
+    const nextTimes = new Map();
+    for (const entry of inputQueue) {
+      const scopeId = entry.deckId ?? 'solo';
+      let when = nextTimes.get(scopeId) ?? quantizedWhen;
+      const committed = lastCommittedDjInputTimes.get(scopeId);
+      if (Number.isFinite(committed)) when = Math.max(when, committed + S8);
+      entry.when = when;
+      nextTimes.set(scopeId, when + S8);
+    }
+    inputQueue.sort((a, b) => a.when - b.when || a.id - b.id);
+    return;
+  }
+
+  let when = quantizedWhen;
   if (Number.isFinite(lastCommittedInputTime)) {
     when = Math.max(when, lastCommittedInputTime + S8);
   }
@@ -2700,12 +3175,12 @@ function reflowQueuedInputTimes() {
   }
 }
 
-function removeQueuedSample(sample) {
+function removeQueuedSample(sample, deckId = null) {
   // 自由节奏下每次输入都必须发声，不能用吸附模式的同音节去重规则。
   if (!performanceSettings.rhythmSnap) return;
   for (let i = inputQueue.length - 1; i >= 0; i--) {
     const entry = inputQueue[i];
-    if (entry.sample !== sample) continue;
+    if (entry.sample !== sample || entry.deckId !== deckId) continue;
 
     inputQueue.splice(i, 1);
     const state = pointers.get(entry.pointerId);
@@ -2718,14 +3193,16 @@ function removeQueuedSample(sample) {
 function enqueueActivation(zi, pointerId) {
   hideControlsUntilIdle();
   const z = zones[zi];
-  removeQueuedSample(z.sample);
+  const sfxId = performanceSettings.djMode ? z.sfxId : selectedSfxId;
+  removeQueuedSample(z.sample, z.deckId);
   const entry = {
     id: ++inputSerial,
     kind: 'press',
     pointerId,
     zone: zi,
+    deckId: z.deckId,
     sample: z.sample,
-    audioSample: resolveSfxSample(z.sample),
+    audioSample: resolveSfxSample(z.sample, sfxId),
     pitchTier: z.pitchTier,
     targetMidi: z.targetMidi,
     when: 0,
@@ -2739,12 +3216,13 @@ function enqueueActivation(zi, pointerId) {
 function enqueueSustainRetune(zi, pointerId, voice) {
   hideControlsUntilIdle();
   const z = zones[zi];
-  removeQueuedSample(z.sample);
+  removeQueuedSample(z.sample, z.deckId);
   const entry = {
     id: ++inputSerial,
     kind: 'sustain-retune',
     pointerId,
     zone: zi,
+    deckId: z.deckId,
     sample: z.sample,
     audioSample: voice?.name ?? resolveSfxSample(z.sample),
     pitchTier: z.pitchTier,
@@ -2764,16 +3242,17 @@ function commitUnsnappedInput(entry) {
   if (queuedIndex >= 0) inputQueue.splice(queuedIndex, 1);
   entry.when = ctx.currentTime;
   lastCommittedInputTime = entry.when;
+  if (entry.deckId) lastCommittedDjInputTimes.set(entry.deckId, entry.when);
   playQueuedInput(entry);
 }
 
-function scheduleActivationVisual(zi, when) {
+function scheduleActivationVisual(zi, when, deckId = null) {
   const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
   const timer = setTimeout(() => {
     inputVisualTimers.delete(timer);
-    openMouth(280);
-    barkPopVel = Math.min(barkPopVel + BARK_KICK, BARK_KICK_MAX);
-    spawnEffect(zi, ctx.currentTime);
+    openMouth(280, deckId);
+    kickCharacter(deckId);
+    spawnEffect(zi, ctx.currentTime, deckId);
   }, waitMs);
   inputVisualTimers.add(timer);
 }
@@ -2787,7 +3266,7 @@ function playQueuedInput(entry) {
   );
   if (entry.kind === 'sustain-retune') {
     if (retuneSustainVoice(entry.voice, rate, entry.when)) {
-      scheduleActivationVisual(entry.zone, entry.when);
+      scheduleActivationVisual(entry.zone, entry.when, entry.deckId);
     }
     return;
   }
@@ -2797,7 +3276,7 @@ function playQueuedInput(entry) {
     state &&
     state.zone === entry.zone &&
     state.pendingEntryId === entry.id;
-  const voice = playPressVoice(audioSample, rate, entry.when);
+  const voice = playPressVoice(audioSample, rate, entry.when, entry.deckId);
 
   if (stillHeld) {
     state.pendingEntryId = null;
@@ -2806,13 +3285,14 @@ function playQueuedInput(entry) {
     // 已滑过或已松手的 jiao 只保留短音，不进入未来的长音循环。
     releaseVoice(voice, true);
   }
-  scheduleActivationVisual(entry.zone, entry.when);
+  scheduleActivationVisual(entry.zone, entry.when, entry.deckId);
 }
 
 function scheduleQueuedInputs(horizon) {
   while (inputQueue.length && inputQueue[0].when < horizon) {
     const entry = inputQueue.shift();
     lastCommittedInputTime = entry.when;
+    if (entry.deckId) lastCommittedDjInputTimes.set(entry.deckId, entry.when);
     playQueuedInput(entry);
   }
 }
@@ -2827,6 +3307,50 @@ function cancelQueuedInputs(pointerId) {
 function clearInputVisualTimers() {
   for (const timer of inputVisualTimers) clearTimeout(timer);
   inputVisualTimers.clear();
+}
+
+function updateDjDeckCharacter(deck, now, dt, sway) {
+  deck.character.style.transform =
+    `translate(${(sway * 3).toFixed(2)}px, ${(-7 * beatP).toFixed(2)}px)` +
+    ` rotate(${(sway * 1.8).toFixed(2)}deg)` +
+    ` scale(${(1 + 0.05 * beatP).toFixed(4)}, ${(1 - 0.04 * beatP).toFixed(4)})`;
+
+  const popTarget = deck.mouthPopped ? 1 : 0;
+  deck.barkPopVel += (popTarget - deck.barkPop) * 320 * dt;
+  deck.barkPopVel *= Math.exp(-13 * dt);
+  deck.barkPopVel = Math.max(-10, Math.min(10, deck.barkPopVel));
+  deck.barkPop += deck.barkPopVel * dt;
+  deck.inner.style.transform =
+    `scale(${(1 + 0.17 * deck.barkPop).toFixed(4)})` +
+    ` rotate(${(-3.5 * deck.barkPop).toFixed(2)}deg)`;
+
+  const holdTarget = deck.holding ? 1 : 0;
+  const tau = deck.holding ? 1.1 : 0.22;
+  deck.holdLevel +=
+    (holdTarget - deck.holdLevel) * (1 - Math.exp(-dt / tau));
+  const scaleTarget = 1 + 0.16 * deck.holdLevel;
+  deck.jellyVel += (scaleTarget - deck.jellyScale) * 55 * dt;
+  deck.jellyVel *= Math.exp(-7 * dt);
+  deck.jellyScale += deck.jellyVel * dt;
+
+  const amp = 5 * deck.holdLevel;
+  const jx =
+    (Math.sin(now * 120 + deck.slot) +
+      Math.sin(now * 197 + 1.7 + deck.slot) * 0.6) * amp * 0.55;
+  const jy =
+    (Math.cos(now * 128 + 0.6 + deck.slot) +
+      Math.sin(now * 233 + 3.1 + deck.slot) * 0.6) * amp * 0.55;
+  const jr =
+    (Math.sin(now * 108 + 2.2 + deck.slot) +
+      Math.sin(now * 181 + deck.slot) * 0.5) * 2.2 * deck.holdLevel;
+  deck.jelly.style.transform =
+    `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
+    ` rotate(${jr.toFixed(2)}deg) scale(${deck.jellyScale.toFixed(4)})`;
+  deck.jelly.style.filter = deck.holdLevel > 0.004
+    ? `hue-rotate(${(-42 * deck.holdLevel).toFixed(1)}deg)` +
+      ` saturate(${(1 + 0.7 * deck.holdLevel).toFixed(3)})` +
+      ` brightness(${(1 + 0.04 * deck.holdLevel).toFixed(3)})`
+    : '';
 }
 
 /* ============================================================
@@ -2851,53 +3375,59 @@ function tick() {
 
     // 大狗律动：拍头向上跳 + 上下压缩（压扁拉伸），叠加两拍一周期的左右晃动
     const sway = Math.sin(((t - startTime) / (SPB * 2)) * Math.PI * 2);
-    dogEl.style.transform =
-      `translate(${(sway * 5).toFixed(2)}px, ${(-9 * beatP).toFixed(2)}px)` +
-      ` rotate(${(sway * 2.4).toFixed(2)}deg)` +
-      ` scale(${(1 + 0.06 * beatP).toFixed(4)}, ${(1 - 0.05 * beatP).toFixed(4)})`;
+    if (performanceSettings.djMode) {
+      for (const deck of djDecks) updateDjDeckCharacter(deck, now, dt, sway);
+    } else {
+      dogEl.style.transform =
+        `translate(${(sway * 5).toFixed(2)}px, ${(-9 * beatP).toFixed(2)}px)` +
+        ` rotate(${(sway * 2.4).toFixed(2)}deg)` +
+        ` scale(${(1 + 0.06 * beatP).toFixed(4)}, ${(1 - 0.05 * beatP).toFixed(4)})`;
+    }
   }
 
   /* ---------- 叫弹跳弹簧 ----------
    * 高刚度(320) + 低阻尼(13)：约 90ms 快速冲起、带过冲后果断定住；
    * 张嘴期间维持弹起，闭嘴快速弹回；每次队列发声时注入冲量，
    * 嘴张着也会重新弹一下。 */
-  const popTarget = mouthPopped ? 1 : 0;
-  barkPopVel += (popTarget - barkPop) * 320 * dt;
-  barkPopVel *= Math.exp(-13 * dt);
-  barkPopVel = Math.max(-10, Math.min(10, barkPopVel));
-  barkPop += barkPopVel * dt;
-  dogInner.style.transform =
-    `scale(${(1 + 0.17 * barkPop).toFixed(4)}) rotate(${(-3.5 * barkPop).toFixed(2)}deg)`;
+  if (!performanceSettings.djMode) {
+    const popTarget = mouthPopped ? 1 : 0;
+    barkPopVel += (popTarget - barkPop) * 320 * dt;
+    barkPopVel *= Math.exp(-13 * dt);
+    barkPopVel = Math.max(-10, Math.min(10, barkPopVel));
+    barkPop += barkPopVel * dt;
+    dogInner.style.transform =
+      `scale(${(1 + 0.17 * barkPop).toFixed(4)}) rotate(${(-3.5 * barkPop).toFixed(2)}deg)`;
 
   /* ---------- 长按果冻动画 ----------
    * holdLevel 缓慢累积（约 1.1s 时间常数），松手后快速回落；
    * 缩放走欠阻尼弹簧，起步和收尾都带 Q 弹过冲；
    * 抖动为 ~19Hz 高频，幅度随 holdLevel 增大并封顶。 */
-  const holdTarget = holding ? 1 : 0;
-  const tau = holding ? 1.1 : 0.22;
-  holdLevel += (holdTarget - holdLevel) * (1 - Math.exp(-dt / tau));
+    const holdTarget = holding ? 1 : 0;
+    const tau = holding ? 1.1 : 0.22;
+    holdLevel += (holdTarget - holdLevel) * (1 - Math.exp(-dt / tau));
 
-  const scaleTarget = 1 + 0.16 * holdLevel;                // 逐渐变大（最大 1.16，弹簧过冲略超）
-  jellyVel += (scaleTarget - jellyScale) * 55 * dt;
-  jellyVel *= Math.exp(-7 * dt);
-  jellyScale += jellyVel * dt;
+    const scaleTarget = 1 + 0.16 * holdLevel;                // 逐渐变大（最大 1.16，弹簧过冲略超）
+    jellyVel += (scaleTarget - jellyScale) * 55 * dt;
+    jellyVel *= Math.exp(-7 * dt);
+    jellyScale += jellyVel * dt;
 
-  const amp = 6 * holdLevel;                               // 抖动幅度渐大，封顶 6px
-  const jx = (Math.sin(now * 120) + Math.sin(now * 197 + 1.7) * 0.6) * amp * 0.55;
-  const jy = (Math.cos(now * 128 + 0.6) + Math.sin(now * 233 + 3.1) * 0.6) * amp * 0.55;
-  const jr = (Math.sin(now * 108 + 2.2) + Math.sin(now * 181) * 0.5) * 2.4 * holdLevel;
-  dogJelly.style.transform =
-    `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
-    ` rotate(${jr.toFixed(2)}deg) scale(${jellyScale.toFixed(4)})`;
+    const amp = 6 * holdLevel;                               // 抖动幅度渐大，封顶 6px
+    const jx = (Math.sin(now * 120) + Math.sin(now * 197 + 1.7) * 0.6) * amp * 0.55;
+    const jy = (Math.cos(now * 128 + 0.6) + Math.sin(now * 233 + 3.1) * 0.6) * amp * 0.55;
+    const jr = (Math.sin(now * 108 + 2.2) + Math.sin(now * 181) * 0.5) * 2.4 * holdLevel;
+    dogJelly.style.transform =
+      `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
+      ` rotate(${jr.toFixed(2)}deg) scale(${jellyScale.toFixed(4)})`;
 
   // 颜色逐渐变红（黄色图 hue-rotate 负角度 → 红，辅以饱和提升）
-  if (holdLevel > 0.004) {
-    dogJelly.style.filter =
-      `hue-rotate(${(-42 * holdLevel).toFixed(1)}deg)` +
-      ` saturate(${(1 + 0.7 * holdLevel).toFixed(3)})` +
-      ` brightness(${(1 + 0.04 * holdLevel).toFixed(3)})`;
-  } else {
-    dogJelly.style.filter = '';
+    if (holdLevel > 0.004) {
+      dogJelly.style.filter =
+        `hue-rotate(${(-42 * holdLevel).toFixed(1)}deg)` +
+        ` saturate(${(1 + 0.7 * holdLevel).toFixed(3)})` +
+        ` brightness(${(1 + 0.04 * holdLevel).toFixed(3)})`;
+    } else {
+      dogJelly.style.filter = '';
+    }
   }
 
   fxFrame(now);
@@ -2909,6 +3439,7 @@ function tick() {
 function retuneHeldJiao(pointerId, state, zi) {
   const z = zones[zi];
   if (!z || z.sample !== 'jiao' || !state.voice) return false;
+  if ((state.voice.deckId ?? null) !== (z.deckId ?? null)) return false;
   if (!isRetunableSustainVoice(state.voice)) return false;
 
   state.zone = zi;
@@ -2992,15 +3523,19 @@ stage.addEventListener('pointermove', (e) => {
   );
 }, { passive: false });
 
-function endPointer(e, musical) {
-  const state = pointers.get(e.pointerId);
+function endInput(pointerId, musical) {
+  const state = pointers.get(pointerId);
   if (state && state.voice) {
     if (musical) releaseVoice(state.voice, true);
     else forceStopVoice(state.voice);
   }
-  if (!musical) cancelQueuedInputs(e.pointerId);
-  pointers.delete(e.pointerId);
+  if (!musical) cancelQueuedInputs(pointerId);
+  pointers.delete(pointerId);
   if (pointers.size === 0) hideControlsUntilIdle();
+}
+
+function endPointer(e, musical) {
+  endInput(e.pointerId, musical);
   try {
     if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
   } catch (_) { /* 指针捕获可能已经自动释放 */ }
@@ -3008,12 +3543,54 @@ function endPointer(e, musical) {
 
 window.addEventListener('pointerup', (e) => endPointer(e, true));
 window.addEventListener('pointercancel', (e) => endPointer(e, false));
-window.addEventListener('blur', () => {
-  inputQueue.length = 0;
-  clearInputVisualTimers();
-  pointers.clear();
-  for (const voice of [...liveVoices]) forceStopVoice(voice);
-});
+
+function beginKeyboardInput(code) {
+  const zi = keyboardZoneByCode.get(code);
+  if (!Number.isInteger(zi)) return;
+  const pointerId = `keyboard:${code}`;
+  if (pointers.has(pointerId)) return;
+  const state = {
+    zone: -1,
+    voice: null,
+    pendingEntryId: null,
+    lastX: 0,
+    lastY: 0,
+  };
+  pointers.set(pointerId, state);
+  enterZone(pointerId, state, zi);
+}
+
+function handleKeyboardDown(event) {
+  if (
+    !performanceSettings.djMode ||
+    settingsOpen ||
+    !keyboardZoneByCode.has(event.code)
+  ) return;
+
+  event.preventDefault();
+  if (event.repeat || pressedKeyboardCodes.has(event.code)) return;
+  pressedKeyboardCodes.add(event.code);
+  hideControlsUntilIdle();
+  void start().then(() => {
+    if (pressedKeyboardCodes.has(event.code)) beginKeyboardInput(event.code);
+  });
+}
+
+function handleKeyboardUp(event) {
+  const pointerId = `keyboard:${event.code}`;
+  if (!pressedKeyboardCodes.has(event.code) && !pointers.has(pointerId)) return;
+  event.preventDefault();
+  pressedKeyboardCodes.delete(event.code);
+  endInput(pointerId, true);
+}
+
+function handleWindowBlur() {
+  stopActivePerformanceInput();
+}
+
+window.addEventListener('keydown', handleKeyboardDown);
+window.addEventListener('keyup', handleKeyboardUp);
+window.addEventListener('blur', handleWindowBlur);
 
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -3021,23 +3598,27 @@ window.addEventListener('contextmenu', (e) => e.preventDefault());
  * 启动
  * ==========================================================*/
 async function start() {
-  if (started) return;
+  if (startPromise) return startPromise;
   started = true;
-  hideControlsUntilIdle();
-  subEl.textContent = '狗 叫 加 载 中 …';
+  startPromise = (async () => {
+    hideControlsUntilIdle();
+    subEl.textContent = '狗 叫 加 载 中 …';
 
-  initAudio();
-  if (ctx.state === 'suspended') await ctx.resume();
-  await loadSamples();
+    initAudio();
+    if (ctx.state === 'suspended') await ctx.resume();
+    await loadSamples();
 
-  startTime = ctx.currentTime + 0.12;
-  nextNoteTime = startTime;
-  lastCommittedInputTime = -Infinity;
-  inputQueue.length = 0;
-  stepCount = 0;
-  setInterval(scheduler, 25);
+    startTime = ctx.currentTime + 0.12;
+    nextNoteTime = startTime;
+    lastCommittedInputTime = -Infinity;
+    lastCommittedDjInputTimes.clear();
+    inputQueue.length = 0;
+    stepCount = 0;
+    setInterval(scheduler, 25);
 
-  overlay.classList.add('hide');
+    overlay.classList.add('hide');
+  })();
+  return startPromise;
 }
 
 let resizeTimer = 0;
