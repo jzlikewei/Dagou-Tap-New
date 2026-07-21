@@ -232,11 +232,14 @@ const pointers = new Map();// pointerId -> { zone, voice, pendingEntryId, lastX,
 const touchTrails = new Map(); // pointerId -> 跟手圆环、尾迹点与退场状态
 const CONTROLS_IDLE_MS = 2000;
 const CONTROLS_HOVER_IDLE_MS = 250;
+const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 4000;
+const PHONE_MAX_SHORT_EDGE = 600;
 const CREATOR_MID = '357762853';
 const CREATOR_URL = `https://space.bilibili.com/${CREATOR_MID}`;
 const FEATURED_BVID = 'BV1kNKU6REBg';
 const FEATURED_VIDEO_URL = `https://www.bilibili.com/video/${FEATURED_BVID}/`;
 const NAVIGATION_MUTE_KEY = 'dagou-navigation-muted';
+const FORCE_PHONE_LANDSCAPE_KEY = 'dagou-force-phone-landscape-v1';
 const TOY_CLOUD_KEYS = Object.freeze({
   sfxUnlocked: 'dagou_sfx_unlocked_v1',
   settingsSeen: 'dagou_settings_seen_v1',
@@ -264,12 +267,21 @@ const LOCKED_SFX_IDS = new Set(['dingdong', 'hajimi']);
 const DEBUG_UNLOCK_SFX = true; // 临时调试：发布前改回 false，恢复 Toy 云端锁定。
 let controlsIdleTimer = 0;
 let navigationMuted = false;
+let forcePhoneLandscape = false;
+let phoneLandscapeBlocked = false;
 
 try {
   navigationMuted =
     window.sessionStorage.getItem(NAVIGATION_MUTE_KEY) === '1';
 } catch (error) {
   console.warn('[大狗Tap] 无法读取导航临时静音状态。', error);
+}
+
+try {
+  forcePhoneLandscape =
+    window.localStorage.getItem(FORCE_PHONE_LANDSCAPE_KEY) === '1';
+} catch (error) {
+  console.warn('[大狗Tap] 无法读取手机横屏设置。', error);
 }
 
 /* ---------- DOM ---------- */
@@ -332,10 +344,127 @@ const soundFieldCenterButton = document.getElementById('sound-field-center');
 const performanceSettingsStatus = document.getElementById(
   'performance-settings-status'
 );
+const mobileDisplaySettingsSection = document.getElementById(
+  'mobile-display-settings-section'
+);
+const forceLandscapeSetting = document.getElementById(
+  'force-landscape-setting'
+);
+const phoneLandscapeGate = document.getElementById('phone-landscape-gate');
+const phoneLandscapeDisable = document.getElementById(
+  'phone-landscape-disable'
+);
 const toyNotice = document.getElementById('toy-notice');
 const authorLink = document.getElementById('author-link');
 const djAuthorLink = document.getElementById('dj-author-link');
 const reduceUiMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function isPhoneDevice(
+  coarsePointer = window.matchMedia('(pointer: coarse)').matches,
+  screenWidth = window.screen?.width ?? window.innerWidth,
+  screenHeight = window.screen?.height ?? window.innerHeight
+) {
+  const shortEdge = Math.min(Number(screenWidth), Number(screenHeight));
+  return coarsePointer && Number.isFinite(shortEdge) &&
+    shortEdge <= PHONE_MAX_SHORT_EDGE;
+}
+
+function isPortraitViewport(
+  width = window.innerWidth,
+  height = window.innerHeight
+) {
+  return Number(height) > Number(width);
+}
+
+function shouldBlockPhoneLandscape(
+  enabled = forcePhoneLandscape,
+  phone = isPhoneDevice(),
+  portrait = isPortraitViewport()
+) {
+  return enabled && phone && portrait;
+}
+
+function saveForcePhoneLandscape() {
+  try {
+    window.localStorage.setItem(
+      FORCE_PHONE_LANDSCAPE_KEY,
+      forcePhoneLandscape ? '1' : '0'
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] 无法保存手机横屏设置。', error);
+  }
+}
+
+async function requestPhoneLandscapeLock() {
+  const orientation = window.screen?.orientation;
+  if (typeof orientation?.lock !== 'function') return false;
+  try {
+    await orientation.lock('landscape');
+    return true;
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器要求手动旋转手机。', error);
+    return false;
+  }
+}
+
+function releasePhoneLandscapeLock() {
+  const orientation = window.screen?.orientation;
+  if (typeof orientation?.unlock !== 'function') return;
+  try {
+    orientation.unlock();
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器未持有横屏锁定。', error);
+  }
+}
+
+function renderPhoneLandscapePreference() {
+  const phone = isPhoneDevice();
+  const blocked = shouldBlockPhoneLandscape(
+    forcePhoneLandscape,
+    phone,
+    isPortraitViewport()
+  );
+  const wasBlocked = phoneLandscapeBlocked;
+  phoneLandscapeBlocked = blocked;
+
+  mobileDisplaySettingsSection.hidden = !phone;
+  forceLandscapeSetting.disabled = !phone;
+  forceLandscapeSetting.setAttribute(
+    'aria-checked',
+    String(phone && forcePhoneLandscape)
+  );
+  phoneLandscapeGate.classList.toggle('is-visible', blocked);
+  phoneLandscapeGate.setAttribute('aria-hidden', String(!blocked));
+  phoneLandscapeGate.inert = !blocked;
+  stage.inert = blocked;
+
+  if (blocked && !wasBlocked) {
+    stopActivePerformanceInput();
+    requestAnimationFrame(() => {
+      phoneLandscapeDisable.focus({ preventScroll: true });
+    });
+  } else if (!blocked && wasBlocked && document.activeElement === phoneLandscapeDisable) {
+    phoneLandscapeDisable.blur();
+  }
+}
+
+async function setForcePhoneLandscape(enabled) {
+  if (!isPhoneDevice()) return;
+  forcePhoneLandscape = enabled === true;
+  saveForcePhoneLandscape();
+
+  if (forcePhoneLandscape) {
+    const lockRequest = requestPhoneLandscapeLock();
+    if (settingsOpen) closeSettings();
+    renderPhoneLandscapePreference();
+    await lockRequest;
+    renderPhoneLandscapePreference();
+    return;
+  }
+
+  releasePhoneLandscapeLock();
+  renderPhoneLandscapePreference();
+}
 
 function showControls() {
   if (pointers.size > 0 || isAnyCharacterHolding()) return;
@@ -1636,6 +1765,13 @@ for (const button of performanceSettingButtons) {
   });
 }
 
+forceLandscapeSetting.addEventListener('click', () => {
+  void setForcePhoneLandscape(!forcePhoneLandscape);
+});
+phoneLandscapeDisable.addEventListener('click', () => {
+  void setForcePhoneLandscape(false);
+});
+
 soundFieldSlider.addEventListener('input', () => {
   if (spatialControlMode !== 'manual') return;
   setSoundFieldPosition(Number(soundFieldSlider.value) / 100, true);
@@ -1662,10 +1798,12 @@ for (const eventName of [
   );
 }
 window.addEventListener('orientationchange', () => {
-  if (spatialControlMode !== 'gravity') return;
-  gravityBaseline = null;
-  lastGravityTilt = null;
-  setSoundFieldPosition(0);
+  window.setTimeout(renderPhoneLandscapePreference, 0);
+  if (spatialControlMode === 'gravity') {
+    gravityBaseline = null;
+    lastGravityTilt = null;
+    setSoundFieldPosition(0);
+  }
 });
 
 async function persistDjSettings(nextSettings, cloudItems) {
@@ -4239,7 +4377,6 @@ stage.addEventListener('pointerdown', (e) => {
       lastY: e.clientY,
     });
     hideControlsUntilIdle();
-    start();
     return;
   }
   try { stage.setPointerCapture(e.pointerId); } catch (_) { /* 某些旧浏览器不支持 */ }
@@ -4315,8 +4452,10 @@ function handleKeyboardDown(event) {
   if (event.repeat || pressedKeyboardCodes.has(event.code)) return;
   pressedKeyboardCodes.add(event.code);
   hideControlsUntilIdle();
-  void start().then(() => {
-    if (pressedKeyboardCodes.has(event.code)) beginKeyboardInput(event.code);
+  void start().then((ready) => {
+    if (ready && pressedKeyboardCodes.has(event.code)) {
+      beginKeyboardInput(event.code);
+    }
   });
 }
 
@@ -4359,34 +4498,71 @@ window.addEventListener('contextmenu', (e) => e.preventDefault());
 /* ============================================================
  * 启动
  * ==========================================================*/
+async function resumeAudioContextForStart() {
+  if (ctx.state === 'running') return;
+  let timeoutId = 0;
+  try {
+    await Promise.race([
+      Promise.resolve(ctx.resume()),
+      new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(new Error('AudioContext resume timed out'));
+        }, AUDIO_CONTEXT_RESUME_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  if (ctx.state !== 'running') {
+    throw new Error(`AudioContext remained ${ctx.state}`);
+  }
+}
+
 async function start() {
   if (startPromise) return startPromise;
   started = true;
   startPromise = (async () => {
-    hideControlsUntilIdle();
-    subEl.textContent = LOADING_MESSAGES[
-      Math.floor(Math.random() * LOADING_MESSAGES.length)
-    ];
+    try {
+      hideControlsUntilIdle();
+      subEl.textContent = LOADING_MESSAGES[
+        Math.floor(Math.random() * LOADING_MESSAGES.length)
+      ];
 
-    initAudio();
-    if (ctx.state === 'suspended') await ctx.resume();
-    await loadSamples();
+      if (!ctx) initAudio();
+      await resumeAudioContextForStart();
+      await loadSamples();
 
-    startTime = ctx.currentTime + 0.12;
-    nextNoteTime = startTime;
-    lastCommittedInputTime = -Infinity;
-    lastCommittedDjInputTimes.clear();
-    inputQueue.length = 0;
-    stepCount = 0;
-    setInterval(scheduler, 25);
+      startTime = ctx.currentTime + 0.12;
+      nextNoteTime = startTime;
+      lastCommittedInputTime = -Infinity;
+      lastCommittedDjInputTimes.clear();
+      inputQueue.length = 0;
+      stepCount = 0;
+      setInterval(scheduler, 25);
 
-    overlay.classList.add('hide');
+      overlay.classList.add('hide');
+      return true;
+    } catch (error) {
+      started = false;
+      startPromise = null;
+      overlay.classList.remove('hide');
+      subEl.textContent = '音频未启动 · 再点一次重试';
+      console.error('[大狗Tap] 音频启动失败。', error);
+      return false;
+    }
   })();
   return startPromise;
 }
 
+// 触摸设备在 pointerup/click 才获得媒体播放所需的用户激活。
+overlay.addEventListener('pointerup', (event) => {
+  event.preventDefault();
+  void start();
+});
+
 let resizeTimer = 0;
 function handleLayoutResize() {
+  renderPhoneLandscapePreference();
   fxResize();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(buildGrid, 150);
@@ -4399,6 +4575,7 @@ if (window.ResizeObserver) {
 
 buildGrid();
 fxResize();
+renderPhoneLandscapePreference();
 updateMuteButton(musicToggle, bgmMuted, '音乐');
 updateMuteButton(sfxToggle, sfxMuted, '音效');
 showControls();

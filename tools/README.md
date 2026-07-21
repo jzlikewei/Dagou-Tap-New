@@ -23,6 +23,7 @@ node tools/verify_interaction_queue.mjs
 node tools/verify_toy_cloud_flow.mjs
 node tools/verify_dj_mode.mjs
 node tools/verify_spatial_audio.mjs
+node tools/verify_mobile_startup.mjs
 ```
 
 第一条命令会直接分析网页实际使用的音频，其中哈基米运行时键 `ha / ji / mi`
@@ -59,6 +60,10 @@ node tools/verify_spatial_audio.mjs
 第七条命令会验证 3D 音效关闭时旁路 HRTF、两台和三台 Deck 的三维位置、
 手动滑杆的左右与远近偏移、横竖屏重力轴映射、3° 静区与 15° 满幅、
 iPad 感应权限入口、手动降级路径，以及 PC 端 `Z`、`/`、`B` 三个音场快捷键。
+
+第八条命令会验证手机识别、强制横屏门与本机设置记忆，确认 iPad 保持平板
+布局；同时验证首次音频解锁由 `pointerup` 触发，AudioContext 恢复超时后会
+清理启动状态并允许再次点击。
 
 DJ 键盘布局：
 

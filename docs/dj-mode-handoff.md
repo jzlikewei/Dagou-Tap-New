@@ -17,6 +17,8 @@
 - DJ 模式与钢琴模式互斥；开启其中一个会关闭另一个。旧云端状态同时开启时，显式保存的 DJ 选择优先；只保存过钢琴选择时延续钢琴模式。
 - `显示网格` 已改为真正控制 DJ 细网格；Deck 分界由舞台结构独立保留。
 - GitHub Pages 等顶层网页会立即进入本地设置模式，DJ 开关不再等待 Toy SDK 父页面握手。
+- iPad 首次音频解锁改由 `pointerup` 用户操作触发；AudioContext 恢复超过 4 秒会回到开始遮罩，允许再次点击。
+- 手机设置新增“强制横屏”，选择保存在当前设备。手机竖屏时会显示旋转提示；支持 Screen Orientation API 的浏览器会同时请求锁定横屏。iPad 保持原有自由旋转布局。
 - `tools/README.md` 已补充 DJ 验证命令和键盘布局。
 - GitHub Pages 测试分支为 `codex/dj-mode-pages`，测试版临时开启 `DEBUG_UNLOCK_SFX`；正式发布前恢复为 `false`。
 

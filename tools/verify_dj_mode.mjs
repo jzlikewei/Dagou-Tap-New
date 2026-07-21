@@ -428,7 +428,7 @@ vm.runInNewContext(
   const forceStopped = [];
   function hideControlsUntilIdle() { hiddenCount++; }
   function handleSoundFieldKeyboard() { return false; }
-  function start() { startCount++; return Promise.resolve(); }
+  function start() { startCount++; return Promise.resolve(true); }
   function enterZone(pointerId, state, zone) {
     enterCount++;
     state.zone = zone;
