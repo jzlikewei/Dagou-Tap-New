@@ -16,7 +16,7 @@ const S16 = SPB / 4;      // 16 分音符（调度步长）
 const S8  = SPB / 2;      // 8 分音符（点击量化的最小节奏点）
 const MASTER_GAIN = 0.85;
 const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
-  djMode: false,
+  djMode: true,
   pianoMode: false,
   rhythmSnap: true,
   showGrid: false,
@@ -785,7 +785,12 @@ function replacePerformanceSettings(nextSettings) {
 
 function resetPerformanceSettingsToDefaults() {
   replaceDjSettings(DEFAULT_DJ_SETTINGS, false);
-  replacePerformanceSettings(DEFAULT_PERFORMANCE_SETTINGS);
+  replacePerformanceSettings({
+    ...DEFAULT_PERFORMANCE_SETTINGS,
+    djMode:
+      DEFAULT_PERFORMANCE_SETTINGS.djMode &&
+      (DEBUG_UNLOCK_SFX || toyCloudState.sfxUnlocked),
+  });
 }
 
 function replaceDjSettings(nextSettings, rebuild = true) {

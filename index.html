@@ -1402,14 +1402,14 @@
           <section class="settings-section" aria-label="演奏设置">
             <div class="settings-label">演奏 · Performance</div>
             <div class="performance-settings">
-              <button class="setting-row" id="dj-mode-setting" type="button" role="switch" aria-checked="false" data-setting="djMode" disabled>
+              <button class="setting-row" id="dj-mode-setting" type="button" role="switch" aria-checked="true" data-setting="djMode" disabled>
                 <span class="setting-copy">
                   <span class="setting-name">DJ 模式</span>
                   <span class="setting-description">2–3 台独立 Deck，多指与键盘演奏</span>
                 </span>
                 <span class="setting-switch" aria-hidden="true"></span>
               </button>
-              <div id="dj-settings" class="dj-settings" aria-hidden="true">
+              <div id="dj-settings" class="dj-settings is-visible" aria-hidden="false">
                 <div class="dj-count" role="radiogroup" aria-label="Deck 数量">
                   <button class="dj-count-button is-active" type="button" role="radio" aria-checked="true" data-dj-count="2">2 Deck</button>
                   <button class="dj-count-button" type="button" role="radio" aria-checked="false" data-dj-count="3">3 Deck</button>
@@ -1484,6 +1484,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-dj-edition-credits-test"></script>
+<script src="main.js?v=20260721-dj-default-on-test"></script>
 </body>
 </html>

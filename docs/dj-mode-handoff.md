@@ -10,6 +10,7 @@
 - 新增独立多指跟手画布：每个触点显示圆环、短粒子尾迹和跨格脉冲，松手后独立淡出。
 - DJ 设置可在普通几何尾迹与 `🐶🐔🐱` 尾迹之间切换，emoji 跟随所在 Deck 当前绑定的音色变化；松手时轻微放大，并在约 200 毫秒内沿滑动方向飞出、淡出，原地松手默认向上飞。
 - 页面标题更新为“大狗Tap DJ版”；创作信息保留原作者马克杯 MarkCup，并加入 DJ 版改编者 `jzlikewei` 的 GitHub 入口。
+- DJ 模式在音效可用时默认开启；已保存的手动开关选择继续优先恢复。
 - `显示网格` 已改为真正控制 DJ 细网格；Deck 分界由舞台结构独立保留。
 - GitHub Pages 等顶层网页会立即进入本地设置模式，DJ 开关不再等待 Toy SDK 父页面握手。
 - `tools/README.md` 已补充 DJ 验证命令和键盘布局。
@@ -216,7 +217,7 @@ DJ 模式中的哈基米使用静态开嘴、闭嘴图片。东海帝皇循环�
 
 ### `main.js`
 
-- `DEFAULT_PERFORMANCE_SETTINGS` 增加 `djMode`。
+- `DEFAULT_PERFORMANCE_SETTINGS` 增加 `djMode`，测试版默认开启。
 - 增加默认 DJ 配置、槽位关系、音色名称和三组键盘映射。
 - 增加 DJ 云端键：
 
@@ -392,7 +393,7 @@ replacePerformanceSettings({ ...performanceSettings, djMode: true });
 - 屏幕旋转触发 `buildGrid()` 时，活动指针是否需要主动结束。
 - DJ 特效目前仍使用全屏画布，发散中心位于对应 Deck；部分几何形状仍会越过 Deck 边界。若产品要求视觉严格分屏，需要给每台 Deck 增加裁剪区域或独立画布。
 - DJ 模式的 `showGrid` 控制 `4 × 3` 细网格，Deck 之间的结构分界始终保留。
-- 旧云端数据缺少 DJ 键时会落回两台默认配置。
+- 旧云端数据缺少 DJ 模式键时默认开启，并使用两台 Deck 的默认配置。
 
 ### 5. 文档和版本
 

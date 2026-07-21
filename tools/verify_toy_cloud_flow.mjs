@@ -297,7 +297,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     // The dedicated debug case below opts into the temporary bypass explicitly.
     DEBUG_UNLOCK_SFX: debugUnlock,
     DEFAULT_PERFORMANCE_SETTINGS: Object.freeze({
-      djMode: false,
+      djMode: true,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -319,7 +319,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       'dagou_dj_deck_right_v1',
     ]),
     performanceSettings: {
-      djMode: false,
+      djMode: true,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -577,7 +577,7 @@ assert.match(
 assert.match(htmlSource, /content:\s*"换成帝皇"/, 'static Hajimi toggle label');
 assert.match(htmlSource, /content:\s*"换回哈基米"/, 'animated Hajimi toggle label');
 for (const [settingName, defaultChecked] of [
-  ['djMode', 'false'],
+  ['djMode', 'true'],
   ['pianoMode', 'false'],
   ['rhythmSnap', 'true'],
   ['showGrid', 'false'],
@@ -603,15 +603,26 @@ for (const [settingName, defaultChecked] of [
   );
   assert.equal(harness.context.toyCloudState.initialized, true);
   assert.equal(harness.context.toyCloudState.environmentAvailable, false);
-  assert.equal(harness.performanceButtons.every(button => !button.disabled), true);
-
-  await harness.context.handlePerformanceSettingClick(
-    performanceButton(harness, 'djMode')
+  assert.equal(
+    harness.performanceButtons
+      .filter(button => button.dataset.setting !== 'pianoMode')
+      .every(button => !button.disabled),
+    true,
   );
+  assert.equal(performanceButton(harness, 'pianoMode').disabled, true);
   assert.equal(harness.context.performanceSettings.djMode, true);
   assert.equal(
     performanceButton(harness, 'djMode').attributes.get('aria-checked'),
     'true',
+  );
+
+  await harness.context.handlePerformanceSettingClick(
+    performanceButton(harness, 'djMode')
+  );
+  assert.equal(harness.context.performanceSettings.djMode, false);
+  assert.equal(
+    performanceButton(harness, 'djMode').attributes.get('aria-checked'),
+    'false',
   );
 }
 
@@ -721,6 +732,7 @@ for (const [settingName, defaultChecked] of [
     cloud: {
       dagou_sfx_unlocked_v1: '1',
       dagou_piano_mode_v1: '1',
+      dagou_dj_mode_v1: '0',
     },
   });
   const harness = makeHarness(setup.toy);
@@ -751,6 +763,11 @@ for (const [settingName, defaultChecked] of [
   const setup = makeToy({ cloud: { dagou_sfx_unlocked_v1: '1' } });
   const harness = makeHarness(setup.toy);
   await initialize(harness);
+  assert.equal(
+    harness.context.performanceSettings.djMode,
+    true,
+    'an unlocked profile without a saved DJ preference must start in DJ mode',
+  );
   const buildsBeforeDjChanges = harness.getBuildGridCalls();
 
   await harness.context.persistDjSettings(
