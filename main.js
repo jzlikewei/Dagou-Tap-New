@@ -23,7 +23,7 @@ const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
   spatialAudio: false,
 });
 const DEFAULT_DJ_SETTINGS = Object.freeze({
-  deckCount: 2,
+  deckCount: 3,
   deckSfxIds: Object.freeze(['dagou', 'hajimi', 'dingdong']),
   trailStyle: 'normal',
 });
@@ -180,6 +180,10 @@ const EMERGENCY_FADE = 0.018;
 const SPATIAL_DECK_PANS = Object.freeze([-0.72, 0, 0.72]);
 const SPATIAL_FIELD_SHIFT = 0.3;
 const SPATIAL_FOCUS_GAIN = 0.12;
+const HRTF_X_SPREAD = 1.25;
+const HRTF_FIELD_SHIFT = 0.48;
+const HRTF_BASE_DISTANCE = 1.15;
+const HRTF_DEPTH_SHIFT = 0.5;
 const GRAVITY_DEAD_ZONE = 3;
 const GRAVITY_FULL_TILT = 15;
 const GRAVITY_SMOOTHING = 0.2;
@@ -669,9 +673,13 @@ function getDeckBaseSpatialPan(deckId) {
 }
 
 function getSpatialOutputTargets(deckId) {
-  if (!performanceSettings.spatialAudio) return { pan: 0, gain: 1 };
   const basePan = getDeckBaseSpatialPan(deckId);
+  if (!performanceSettings.spatialAudio) {
+    return { enabled: false, pan: 0, gain: 1, x: 0, y: 0, z: -1 };
+  }
+  const focus = basePan * soundFieldPosition;
   return {
+    enabled: true,
     pan: clampSoundFieldPosition(
       basePan + soundFieldPosition * SPATIAL_FIELD_SHIFT
     ),
@@ -682,6 +690,9 @@ function getSpatialOutputTargets(deckId) {
         1 + basePan * soundFieldPosition * SPATIAL_FOCUS_GAIN
       )
     ),
+    x: basePan * HRTF_X_SPREAD + soundFieldPosition * HRTF_FIELD_SHIFT,
+    y: 0,
+    z: -(HRTF_BASE_DISTANCE - focus * HRTF_DEPTH_SHIFT),
   };
 }
 
@@ -696,8 +707,25 @@ function setSpatialAudioParam(param, value, immediate = false) {
 function updateSpatialOutput(output, immediate = false) {
   if (!output) return;
   const targets = getSpatialOutputTargets(output.deckId);
-  setSpatialAudioParam(output.gain.gain, targets.gain, immediate);
-  if (output.panner) {
+  setSpatialAudioParam(
+    output.dryGain.gain,
+    targets.enabled ? 0 : 1,
+    immediate
+  );
+  setSpatialAudioParam(
+    output.spatialGain.gain,
+    targets.enabled ? targets.gain : 0,
+    immediate
+  );
+  if (output.pannerKind === 'hrtf') {
+    if (output.panner.positionX && output.panner.positionZ) {
+      setSpatialAudioParam(output.panner.positionX, targets.x, immediate);
+      setSpatialAudioParam(output.panner.positionY, targets.y, immediate);
+      setSpatialAudioParam(output.panner.positionZ, targets.z, immediate);
+    } else if (typeof output.panner.setPosition === 'function') {
+      output.panner.setPosition(targets.x, targets.y, targets.z);
+    }
+  } else if (output.pannerKind === 'stereo') {
     setSpatialAudioParam(output.panner.pan, targets.pan, immediate);
   }
 }
@@ -729,7 +757,9 @@ function renderSpatialAudioControls() {
   stage.classList.toggle('is-spatial-gravity', enabled && gravityMode);
   soundFieldControl.setAttribute('aria-hidden', String(!enabled));
   soundFieldSlider.disabled = !enabled || gravityMode;
-  soundFieldModeLabel.textContent = gravityMode ? '3D · 重力' : '3D · 手动';
+  soundFieldModeLabel.textContent = gravityMode
+    ? 'HRTF · 重力'
+    : 'HRTF · 手动';
   soundFieldCenterButton.textContent = gravityMode ? '校准' : '回中';
 
   for (const button of spatialModeButtons) {
@@ -1118,8 +1148,11 @@ function readCloudPerformanceSettings(cloud) {
 }
 
 function readCloudDjSettings(cloud) {
+  const storedDeckCount = Number(cloud[TOY_CLOUD_KEYS.djDeckCount]);
   return {
-    deckCount: cloud[TOY_CLOUD_KEYS.djDeckCount] === '3' ? 3 : 2,
+    deckCount: storedDeckCount === 2 || storedDeckCount === 3
+      ? storedDeckCount
+      : DEFAULT_DJ_SETTINGS.deckCount,
     trailStyle:
       cloud[TOY_CLOUD_KEYS.djTrailStyle] === 'emoji' ? 'emoji' : 'normal',
     deckSfxIds: DJ_DECK_CLOUD_KEYS.map((key, slot) => {
@@ -2339,18 +2372,45 @@ function safeStop(source, when = ctx.currentTime) {
 }
 
 function createSpatialOutput(deckId) {
-  const gain = ctx.createGain();
-  const panner = typeof ctx.createStereoPanner === 'function'
-    ? ctx.createStereoPanner()
-    : null;
-  if (panner) {
-    gain.connect(panner);
+  const input = ctx.createGain();
+  const dryGain = ctx.createGain();
+  const spatialGain = ctx.createGain();
+  let panner = null;
+  let pannerKind = 'none';
+
+  input.connect(dryGain);
+  dryGain.connect(sfxBus);
+  input.connect(spatialGain);
+
+  if (typeof ctx.createPanner === 'function') {
+    panner = ctx.createPanner();
+    pannerKind = 'hrtf';
+    panner.panningModel = 'HRTF';
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 1;
+    panner.maxDistance = 10;
+    panner.rolloffFactor = 0.35;
+    panner.coneInnerAngle = 360;
+    panner.coneOuterAngle = 360;
+    spatialGain.connect(panner);
+    panner.connect(sfxBus);
+  } else if (typeof ctx.createStereoPanner === 'function') {
+    panner = ctx.createStereoPanner();
+    pannerKind = 'stereo';
+    spatialGain.connect(panner);
     panner.connect(sfxBus);
   } else {
-    gain.connect(sfxBus);
+    spatialGain.connect(sfxBus);
   }
 
-  const output = { deckId, gain, panner };
+  const output = {
+    deckId,
+    input,
+    dryGain,
+    spatialGain,
+    panner,
+    pannerKind,
+  };
   liveSpatialOutputs.add(output);
   updateSpatialOutput(output, true);
   return output;
@@ -2359,7 +2419,9 @@ function createSpatialOutput(deckId) {
 function disconnectSpatialOutput(output) {
   if (!output) return;
   liveSpatialOutputs.delete(output);
-  try { output.gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  try { output.input.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  try { output.dryGain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  try { output.spatialGain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   if (output.panner) {
     try { output.panner.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   }
@@ -2395,7 +2457,7 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.playbackRate.setValueAtTime(voice.rate, boundary);
   gain.gain.setValueAtTime(voice.sampleGain, boundary);
   source.connect(gain);
-  gain.connect(voice.spatialOutput.gain);
+  gain.connect(voice.spatialOutput.input);
   source.start(boundary, sourceOffset);
 
   voice.tailSource = source;
@@ -2419,7 +2481,7 @@ function playPressVoice(name, rate, when, deckId = null) {
     source.playbackRate.setValueAtTime(rate, when);
     gain.gain.setValueAtTime(sampleGain, when);
     source.connect(gain);
-    gain.connect(spatialOutput.gain);
+    gain.connect(spatialOutput.input);
     source.onended = () => {
       try { source.disconnect(); } catch (_) { /* 节点可能已断开 */ }
       try { gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
@@ -2440,7 +2502,7 @@ function playPressVoice(name, rate, when, deckId = null) {
   dryGain.gain.setValueAtTime(sampleGain, when);
   dryGain.gain.setValueAtTime(0, handoffAt);
   drySource.connect(dryGain);
-  dryGain.connect(spatialOutput.gain);
+  dryGain.connect(spatialOutput.input);
 
   // 延音源从原音尾段起点开始，起音源在同一采样时刻静音。
   const loopSource = ctx.createBufferSource();
@@ -2450,7 +2512,7 @@ function playPressVoice(name, rate, when, deckId = null) {
   loopSource.playbackRate.setValueAtTime(rate, handoffAt);
   loopGain.gain.setValueAtTime(sampleGain, handoffAt);
   loopSource.connect(loopGain);
-  loopGain.connect(spatialOutput.gain);
+  loopGain.connect(spatialOutput.input);
 
   const voice = {
     id: ++voiceSerial,

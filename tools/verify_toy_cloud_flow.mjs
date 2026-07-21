@@ -328,7 +328,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       spatialAudio: 'dagou_spatial_audio_v1',
     }),
     DEFAULT_DJ_SETTINGS: Object.freeze({
-      deckCount: 2,
+      deckCount: 3,
       deckSfxIds: Object.freeze(['dagou', 'hajimi', 'dingdong']),
       trailStyle: 'normal',
     }),
@@ -346,7 +346,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     },
     performanceSettingsSaving: false,
     djSettings: {
-      deckCount: 2,
+      deckCount: 3,
       deckSfxIds: ['dagou', 'hajimi', 'dingdong'],
       trailStyle: 'normal',
     },
@@ -613,6 +613,21 @@ for (const [settingName, defaultChecked] of [
     `Missing default markup for ${settingName}`,
   );
 }
+assert.match(
+  mainSource,
+  /const DEFAULT_DJ_SETTINGS = Object\.freeze\(\{\s*deckCount: 3,/,
+  'three decks must be the runtime default',
+);
+assert.match(
+  htmlSource,
+  /class="dj-count-button is-active"[^>]*aria-checked="true"[^>]*data-dj-count="3"/,
+  'three decks must be selected in the initial markup',
+);
+assert.doesNotMatch(
+  htmlSource,
+  /class="dj-deck-assignment is-hidden"[^>]*data-dj-slot="1"/,
+  'the default center deck assignment must be visible',
+);
 
 {
   const setup = makeToy();
@@ -846,6 +861,11 @@ for (const [settingName, defaultChecked] of [
     harness.context.performanceSettings.djMode,
     true,
     'an unlocked profile without a saved DJ preference must start in DJ mode',
+  );
+  assert.equal(
+    harness.context.djSettings.deckCount,
+    3,
+    'an unlocked profile without a saved deck count must start with three decks',
   );
   const buildsBeforeDjChanges = harness.getBuildGridCalls();
 

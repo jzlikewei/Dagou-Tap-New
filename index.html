@@ -1556,8 +1556,8 @@
               </button>
               <div id="dj-settings" class="dj-settings is-visible" aria-hidden="false">
                 <div class="dj-count" role="radiogroup" aria-label="Deck 数量">
-                  <button class="dj-count-button is-active" type="button" role="radio" aria-checked="true" data-dj-count="2">2 Deck</button>
-                  <button class="dj-count-button" type="button" role="radio" aria-checked="false" data-dj-count="3">3 Deck</button>
+                  <button class="dj-count-button" type="button" role="radio" aria-checked="false" data-dj-count="2">2 Deck</button>
+                  <button class="dj-count-button is-active" type="button" role="radio" aria-checked="true" data-dj-count="3">3 Deck</button>
                 </div>
                 <div class="dj-trail-setting">
                   <span class="dj-trail-label">跟手特效</span>
@@ -1574,7 +1574,7 @@
                     <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
                   </div>
                 </div>
-                <div class="dj-deck-assignment is-hidden" data-dj-slot="1">
+                <div class="dj-deck-assignment" data-dj-slot="1">
                   <span class="dj-deck-name">CENTER</span>
                   <div class="dj-sfx-choices" role="radiogroup" aria-label="中间 Deck 音效">
                     <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
@@ -1621,6 +1621,7 @@
                     <button class="spatial-mode-button" type="button" role="radio" aria-checked="false" data-spatial-mode="gravity">重力</button>
                   </div>
                 </div>
+                <div class="spatial-audio-hint">HRTF 加入前后与远近定位，耳机效果更明显</div>
                 <div class="spatial-audio-hint">手动：拖动顶部滑杆；PC 用 Z 左移、/ 右移、B 回中。重力：倾斜 iPad，点“校准”重设中央位置</div>
               </div>
             </div>
@@ -1639,6 +1640,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-<script src="main.js?v=20260721-mode-shortcuts"></script>
+<script src="main.js?v=20260721-hrtf-spatial"></script>
 </body>
 </html>

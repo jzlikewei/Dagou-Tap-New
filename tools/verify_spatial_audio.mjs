@@ -46,6 +46,10 @@ vm.runInNewContext(
   ${extractConst('SPATIAL_DECK_PANS')}
   ${extractConst('SPATIAL_FIELD_SHIFT')}
   ${extractConst('SPATIAL_FOCUS_GAIN')}
+  ${extractConst('HRTF_X_SPREAD')}
+  ${extractConst('HRTF_FIELD_SHIFT')}
+  ${extractConst('HRTF_BASE_DISTANCE')}
+  ${extractConst('HRTF_DEPTH_SHIFT')}
   ${extractConst('GRAVITY_DEAD_ZONE')}
   ${extractConst('GRAVITY_FULL_TILT')}
   ${extractConst('SOUND_FIELD_KEY_POSITIONS')}
@@ -113,35 +117,38 @@ vm.runInNewContext(
 const clone = (value) => JSON.parse(JSON.stringify(value));
 assert.deepEqual(
   clone(sandbox.spatialApi.targets(false, -1, 'dj-0')),
-  { pan: 0, gain: 1 },
-  'disabling 3D audio must center every deck at unity gain',
+  { enabled: false, pan: 0, gain: 1, x: 0, y: 0, z: -1 },
+  'disabling 3D audio must select the uncolored bypass',
 );
-assert.deepEqual(
-  clone(sandbox.spatialApi.targets(true, 0, 'dj-0')),
-  { pan: -0.72, gain: 1 },
-  'the left deck must start on the left',
-);
+const leftCenter = sandbox.spatialApi.targets(true, 0, 'dj-0');
+assert.equal(leftCenter.enabled, true);
+assert.equal(leftCenter.pan, -0.72);
+assert.equal(leftCenter.gain, 1);
+assert.ok(Math.abs(leftCenter.x + 0.9) < 1e-12);
+assert.equal(leftCenter.z, -1.15);
 assert.deepEqual(
   clone(sandbox.spatialApi.targets(true, 0, 'dj-1')),
-  { pan: 0, gain: 1 },
+  { enabled: true, pan: 0, gain: 1, x: 0, y: 0, z: -1.15 },
   'the center deck must stay centered',
 );
-assert.deepEqual(
-  clone(sandbox.spatialApi.targets(true, 0, 'dj-2')),
-  { pan: 0.72, gain: 1 },
-  'the right deck must start on the right',
-);
+const rightCenter = sandbox.spatialApi.targets(true, 0, 'dj-2');
+assert.equal(rightCenter.pan, 0.72);
+assert.ok(Math.abs(rightCenter.x - 0.9) < 1e-12);
+assert.equal(rightCenter.z, -1.15);
 
 const leftFocus = sandbox.spatialApi.targets(true, -1, 'dj-0');
 const rightFar = sandbox.spatialApi.targets(true, -1, 'dj-2');
 assert.equal(leftFocus.pan, -1);
 assert.ok(leftFocus.gain > 1);
+assert.ok(leftFocus.x < leftCenter.x);
+assert.ok(leftFocus.z > leftCenter.z);
 assert.ok(rightFar.pan < 0.72);
 assert.ok(rightFar.gain < 1);
+assert.ok(rightFar.z < rightCenter.z);
 assert.deepEqual(
   clone(sandbox.spatialApi.targets(true, -1, 'dj-1')),
-  { pan: -0.3, gain: 1 },
-  'moving the sound field must shift the center deck without changing its gain',
+  { enabled: true, pan: -0.3, gain: 1, x: -0.48, y: 0, z: -1.15 },
+  'moving the sound field must shift the center deck without changing its depth',
 );
 
 assert.equal(sandbox.spatialApi.tilt(0, 8, -12), -12);
@@ -179,8 +186,23 @@ assert.equal(
 
 assert.match(
   extractFunction('createSpatialOutput'),
-  /createStereoPanner/,
-  'each effect voice must use a native stereo panner when available',
+  /createPanner/,
+  'each effect voice must use a native spatial panner when available',
+);
+assert.match(
+  extractFunction('createSpatialOutput'),
+  /panningModel = 'HRTF'/,
+  'the native spatial panner must use the HRTF model',
+);
+assert.match(
+  extractFunction('createSpatialOutput'),
+  /dryGain\.connect\(sfxBus\)/,
+  'the original signal must keep a direct bypass around HRTF',
+);
+assert.match(
+  extractFunction('updateSpatialOutput'),
+  /output\.dryGain\.gain[\s\S]*output\.spatialGain\.gain[\s\S]*positionZ/,
+  '3D switching must crossfade the bypass and update source depth',
 );
 assert.match(
   extractFunction('playPressVoice'),
@@ -189,7 +211,7 @@ assert.match(
 );
 assert.match(
   extractFunction('createTailSource'),
-  /voice\.spatialOutput\.gain/,
+  /voice\.spatialOutput\.input/,
   'a released sustain tail must keep the same spatial position',
 );
 assert.match(
@@ -232,9 +254,9 @@ assert.match(htmlSource, /data-spatial-mode="manual"/, 'missing manual mode');
 assert.match(htmlSource, /data-spatial-mode="gravity"/, 'missing gravity mode');
 
 console.log('Spatial audio verification passed:');
-console.log('- off mode centers every effect voice at unity gain');
-console.log('- two and three deck layouts map to left, center, and right positions');
-console.log('- manual focus shifts the field and emphasizes the nearer deck');
+console.log('- off mode bypasses HRTF and preserves the original signal path');
+console.log('- two and three deck layouts map to stable three-dimensional positions');
+console.log('- manual focus shifts the field and moves the nearer deck forward');
 console.log('- portrait and landscape tilt axes map into one sound-field value');
 console.log('- gravity reaches full range at 15 degrees with a 3-degree dead zone');
 console.log('- iPad sensor permission and slider fallback remain present');
