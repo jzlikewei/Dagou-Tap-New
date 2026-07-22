@@ -15,10 +15,187 @@ const SPB = 60 / BPM;     // 每拍秒数
 const S16 = SPB / 4;      // 16 分音符（调度步长）
 const S8  = SPB / 2;      // 8 分音符（点击量化的最小节奏点）
 const MASTER_GAIN = 0.85;
+const RHYTHM_GAME_BAR_COUNT = 32;      // 128 BPM 下 32 小节正好 1 分钟
+const RHYTHM_GAME_CUE_LEAD = 1.2;
+const RHYTHM_GAME_PERFECT_WINDOW = 0.11;
+const RHYTHM_GAME_GOOD_WINDOW = 0.24;
+const RHYTHM_GAME_MISS_WINDOW = 0.3;
+const RHYTHM_GAME_PHRASE_BARS = 4;
+const RHYTHM_GAME_SLIDE_CUE_LEAD = 0.32;
+const RHYTHM_GAME_SLIDE_GOOD_WINDOW = 0.32;
+const RHYTHM_GAME_AUTOPLAY_LOOKAHEAD = 0.025;
+const RHYTHM_GAME_AUTOPLAY_TAP_DURATION = 0.12;
+const RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION = 0.2;
+const RHYTHM_GAME_AUTOPLAY_INPUT_PREFIX = 'rhythm-autoplay:';
+const RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS = 2;
+const RHYTHM_GAME_PHRASE_TAIL_MAX_STEPS = 6;
+const DJ_RECORDING_MAX_SECONDS = 90;
+const DJ_RECORDING_DEFAULT_SECONDS = 30;
+const DJ_RECORDING_DURATION_OPTIONS = Object.freeze([30, 60]);
+const DJ_RECORDING_END_WARNING_SECONDS = 5;
+const DJ_RECORDING_MAX_NOTES = 5000;
+const DJ_RECORDING_MAX_CODE_LENGTH = 32768;
+const DJ_RECORDING_TIME_UNITS_PER_BEAT = 1024;
+const DJ_RECORDING_SNAP_UNITS = DJ_RECORDING_TIME_UNITS_PER_BEAT / 2;
+const DJ_RECORDING_LOOP_UNITS = DJ_RECORDING_TIME_UNITS_PER_BEAT * 16;
+const DJ_RECORDING_FORMAT_VERSION = 2;
+const DJ_LIBRARY_STORAGE_KEY = 'dagou_dj_library_v1';
+const DJ_LIBRARY_SCHEMA_VERSION = 1;
+const DJ_LIBRARY_SHARE_PREFIX = 'DGL1';
+const DJ_LIBRARY_MAX_TRACKS = 50;
+const DJ_LIBRARY_MAX_NAME_BYTES = 8;
+const DJ_LIBRARY_MAX_SHARE_CODE_LENGTH = DJ_RECORDING_MAX_CODE_LENGTH + 32;
+const DJ_PLAYBACK_TOUCH_PREFIX = 'dj-playback:';
+const DJ_PLAYBACK_TAP_HOLD_SECONDS = 0.12;
+const DJ_SHARE_URL_BASE =
+  'https://t9lqe93khi.feishuapp.com/app/app_17ammbtgvq8/';
+const DJ_SHARE_QUERY_PARAM = 'dj';
+const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
+  dagou: Object.freeze([
+    Object.freeze({
+      id: 'dagou-call',
+      text: '大狗叫',
+      rows: Object.freeze([0, 1, 2]),
+      steps: Object.freeze([0, 2, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4]),
+        Object.freeze([1, 3, 6]),
+        Object.freeze([0, 3, 5]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dagou-chant',
+      text: '大狗大狗叫叫叫',
+      rows: Object.freeze([0, 1, 0, 1, 2, 2, 2]),
+      steps: Object.freeze([0, 1, 2, 3, 4, 5, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 3, 4, 5, 6, 7]),
+        Object.freeze([0, 2, 3, 4, 5, 6, 7]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dagou-tail',
+      text: '大狗叫叫',
+      rows: Object.freeze([0, 1, 2, 2]),
+      steps: Object.freeze([0, 2, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4, 5]),
+        Object.freeze([1, 3, 5, 6]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dagou-double-call',
+      text: '大狗大狗叫',
+      rows: Object.freeze([0, 1, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 3, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 2, 3, 5, 7]),
+        Object.freeze([1, 2, 4, 5, 6]),
+      ]),
+    }),
+  ]),
+  dingdong: Object.freeze([
+    Object.freeze({
+      id: 'dingdong-chant',
+      text: '叮咚叮咚鸡',
+      rows: Object.freeze([0, 1, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 2, 3, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 3, 4, 6]),
+        Object.freeze([1, 2, 4, 5, 7]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dingdong-call',
+      text: '叮咚鸡',
+      rows: Object.freeze([0, 1, 2]),
+      steps: Object.freeze([0, 2, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4]),
+        Object.freeze([1, 3, 6]),
+        Object.freeze([0, 3, 5]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dingdong-tail',
+      text: '叮咚鸡鸡',
+      rows: Object.freeze([0, 1, 2, 2]),
+      steps: Object.freeze([0, 2, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4, 5]),
+        Object.freeze([1, 3, 5, 6]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dingdong-stutter',
+      text: '叮叮咚鸡',
+      rows: Object.freeze([0, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 3, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 2, 4, 5]),
+        Object.freeze([1, 2, 5, 7]),
+      ]),
+    }),
+  ]),
+  hajimi: Object.freeze([
+    Object.freeze({
+      id: 'hajimi-call',
+      text: '哈基米',
+      rows: Object.freeze([0, 1, 2]),
+      steps: Object.freeze([0, 2, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4]),
+        Object.freeze([1, 3, 6]),
+        Object.freeze([0, 3, 5]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'hajimi-chant',
+      text: '哈基哈基米米米',
+      rows: Object.freeze([0, 1, 0, 1, 2, 2, 2]),
+      steps: Object.freeze([0, 1, 2, 3, 4, 5, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 3, 4, 5, 6, 7]),
+        Object.freeze([0, 2, 3, 4, 5, 6, 7]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'hajimi-tail',
+      text: '哈基米米',
+      rows: Object.freeze([0, 1, 2, 2]),
+      steps: Object.freeze([0, 2, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4, 5]),
+        Object.freeze([1, 3, 5, 6]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'hajimi-double-call',
+      text: '哈基哈基米',
+      rows: Object.freeze([0, 1, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 3, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 2, 3, 5, 7]),
+        Object.freeze([1, 2, 4, 5, 6]),
+      ]),
+    }),
+  ]),
+});
 const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
+  djMode: true,
+  rhythmGameMode: false,
   pianoMode: false,
   rhythmSnap: true,
   showGrid: false,
+  spatialAudio: false,
+});
+const DEFAULT_DJ_SETTINGS = Object.freeze({
+  deckCount: 3,
+  deckSfxIds: Object.freeze(['dagou', 'hajimi', 'dingdong']),
+  trailStyle: 'normal',
+});
+const DEFAULT_RHYTHM_GAME_SETTINGS = Object.freeze({
+  laneCount: 3,
 });
 
 /* ---------- 全局状态 ---------- */
@@ -28,10 +205,12 @@ let bgmBus = null;        // 循环音乐总线
 let sfxBus = null;        // 狗叫音效总线
 let noiseBuf = null;      // 白噪声（鼓组用）
 let started = false;
+let startPromise = null;
 let bgmMuted = false;
 let sfxMuted = false;
 const performanceSettings = { ...DEFAULT_PERFORMANCE_SETTINGS };
 let performanceSettingsSaving = false;
+let shortcutOverlayVisible = false;
 
 let startTime = 0;        // 第 0 步对应的 audio 时间
 let nextNoteTime = 0;     // 调度器下一个音符时间
@@ -63,6 +242,64 @@ const CHARACTER_IMAGE_SETS = Object.freeze({
     alt: '哈基米',
   }),
 });
+const touchTrailImages = Object.freeze(
+  Object.fromEntries(
+    Object.entries(CHARACTER_IMAGE_SETS).map(([sfxId, imageSet]) => {
+      const image = new Image();
+      image.decoding = 'async';
+      image.src = imageSet.open;
+      return [sfxId, image];
+    })
+  )
+);
+const SFX_LABELS = Object.freeze({
+  dagou: '大狗叫',
+  dingdong: '叮咚鸡',
+  hajimi: '哈基米',
+});
+const SFX_EMOJIS = Object.freeze({
+  dagou: '🐶',
+  dingdong: '🐔',
+  hajimi: '🐱',
+});
+const DJ_RECORDING_SFX_CODES = Object.freeze({
+  dagou: 0,
+  hajimi: 1,
+  dingdong: 2,
+});
+const DJ_RECORDING_SFX_IDS = Object.freeze([
+  'dagou',
+  'hajimi',
+  'dingdong',
+]);
+const LOADING_MESSAGES = Object.freeze(['狗叫加载中', '基米哈气中']);
+const DJ_DECK_LABELS = Object.freeze(['LEFT', 'CENTER', 'RIGHT']);
+const DJ_ACTIVE_SLOTS = Object.freeze({
+  2: Object.freeze([0, 2]),
+  3: Object.freeze([0, 1, 2]),
+});
+const RHYTHM_GAME_ACTIVE_SLOTS = Object.freeze({
+  1: Object.freeze([0]),
+  2: Object.freeze([0, 2]),
+  3: Object.freeze([0, 1, 2]),
+});
+const DJ_KEY_GROUPS = Object.freeze([
+  Object.freeze([
+    Object.freeze([{ code: 'Digit1', label: '1' }, { code: 'Digit2', label: '2' }, { code: 'Digit3', label: '3' }, { code: 'Digit4', label: '4' }]),
+    Object.freeze([{ code: 'KeyQ', label: 'Q' }, { code: 'KeyW', label: 'W' }, { code: 'KeyE', label: 'E' }, { code: 'KeyR', label: 'R' }]),
+    Object.freeze([{ code: 'KeyA', label: 'A' }, { code: 'KeyS', label: 'S' }, { code: 'KeyD', label: 'D' }, { code: 'KeyF', label: 'F' }]),
+  ]),
+  Object.freeze([
+    Object.freeze([{ code: 'Digit5', label: '5' }, { code: 'Digit6', label: '6' }, { code: 'Digit7', label: '7' }, { code: 'Digit8', label: '8' }]),
+    Object.freeze([{ code: 'KeyT', label: 'T' }, { code: 'KeyY', label: 'Y' }, { code: 'KeyU', label: 'U' }, { code: 'KeyI', label: 'I' }]),
+    Object.freeze([{ code: 'KeyG', label: 'G' }, { code: 'KeyH', label: 'H' }, { code: 'KeyJ', label: 'J' }, { code: 'KeyK', label: 'K' }]),
+  ]),
+  Object.freeze([
+    Object.freeze([{ code: 'Digit9', label: '9' }, { code: 'Digit0', label: '0' }, { code: 'Minus', label: '-' }, { code: 'Equal', label: '=' }]),
+    Object.freeze([{ code: 'KeyO', label: 'O' }, { code: 'KeyP', label: 'P' }, { code: 'BracketLeft', label: '[' }, { code: 'BracketRight', label: ']' }]),
+    Object.freeze([{ code: 'KeyL', label: 'L' }, { code: 'Semicolon', label: ';' }, { code: 'Quote', label: "'" }, { code: 'Backslash', label: '\\' }]),
+  ]),
+]);
 const HAJIMI_ATLAS_URL =
   'Image/donghaidihuang_atlas.webp?v=20260721-beat-synced';
 const HAJIMI_STATIC_ICON_URL = 'Image/maodie_close_mouth.png';
@@ -80,6 +317,64 @@ const RUNTIME_SAMPLE_NAMES = Object.freeze(
 const buffers = {};       // 解码后的音效样本
 const sustainLoops = {};  // 从原样本中实时构建的 WSOLA 延音纹理
 let selectedSfxId = 'dagou';
+const djSettings = {
+  deckCount: DEFAULT_DJ_SETTINGS.deckCount,
+  deckSfxIds: [...DEFAULT_DJ_SETTINGS.deckSfxIds],
+  trailStyle: DEFAULT_DJ_SETTINGS.trailStyle,
+};
+const rhythmGameSettings = {
+  laneCount: DEFAULT_RHYTHM_GAME_SETTINGS.laneCount,
+};
+const rhythmGame = {
+  phase: 'idle',
+  notes: [],
+  duration: 0,
+  startAt: 0,
+  nextCueIndex: 0,
+  nextMissIndex: 0,
+  visibleNotes: new Set(),
+  activeHolds: new Map(),
+  autoplay: false,
+  nextAutoplayIndex: 0,
+  autoplayTapReleases: [],
+  totalJudgements: 0,
+  score: 0,
+  combo: 0,
+  maxCombo: 0,
+  perfect: 0,
+  good: 0,
+  miss: 0,
+  wrong: 0,
+  countdownText: '',
+};
+const djTransport = {
+  phase: 'idle',
+  recordingLimitSeconds: DJ_RECORDING_DEFAULT_SECONDS,
+  armedConfig: null,
+  notes: [],
+  openNotes: new Set(),
+  startAt: 0,
+  phaseUnits: 0,
+  loadedTrack: null,
+  loadedTrackOrigin: null,
+  shareCode: '',
+  loopPlayback: false,
+  playbackEvents: [],
+  playbackIndex: 0,
+  playbackStartAt: 0,
+  playbackVoices: new Map(),
+  playbackOneShots: new Set(),
+  restoreState: null,
+  statusMessage: '',
+};
+let pendingDjSharePlayback = false;
+let djRecordingNoteByVoice = new WeakMap();
+let djSettingsSaving = false;
+let rhythmGameSettingsSaving = false;
+let djLandscape = true;
+let djDecks = [];
+const keyboardZoneByCode = new Map();
+const pressedKeyboardCodes = new Set();
 let hajimiAnimationEnabled = false;
 let hajimiAnimationReady = false;
 let hajimiAnimationRequested = false;
@@ -126,10 +421,12 @@ const SUSTAIN_REGIONS = {
 const SUSTAIN_CLAIM_LEAD = 0.008; // 提前声明长音，避免多指延音短暂重叠
 const RELEASE_SCHEDULE_LEAD = 0.006;
 const EMERGENCY_FADE = 0.018;
+const STEREO_PAN_SPREAD = 0.8;
 
 const liveVoices = new Set();
+const liveStereoOutputs = new Set();
 let voiceSerial = 0;
-let activeSustainVoice = null;
+const activeSustainVoices = new Map();
 let mouthVoice = null;
 
 let cols = 4, rows = 3;   // 分区网格（纯逻辑分区，无可见格子）
@@ -152,14 +449,19 @@ const inputQueue = [];     // 滑动经过的分区按进入顺序排到连续�
 const inputVisualTimers = new Set();
 let inputSerial = 0;
 let lastCommittedInputTime = -Infinity;
+const lastCommittedDjInputTimes = new Map();
 const pointers = new Map();// pointerId -> { zone, voice, pendingEntryId, lastX, lastY }
+const touchTrails = new Map(); // pointerId -> 跟手圆环、尾迹点与退场状态
 const CONTROLS_IDLE_MS = 2000;
 const CONTROLS_HOVER_IDLE_MS = 250;
+const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 4000;
+const MOBILE_TOUCH_MAX_SHORT_EDGE = 1024;
 const CREATOR_MID = '357762853';
 const CREATOR_URL = `https://space.bilibili.com/${CREATOR_MID}`;
 const FEATURED_BVID = 'BV1kNKU6REBg';
 const FEATURED_VIDEO_URL = `https://www.bilibili.com/video/${FEATURED_BVID}/`;
 const NAVIGATION_MUTE_KEY = 'dagou-navigation-muted';
+const LANDSCAPE_PERFORMANCE_KEY = 'dagou-force-phone-landscape-v1';
 const TOY_CLOUD_KEYS = Object.freeze({
   sfxUnlocked: 'dagou_sfx_unlocked_v1',
   settingsSeen: 'dagou_settings_seen_v1',
@@ -168,6 +470,15 @@ const TOY_CLOUD_KEYS = Object.freeze({
   pianoMode: 'dagou_piano_mode_v1',
   rhythmSnap: 'dagou_rhythm_snap_v1',
   showGrid: 'dagou_show_grid_v1',
+  spatialAudio: 'dagou_spatial_audio_v1',
+  djMode: 'dagou_dj_mode_v1',
+  rhythmGameMode: 'dagou_rhythm_game_mode_v1',
+  rhythmGameLaneCount: 'dagou_rhythm_game_lane_count_v1',
+  djDeckCount: 'dagou_dj_deck_count_v1',
+  djDeckLeft: 'dagou_dj_deck_left_v1',
+  djDeckCenter: 'dagou_dj_deck_center_v1',
+  djDeckRight: 'dagou_dj_deck_right_v1',
+  djTrailStyle: 'dagou_dj_trail_style_v1',
 });
 const TOY_CLOUD_KEY_LIST = Object.freeze(Object.values(TOY_CLOUD_KEYS));
 const TOY_REQUIRED_ABILITIES = Object.freeze([
@@ -177,9 +488,14 @@ const TOY_REQUIRED_ABILITIES = Object.freeze([
   'navigate',
 ]);
 const LOCKED_SFX_IDS = new Set(['dingdong', 'hajimi']);
-const DEBUG_UNLOCK_SFX = false; // 临时调试：发布前改回 false，恢复 Toy 云端锁定。
+const DEBUG_UNLOCK_SFX = true; // 临时调试：发布前改回 false，恢复 Toy 云端锁定。
 let controlsIdleTimer = 0;
 let navigationMuted = false;
+let landscapePerformanceEnabled = false;
+let landscapeGateVisible = false;
+let landscapeFullscreenOwned = false;
+let landscapeRequestPending = false;
+let landscapeRequestSerial = 0;
 
 try {
   navigationMuted =
@@ -188,9 +504,17 @@ try {
   console.warn('[大狗Tap] 无法读取导航临时静音状态。', error);
 }
 
+try {
+  landscapePerformanceEnabled =
+    window.localStorage.getItem(LANDSCAPE_PERFORMANCE_KEY) === '1';
+} catch (error) {
+  console.warn('[大狗Tap] 无法读取横屏演奏设置。', error);
+}
+
 /* ---------- DOM ---------- */
 const stage     = document.getElementById('stage');
 const fxCanvas  = document.getElementById('fx');
+const touchFxCanvas = document.getElementById('touch-fx');
 const dogEl     = document.getElementById('dog');
 const dogInner  = document.getElementById('dog-inner');
 const dogJelly  = document.getElementById('dog-jelly');
@@ -202,11 +526,36 @@ const dogAnimation2d = dogAnimationCanvas.getContext('2d', { alpha: true });
 const overlay   = document.getElementById('overlay');
 const keyGrid   = document.getElementById('key-grid');
 const flashLayer = document.getElementById('zoneflash');
+const djStage = document.getElementById('dj-stage');
+const rhythmGameLayer = document.getElementById('rhythm-game-layer');
+const rhythmGameCues = document.getElementById('rhythm-game-cues');
+const rhythmGameHud = document.getElementById('rhythm-game-hud');
+const rhythmGameAutoBadge = document.getElementById('rhythm-game-auto-badge');
+const rhythmGameScore = document.getElementById('rhythm-game-score');
+const rhythmGameCombo = document.getElementById('rhythm-game-combo');
+const rhythmGameTime = document.getElementById('rhythm-game-time');
+const rhythmGameEnd = document.getElementById('rhythm-game-end');
+const rhythmGameCountdown = document.getElementById('rhythm-game-countdown');
+const rhythmGameJudgement = document.getElementById('rhythm-game-judgement');
+const rhythmGameResults = document.getElementById('rhythm-game-results');
+const rhythmGameResultGrade = document.getElementById('rhythm-game-result-grade');
+const rhythmGameResultTitle = document.getElementById('rhythm-game-result-title');
+const rhythmGameResultScore = document.getElementById('rhythm-game-result-score');
+const rhythmGameResultAccuracy = document.getElementById('rhythm-game-result-accuracy');
+const rhythmGameResultCombo = document.getElementById('rhythm-game-result-combo');
+const rhythmGameResultHits = document.getElementById('rhythm-game-result-hits');
+const rhythmGameResultMisses = document.getElementById('rhythm-game-result-misses');
+const rhythmGameBack = document.getElementById('rhythm-game-back');
+const rhythmGameRetry = document.getElementById('rhythm-game-retry');
 const subEl     = overlay.querySelector('.sub');
 const fx2d      = fxCanvas.getContext('2d');
+const touchFx2d = touchFxCanvas.getContext('2d');
 const topControls = document.getElementById('top-controls');
+const shortcutToggle = document.getElementById('shortcut-toggle');
+const shortcutToggleLabel = document.getElementById('shortcut-toggle-label');
 const musicToggle = document.getElementById('music-toggle');
 const sfxToggle = document.getElementById('sfx-toggle');
+const stereoAudioToggle = document.getElementById('stereo-audio-toggle');
 const settingsButton = document.getElementById('settings-button');
 const updateDot = document.getElementById('update-dot');
 const settingsOverlay = document.getElementById('settings-overlay');
@@ -218,17 +567,290 @@ const videoPlay = videoCard.querySelector('.video-play');
 const sfxOptions = [...document.querySelectorAll('.sfx-option')];
 const hajimiOptionImage = document.getElementById('hajimi-option-image');
 const performanceSettingButtons = [
-  ...document.querySelectorAll('.setting-row[data-setting]'),
+  ...document.querySelectorAll('[data-setting]'),
 ];
+const pianoModeSetting = document.getElementById('piano-mode-setting');
+const pianoModeDescription = pianoModeSetting.querySelector('.setting-description');
+const djSettingsPanel = document.getElementById('dj-settings');
+const djCountButtons = [...document.querySelectorAll('[data-dj-count]')];
+const djTrailStyleButtons = [
+  ...document.querySelectorAll('[data-dj-trail-style]'),
+];
+const djDeckAssignmentRows = [
+  ...document.querySelectorAll('.dj-deck-assignment[data-dj-slot]'),
+];
+const djSfxChoiceButtons = [...document.querySelectorAll('[data-dj-sfx]')];
+const rhythmGameSettingsPanel = document.getElementById(
+  'rhythm-game-settings'
+);
+const rhythmGameLaneButtons = [
+  ...document.querySelectorAll('[data-rhythm-lane-count]'),
+];
+const rhythmGameLaunch = document.getElementById('rhythm-game-launch');
+const rhythmGameLaunchDescription = document.getElementById(
+  'rhythm-game-launch-description'
+);
+const rhythmGameLaunchAction = document.getElementById(
+  'rhythm-game-launch-action'
+);
+const rhythmGameAutoplayLaunch = document.getElementById(
+  'rhythm-game-autoplay-launch'
+);
+const rhythmGameAutoplayAction = document.getElementById(
+  'rhythm-game-autoplay-action'
+);
+const djRecordingToggle = document.getElementById('dj-recording-toggle');
+const djRecordingPlay = document.getElementById('dj-recording-play');
+const djRecordingImportPlay = document.getElementById('dj-recording-import-play');
+const djRecordingShare = document.getElementById('dj-recording-share');
+const djRecordingShareLink = document.getElementById(
+  'dj-recording-share-link'
+);
+const djRecordingSave = document.getElementById('dj-recording-save');
+const djRecordingName = document.getElementById('dj-recording-name');
+const djImportName = document.getElementById('dj-import-name');
+const djRecorderDock = document.getElementById('dj-recorder-dock');
+const djRecorderOpenButton = document.getElementById('dj-recorder-open');
+const djRecorderOverlay = document.getElementById('dj-recorder-overlay');
+const djRecorderPanel = document.getElementById('dj-recorder-panel');
+const djRecorderClose = document.getElementById('dj-recorder-close');
+const djRecorderTabButtons = [
+  ...document.querySelectorAll('[data-dj-recorder-tab]'),
+];
+const djRecorderRecordView = document.getElementById('dj-recorder-record-view');
+const djRecorderImportView = document.getElementById('dj-recorder-import-view');
+const djRecorderLibraryView = document.getElementById('dj-recorder-library-view');
+const djRecordingDurationButtons = [
+  ...document.querySelectorAll('[data-dj-recording-seconds]'),
+];
+const djRecordingCode = document.getElementById('dj-recording-code');
+const djRecordingShareCode = document.getElementById('dj-recording-share-code');
+const djRecordingShareUrl = document.getElementById('dj-recording-share-url');
+const djShareResult = document.getElementById('dj-share-result');
+const djRecordingImport = document.getElementById('dj-recording-import');
+const djRecordingLoop = document.getElementById('dj-recording-loop');
+const djLibrarySummary = document.getElementById('dj-library-summary');
+const djLibraryEmpty = document.getElementById('dj-library-empty');
+const djLibraryList = document.getElementById('dj-library-list');
+const djLibraryDetail = document.getElementById('dj-library-detail');
+const djLibraryDetailMeta = document.getElementById('dj-library-detail-meta');
+const djLibraryDetailName = document.getElementById('dj-library-detail-name');
+const djLibraryDetailCode = document.getElementById('dj-library-detail-code');
+const djLibraryDetailUrl = document.getElementById('dj-library-detail-url');
+const djLibraryRename = document.getElementById('dj-library-rename');
+const djLibraryPlay = document.getElementById('dj-library-play');
+const djLibraryExport = document.getElementById('dj-library-export');
+const djLibraryShareLink = document.getElementById('dj-library-share-link');
+const djLibraryDelete = document.getElementById('dj-library-delete');
+const djRecorderStatus = document.getElementById('dj-recorder-status');
+const djTransportHud = document.getElementById('dj-transport-hud');
+const djTransportState = document.getElementById('dj-transport-state');
+const djTransportTime = document.getElementById('dj-transport-time');
+const djTransportStop = document.getElementById('dj-transport-stop');
 const performanceSettingsStatus = document.getElementById(
   'performance-settings-status'
 );
+const mobileDisplaySettingsSection = document.getElementById(
+  'mobile-display-settings-section'
+);
+const landscapePerformanceSetting = document.getElementById(
+  'landscape-performance-setting'
+);
+const landscapeGate = document.getElementById('landscape-gate');
+const landscapeGateRetry = document.getElementById('landscape-gate-retry');
+const landscapeGateDisable = document.getElementById(
+  'landscape-gate-disable'
+);
 const toyNotice = document.getElementById('toy-notice');
 const authorLink = document.getElementById('author-link');
+const djAuthorLink = document.getElementById('dj-author-link');
 const reduceUiMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+function isMobileTouchDevice(
+  hasCoarsePointer = window.matchMedia('(any-pointer: coarse)').matches,
+  screenWidth = window.screen?.width ?? window.innerWidth,
+  screenHeight = window.screen?.height ?? window.innerHeight
+) {
+  const shortEdge = Math.min(Number(screenWidth), Number(screenHeight));
+  return hasCoarsePointer && Number.isFinite(shortEdge) &&
+    shortEdge <= MOBILE_TOUCH_MAX_SHORT_EDGE;
+}
+
+function isPortraitViewport(
+  width = window.innerWidth,
+  height = window.innerHeight
+) {
+  return Number(height) > Number(width);
+}
+
+function shouldShowLandscapeGate(
+  enabled = landscapePerformanceEnabled,
+  mobileDevice = isMobileTouchDevice(),
+  portrait = isPortraitViewport()
+) {
+  return enabled && mobileDevice && portrait;
+}
+
+function saveLandscapePerformancePreference() {
+  try {
+    window.localStorage.setItem(
+      LANDSCAPE_PERFORMANCE_KEY,
+      landscapePerformanceEnabled ? '1' : '0'
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] 无法保存横屏演奏设置。', error);
+  }
+}
+
+async function requestLandscapeFullscreen() {
+  if (document.fullscreenElement) return true;
+  const fullscreenTarget = document.documentElement;
+  if (typeof fullscreenTarget?.requestFullscreen !== 'function') return false;
+  try {
+    await fullscreenTarget.requestFullscreen();
+    landscapeFullscreenOwned =
+      document.fullscreenElement === fullscreenTarget;
+    return landscapeFullscreenOwned;
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器未进入全屏。', error);
+    return false;
+  }
+}
+
+async function requestLandscapeOrientationLock() {
+  const orientation = window.screen?.orientation;
+  if (typeof orientation?.lock !== 'function') return false;
+  try {
+    await orientation.lock('landscape');
+    return true;
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器要求手动旋转手机。', error);
+    return false;
+  }
+}
+
+async function requestLandscapeExperience() {
+  if (landscapeRequestPending || !landscapePerformanceEnabled) return false;
+  const requestSerial = ++landscapeRequestSerial;
+  landscapeRequestPending = true;
+  try {
+    const fullscreenTarget = document.documentElement;
+    if (
+      !document.fullscreenElement &&
+      typeof fullscreenTarget?.requestFullscreen === 'function'
+    ) {
+      await requestLandscapeFullscreen();
+    }
+    if (
+      requestSerial !== landscapeRequestSerial ||
+      !landscapePerformanceEnabled
+    ) {
+      await releaseLandscapeExperience();
+      return false;
+    }
+
+    const locked = await requestLandscapeOrientationLock();
+    if (
+      requestSerial !== landscapeRequestSerial ||
+      !landscapePerformanceEnabled
+    ) {
+      await releaseLandscapeExperience();
+      return false;
+    }
+    return locked;
+  } finally {
+    landscapeRequestPending = false;
+  }
+}
+
+function releaseLandscapeOrientationLock() {
+  const orientation = window.screen?.orientation;
+  if (typeof orientation?.unlock !== 'function') return;
+  try {
+    orientation.unlock();
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器未持有横屏锁定。', error);
+  }
+}
+
+async function releaseLandscapeFullscreen() {
+  if (!landscapeFullscreenOwned) return;
+  landscapeFullscreenOwned = false;
+  if (
+    !document.fullscreenElement ||
+    typeof document.exitFullscreen !== 'function'
+  ) return;
+  try {
+    await document.exitFullscreen();
+  } catch (error) {
+    console.info('[大狗Tap] 浏览器未退出全屏。', error);
+  }
+}
+
+async function releaseLandscapeExperience() {
+  releaseLandscapeOrientationLock();
+  await releaseLandscapeFullscreen();
+}
+
+function renderLandscapePerformancePreference() {
+  const mobileDevice = isMobileTouchDevice();
+  const gateVisible = shouldShowLandscapeGate(
+    landscapePerformanceEnabled,
+    mobileDevice,
+    isPortraitViewport()
+  );
+  const wasVisible = landscapeGateVisible;
+  landscapeGateVisible = gateVisible;
+
+  mobileDisplaySettingsSection.hidden = !mobileDevice;
+  landscapePerformanceSetting.disabled =
+    !mobileDevice || landscapeRequestPending;
+  landscapePerformanceSetting.setAttribute(
+    'aria-checked',
+    String(mobileDevice && landscapePerformanceEnabled)
+  );
+  landscapeGate.classList.toggle('is-visible', gateVisible);
+  landscapeGate.setAttribute('aria-hidden', String(!gateVisible));
+  landscapeGate.inert = !gateVisible;
+  landscapeGateRetry.disabled = landscapeRequestPending;
+  stage.inert = gateVisible;
+
+  if (gateVisible && !wasVisible) {
+    stopActivePerformanceInput();
+    requestAnimationFrame(() => {
+      landscapeGateRetry.focus({ preventScroll: true });
+    });
+  } else if (
+    !gateVisible &&
+    wasVisible &&
+    landscapeGate.contains(document.activeElement)
+  ) {
+    document.activeElement.blur();
+  }
+}
+
+async function setLandscapePerformance(enabled) {
+  if (!isMobileTouchDevice()) return;
+  landscapePerformanceEnabled = enabled === true;
+  saveLandscapePerformancePreference();
+
+  if (landscapePerformanceEnabled) {
+    if (settingsOpen) closeSettings();
+    const landscapeRequest = requestLandscapeExperience();
+    renderLandscapePerformancePreference();
+    await landscapeRequest;
+    renderLandscapePerformancePreference();
+    return;
+  }
+
+  landscapeRequestSerial++;
+  renderLandscapePerformancePreference();
+  await releaseLandscapeExperience();
+  renderLandscapePerformancePreference();
+}
+
 function showControls() {
-  if (pointers.size > 0 || holding) return;
+  if (pointers.size > 0 || isAnyCharacterHolding()) return;
   topControls.classList.add('is-visible');
 }
 
@@ -243,7 +865,7 @@ function accelerateControlsReveal() {
   if (
     topControls.classList.contains('is-visible') ||
     pointers.size > 0 ||
-    holding
+    isAnyCharacterHolding()
   ) return;
   topControls.classList.add('is-revealing-fast');
   clearTimeout(controlsIdleTimer);
@@ -301,8 +923,14 @@ function toggleSoundEffects() {
 
   if (sfxMuted) {
     dogInner.classList.remove('bark-image');
+    for (const deck of djDecks) deck.inner.classList.remove('bark-image');
   } else if (mouthVoice) {
     dogInner.classList.add('bark-image');
+  }
+  if (!sfxMuted) {
+    for (const deck of djDecks) {
+      if (deck.mouthVoice) deck.inner.classList.add('bark-image');
+    }
   }
 }
 
@@ -346,6 +974,7 @@ function updateUiRhythm(beatPosition) {
   if (!Number.isFinite(beatPosition)) {
     setRhythmScale(musicToggle, 0, 0.075);
     setRhythmScale(sfxToggle, 0, 0.075);
+    setRhythmScale(stereoAudioToggle, 0, 0.075);
     setRhythmScale(settingsButton, 0, 0.075);
     setRhythmScale(updateDot, 0, 0.4);
     setRhythmScale(videoPlay, 0, 0.12);
@@ -372,6 +1001,7 @@ function updateUiRhythm(beatPosition) {
 
   setRhythmScale(musicToggle, musicPulse, 0.075);
   setRhythmScale(sfxToggle, sfxPulse, 0.075);
+  setRhythmScale(stereoAudioToggle, pulse, 0.075);
   setRhythmScale(settingsButton, pulse, 0.075);
   setRhythmScale(updateDot, pulse, 0.4);
   setRhythmScale(videoPlay, pulse, 0.12);
@@ -479,9 +1109,15 @@ for (const button of topControls.querySelectorAll('button')) {
 }
 musicToggle.addEventListener('click', toggleMusic);
 sfxToggle.addEventListener('click', toggleSoundEffects);
+shortcutToggle.addEventListener('click', toggleShortcutOverlay);
 
 /* ---------- 设置菜单与 Toy 云状态 ---------- */
 let settingsOpen = false;
+let djRecorderOpen = false;
+let djRecorderTab = 'record';
+let djLibraryEntries = [];
+let selectedDjLibraryId = null;
+let djImportNameAutoFilled = false;
 let toyNoticeTimer = 0;
 const toyCloudState = {
   toy: null,
@@ -501,10 +1137,18 @@ const toyCloudState = {
   },
 };
 const PERFORMANCE_SETTING_KEYS = Object.freeze({
+  djMode: TOY_CLOUD_KEYS.djMode,
+  rhythmGameMode: TOY_CLOUD_KEYS.rhythmGameMode,
   pianoMode: TOY_CLOUD_KEYS.pianoMode,
   rhythmSnap: TOY_CLOUD_KEYS.rhythmSnap,
   showGrid: TOY_CLOUD_KEYS.showGrid,
+  spatialAudio: TOY_CLOUD_KEYS.spatialAudio,
 });
+const DJ_DECK_CLOUD_KEYS = Object.freeze([
+  TOY_CLOUD_KEYS.djDeckLeft,
+  TOY_CLOUD_KEYS.djDeckCenter,
+  TOY_CLOUD_KEYS.djDeckRight,
+]);
 
 function showToyNotice(message, isError = false) {
   clearTimeout(toyNoticeTimer);
@@ -521,14 +1165,1457 @@ function showToyNotice(message, isError = false) {
 function clearQueuedPerformanceInput() {
   inputQueue.length = 0;
   lastCommittedInputTime = -Infinity;
+  lastCommittedDjInputTimes.clear();
   clearInputVisualTimers();
   for (const state of pointers.values()) state.pendingEntryId = null;
+}
+
+function stopActivePerformanceInput() {
+  clearQueuedPerformanceInput();
+  pressedKeyboardCodes.clear();
+  releaseAllTouchTrails();
+  pointers.clear();
+  if (!ctx) return;
+  for (const voice of [...liveVoices]) forceStopVoice(voice);
+}
+
+function getStereoDeckSlot(deckId) {
+  if (typeof deckId !== 'string' || !deckId.startsWith('dj-')) return null;
+  const slot = Number(deckId.slice(3));
+  return Number.isInteger(slot) && slot >= 0 && slot < DJ_DECK_LABELS.length
+    ? slot
+    : null;
+}
+
+function getStereoPan(deckId) {
+  if (!performanceSettings.spatialAudio || !isDeckPerformanceMode()) return 0;
+  const slot = getStereoDeckSlot(deckId);
+  const activeSlots = getActiveDeckSlots();
+  const activeIndex = activeSlots.indexOf(slot);
+  if (activeSlots.length < 2 || activeIndex < 0) return 0;
+  return -STEREO_PAN_SPREAD +
+    activeIndex * (STEREO_PAN_SPREAD * 2 / (activeSlots.length - 1));
+}
+
+function setStereoAudioParam(param, value, immediate = false) {
+  if (!param || !ctx) return;
+  const now = ctx.currentTime;
+  param.cancelScheduledValues(now);
+  if (immediate) param.setValueAtTime(value, now);
+  else param.setTargetAtTime(value, now, 0.035);
+}
+
+function updateStereoOutput(output, immediate = false) {
+  if (!output?.panner) return;
+  setStereoAudioParam(output.panner.pan, getStereoPan(output.deckId), immediate);
+}
+
+function updateLiveStereoOutputs(immediate = false) {
+  for (const output of liveStereoOutputs) {
+    updateStereoOutput(output, immediate);
+  }
+}
+
+function renderStereoAudioControls() {
+  const toggleAction = performanceSettings.spatialAudio ? '关闭' : '开启';
+  stereoAudioToggle.setAttribute(
+    'aria-label',
+    `${toggleAction}双声道立体声`
+  );
+  stereoAudioToggle.title = `${toggleAction}双声道立体声`;
+}
+
+function getActiveDjSlots() {
+  return DJ_ACTIVE_SLOTS[djSettings.deckCount] ?? DJ_ACTIVE_SLOTS[2];
+}
+
+function isDeckPerformanceMode() {
+  return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+}
+
+function renderShortcutToggle() {
+  const enabled = isDeckPerformanceMode();
+  const expanded = enabled && shortcutOverlayVisible;
+  const label = expanded ? '隐藏快捷键' : '展示快捷键';
+  shortcutToggle.disabled = !enabled;
+  shortcutToggle.setAttribute('aria-pressed', String(expanded));
+  shortcutToggle.setAttribute('aria-label', label);
+  shortcutToggleLabel.textContent = label;
+}
+
+function toggleShortcutOverlay() {
+  if (!isDeckPerformanceMode()) return;
+  shortcutOverlayVisible = !shortcutOverlayVisible;
+  renderKeyGrid();
+}
+
+function getActiveDeckSlots() {
+  if (performanceSettings.rhythmGameMode) {
+    return RHYTHM_GAME_ACTIVE_SLOTS[rhythmGameSettings.laneCount] ??
+      RHYTHM_GAME_ACTIVE_SLOTS[3];
+  }
+  return getActiveDjSlots();
+}
+
+function getDeckDisplayLabel(slot) {
+  if (!performanceSettings.rhythmGameMode) return DJ_DECK_LABELS[slot];
+  const laneIndex = getActiveDeckSlots().indexOf(slot);
+  return `LANE ${laneIndex + 1}`;
+}
+
+function createDjDeckVisual(slot, displayLabel = getDeckDisplayLabel(slot)) {
+  const sfxId = djSettings.deckSfxIds[slot];
+  const images = CHARACTER_IMAGE_SETS[sfxId];
+  const element = document.createElement('section');
+  element.className = 'dj-deck';
+  element.dataset.deckId = `dj-${slot}`;
+
+  const label = document.createElement('div');
+  label.className = 'dj-deck-label';
+  const deckName = document.createElement('strong');
+  deckName.textContent = displayLabel;
+  const sfxName = document.createElement('span');
+  sfxName.textContent = SFX_LABELS[sfxId];
+  label.append(deckName, sfxName);
+
+  const character = document.createElement('div');
+  character.className = 'dj-character';
+  const inner = document.createElement('div');
+  inner.className = 'dj-character-inner';
+  inner.classList.toggle('is-hajimi', sfxId === 'hajimi');
+  const jelly = document.createElement('div');
+  jelly.className = 'dj-character-jelly';
+  const closeImage = document.createElement('img');
+  closeImage.className = 'dj-character-close';
+  closeImage.src = images.close;
+  closeImage.alt = images.alt;
+  closeImage.draggable = false;
+  const openImage = document.createElement('img');
+  openImage.className = 'dj-character-open';
+  openImage.src = images.open;
+  openImage.alt = '';
+  openImage.draggable = false;
+  jelly.append(closeImage, openImage);
+  inner.appendChild(jelly);
+  character.appendChild(inner);
+  element.append(label, character);
+
+  return {
+    id: `dj-${slot}`,
+    slot,
+    sfxId,
+    displayLabel,
+    element,
+    character,
+    inner,
+    jelly,
+    mouthTimer: 0,
+    mouthVoice: null,
+    mouthPopped: false,
+    barkPop: 0,
+    barkPopVel: 0,
+    holding: false,
+    holdLevel: 0,
+    jellyScale: 1,
+    jellyVel: 0,
+  };
+}
+
+function renderDjStage() {
+  const enabled = isDeckPerformanceMode();
+  stage.classList.toggle('is-dj-mode', enabled);
+  djStage.setAttribute('aria-hidden', String(!enabled));
+  if (!enabled) {
+    for (const deck of djDecks) clearTimeout(deck.mouthTimer);
+    djStage.replaceChildren();
+    djDecks = [];
+    return;
+  }
+
+  const previousDecks = new Map(djDecks.map(deck => [deck.slot, deck]));
+  const nextDecks = getActiveDeckSlots().map((slot) => {
+    const previous = previousDecks.get(slot);
+    const displayLabel = getDeckDisplayLabel(slot);
+    return previous?.sfxId === djSettings.deckSfxIds[slot] &&
+      previous.displayLabel === displayLabel
+      ? previous
+      : createDjDeckVisual(slot, displayLabel);
+  });
+  const retainedDecks = new Set(nextDecks);
+  for (const deck of previousDecks.values()) {
+    if (!retainedDecks.has(deck)) clearTimeout(deck.mouthTimer);
+  }
+  djDecks = nextDecks;
+  djStage.classList.toggle('is-landscape', djLandscape);
+  djStage.classList.toggle('is-portrait', !djLandscape);
+  djStage.style.setProperty('--dj-deck-count', String(djDecks.length));
+  djStage.replaceChildren(...djDecks.map(deck => deck.element));
+}
+
+function getDjDeck(deckId) {
+  return djDecks.find(deck => deck.id === deckId) ?? null;
+}
+
+function getRhythmGameZoneKey(zone) {
+  if (!zone || !Number.isInteger(zone.deckSlot)) return '';
+  return `${zone.deckSlot}:${zone.localRow}:${zone.localColumn}`;
+}
+
+function createRhythmGameChart(activeZones, rng = Math.random) {
+  const nextRandom = () => {
+    const value = Number(rng());
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(0.999999999, value));
+  };
+  const playableZones = activeZones
+    .map((zone, zoneIndex) => ({
+      zoneIndex,
+      zoneKey: getRhythmGameZoneKey(zone),
+      deckSlot: zone.deckSlot,
+      localRow: zone.localRow,
+      localColumn: zone.localColumn,
+      sfxId: zone.sfxId,
+      keyboardLabel: zone.keyboardLabel,
+    }))
+    .filter(zone => zone.zoneKey);
+  if (playableZones.length === 0) {
+    return { barCount: 0, duration: 0, totalJudgements: 0, notes: [] };
+  }
+
+  const barCount = RHYTHM_GAME_BAR_COUNT;
+  const phraseGroupCount = barCount / RHYTHM_GAME_PHRASE_BARS;
+  const barDuration = SPB * 4;
+  const chartDuration = barCount * barDuration;
+  const deckSlots = [...new Set(playableZones.map(zone => zone.deckSlot))];
+  const zonesByDeckRow = new Map();
+  for (const zone of playableZones) {
+    const key = `${zone.deckSlot}:${zone.localRow}`;
+    const rowZones = zonesByDeckRow.get(key) ?? [];
+    rowZones.push(zone);
+    zonesByDeckRow.set(key, rowZones);
+  }
+  for (const rowZones of zonesByDeckRow.values()) {
+    rowZones.sort((left, right) => left.localColumn - right.localColumn);
+  }
+
+  const notes = [];
+  let eventSerial = 0;
+  let phraseSerial = 0;
+  let chordSerial = 0;
+  const templateCounters = new Map();
+  const lastGrooveByDeck = new Map();
+  const deckStates = new Map(deckSlots.map(deckSlot => [
+    deckSlot,
+    {
+      column: Math.floor(nextRandom() * 4),
+      direction: nextRandom() < 0.5 ? -1 : 1,
+    },
+  ]));
+
+  const getZone = (deckSlot, localRow, localColumn) => {
+    const rowZones = zonesByDeckRow.get(`${deckSlot}:${localRow}`) ?? [];
+    return rowZones.find(zone => zone.localColumn === localColumn) ?? null;
+  };
+
+  const getDeckSfxId = (deckSlot) => playableZones.find(
+    zone => zone.deckSlot === deckSlot
+  )?.sfxId ?? 'dagou';
+
+  const advanceDeckColumn = (deckSlot, forceMove = false) => {
+    const state = deckStates.get(deckSlot);
+    if (!state) return 0;
+    const shouldMove = forceMove || nextRandom() >= 0.22;
+    if (!shouldMove) return state.column;
+    let nextColumn = state.column + state.direction;
+    if (nextColumn < 0 || nextColumn > 3) {
+      state.direction *= -1;
+      nextColumn = state.column + state.direction;
+    }
+    state.column = Math.max(0, Math.min(3, nextColumn));
+    if (!forceMove && nextRandom() < 0.2) state.direction *= -1;
+    return state.column;
+  };
+
+  const nextPhraseTemplate = (deckSlot) => {
+    const sfxId = getDeckSfxId(deckSlot);
+    const templates = RHYTHM_GAME_PHRASE_TEMPLATES[sfxId] ??
+      RHYTHM_GAME_PHRASE_TEMPLATES.dagou;
+    const counter = templateCounters.get(sfxId) ?? 0;
+    templateCounters.set(sfxId, counter + 1);
+    return templates[counter % templates.length];
+  };
+
+  const appendNote = (target, time, options = {}) => {
+    if (!target) return null;
+    const kind = options.kind === 'hold' ? 'hold' : 'tap';
+    const duration = kind === 'hold' ? Math.max(0, options.duration ?? 0) : 0;
+    const slideTargets = kind === 'hold'
+      ? (options.slideTargets ?? []).map(slideTarget => ({ ...slideTarget }))
+      : [];
+    const holdTickTimes = [];
+    if (kind === 'hold' && slideTargets.length === 0) {
+      for (let tickTime = time + SPB; tickTime < time + duration - 0.01; tickTime += SPB) {
+        holdTickTimes.push(tickTime);
+      }
+    }
+    const articulation = kind === 'hold'
+      ? (slideTargets.length > 0 ? 'legato' : 'sustain')
+      : (options.articulation === 'connected' ? 'connected' : 'short');
+    const autoplayDuration = kind === 'hold'
+      ? duration
+      : Math.max(
+        RHYTHM_GAME_AUTOPLAY_TAP_DURATION,
+        Number.isFinite(options.autoplayDuration)
+          ? options.autoplayDuration
+          : articulation === 'connected'
+            ? RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION
+            : RHYTHM_GAME_AUTOPLAY_TAP_DURATION
+      );
+    const note = {
+      id: 0,
+      eventId: ++eventSerial,
+      chordId: options.chordId ?? null,
+      kind,
+      articulation,
+      autoplayDuration,
+      time,
+      duration,
+      endTime: time + duration,
+      holdTickTimes,
+      nextHoldTickIndex: 0,
+      slideTargets,
+      nextSlideIndex: 0,
+      zoneKey: target.zoneKey,
+      currentZoneKey: target.zoneKey,
+      displayZoneKey: target.zoneKey,
+      deckSlot: target.deckSlot,
+      localRow: target.localRow,
+      localColumn: target.localColumn,
+      sfxId: target.sfxId,
+      keyboardLabel: target.keyboardLabel,
+      displayKeyboardLabel: target.keyboardLabel,
+      phraseId: options.phraseId ?? null,
+      phraseText: options.phraseText ?? null,
+      phraseRole: options.phraseRole ?? null,
+      phraseTokenIndex: options.phraseTokenIndex ?? null,
+      status: 'pending',
+      judgement: null,
+      releaseJudgement: null,
+      inputId: null,
+      judgedAt: null,
+      element: null,
+      kindElement: null,
+      keyElement: null,
+    };
+    notes.push(note);
+    return note;
+  };
+
+  const appendPhrase = (
+    deckSlot,
+    startStep,
+    template,
+    {
+      role = 'lead',
+      variation = false,
+      sustainUntilStep = null,
+    } = {}
+  ) => {
+    const state = deckStates.get(deckSlot);
+    if (!state) return [];
+    if (variation) state.direction *= -1;
+    const grooves = [template.steps, ...(template.variations ?? [])];
+    const sustainTailRequested =
+      Number.isFinite(sustainUntilStep) &&
+      template.rows.at(-1) === 2;
+    const eligibleGrooveIndexes = grooves
+      .map((groove, index) => ({ groove, index }))
+      .filter(({ groove }) => (
+        !sustainTailRequested ||
+        sustainUntilStep - (startStep + groove.at(-1)) >=
+          RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS
+      ))
+      .map(({ index }) => index);
+    const selectableGrooveIndexes = eligibleGrooveIndexes.length > 0
+      ? eligibleGrooveIndexes
+      : grooves.map((_, index) => index);
+    let grooveIndex = selectableGrooveIndexes[
+      Math.floor(nextRandom() * selectableGrooveIndexes.length)
+    ];
+    const lastGroove = lastGrooveByDeck.get(deckSlot);
+    const alternateGrooveIndexes = selectableGrooveIndexes.filter(
+      index => index !== lastGroove
+    );
+    if (grooveIndex === lastGroove && alternateGrooveIndexes.length > 0) {
+      grooveIndex = alternateGrooveIndexes[
+        Math.floor(nextRandom() * alternateGrooveIndexes.length)
+      ];
+    }
+    lastGrooveByDeck.set(deckSlot, grooveIndex);
+    const phraseSteps = grooves[grooveIndex];
+    const phraseId = `phrase-${++phraseSerial}-${template.id}`;
+    const phraseNotes = [];
+    for (let index = 0; index < template.rows.length; index++) {
+      if (index > 0) {
+        const repeatedSyllable = template.rows[index] === template.rows[index - 1];
+        advanceDeckColumn(deckSlot, repeatedSyllable);
+      }
+      const target = getZone(deckSlot, template.rows[index], state.column);
+      const noteStep = startStep + phraseSteps[index];
+      const tailDurationSteps = sustainTailRequested &&
+        index === template.rows.length - 1
+        ? Math.min(
+          RHYTHM_GAME_PHRASE_TAIL_MAX_STEPS,
+          sustainUntilStep - noteStep
+        )
+        : 0;
+      const isSustainTail =
+        template.rows[index] === 2 &&
+        tailDurationSteps >= RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS;
+      const previousStep = index > 0 ? phraseSteps[index - 1] : null;
+      const nextStep = index + 1 < phraseSteps.length
+        ? phraseSteps[index + 1]
+        : null;
+      const isConnected = !isSustainTail && (
+        template.rows[index] === 2 ||
+        (previousStep !== null && phraseSteps[index] - previousStep <= 2) ||
+        (nextStep !== null && nextStep - phraseSteps[index] <= 2)
+      );
+      const note = appendNote(
+        target,
+        noteStep * S8,
+        {
+          kind: isSustainTail ? 'hold' : 'tap',
+          duration: isSustainTail ? tailDurationSteps * S8 : 0,
+          articulation: isConnected ? 'connected' : 'short',
+          autoplayDuration: isConnected
+            ? RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION
+            : RHYTHM_GAME_AUTOPLAY_TAP_DURATION,
+          phraseId,
+          phraseText: template.text,
+          phraseRole: role,
+          phraseTokenIndex: index,
+        }
+      );
+      if (note) phraseNotes.push(note);
+    }
+    return phraseNotes;
+  };
+
+  const appendAccent = (deckSlot, step, chordId, phraseRole) => {
+    const state = deckStates.get(deckSlot);
+    if (!state) return null;
+    const target = getZone(deckSlot, 2, state.column);
+    const note = appendNote(target, step * S8, { chordId, phraseRole });
+    advanceDeckColumn(deckSlot);
+    return note;
+  };
+
+  const appendChordedPhrase = (
+    phraseDeck,
+    accentDeck,
+    startStep,
+    template,
+    options = {}
+  ) => {
+    const phraseNotes = appendPhrase(
+      phraseDeck,
+      startStep,
+      template,
+      options
+    );
+    const firstNote = phraseNotes[0];
+    if (
+      !firstNote ||
+      phraseDeck === accentDeck ||
+      !deckStates.has(accentDeck)
+    ) return phraseNotes;
+    const chordId = `chord-${++chordSerial}`;
+    firstNote.chordId = chordId;
+    appendAccent(
+      accentDeck,
+      Math.round(firstNote.time / S8),
+      chordId,
+      `${options.role ?? 'phrase'}-accent`
+    );
+    return phraseNotes;
+  };
+
+  const appendCadenceHold = (
+    deckSlot,
+    startStep,
+    phraseGroup,
+    profileIndex
+  ) => {
+    const state = deckStates.get(deckSlot);
+    if (!state) return null;
+    const profiles = [
+      { durationSteps: 6, slideOffsets: [2, 4], text: '连音链' },
+      { durationSteps: 7, slideOffsets: [2, 5], text: '长连音' },
+      { durationSteps: 6, slideOffsets: [], text: '长音' },
+      { durationSteps: 7, slideOffsets: [], text: '长音收束' },
+    ];
+    const profile = profiles[profileIndex % profiles.length];
+    const startTarget = getZone(deckSlot, 2, state.column);
+    const slideTargets = [];
+    for (const stepOffset of profile.slideOffsets) {
+      const column = advanceDeckColumn(deckSlot, true);
+      const target = getZone(deckSlot, 2, column);
+      if (target) {
+        slideTargets.push({
+          ...target,
+          time: (startStep + stepOffset) * S8,
+        });
+      }
+    }
+    const note = appendNote(startTarget, startStep * S8, {
+      kind: 'hold',
+      duration: profile.durationSteps * S8,
+      slideTargets,
+      phraseId: `hold-${phraseGroup}-${profileIndex}`,
+      phraseText: profile.text,
+      phraseRole: slideTargets.length > 0 ? 'legato' : 'sustain',
+    });
+    if (slideTargets.length === 0) advanceDeckColumn(deckSlot, true);
+    return note;
+  };
+
+  const appendCounterLine = (
+    deckSlot,
+    startStep,
+    offsets,
+    phraseRole
+  ) => {
+    if (deckSlots.length < 2) return [];
+    const state = deckStates.get(deckSlot);
+    if (!state) return [];
+    const counterNotes = [];
+    const rows = [0, 1, 0, 2];
+    offsets.forEach((stepOffset, index) => {
+      const target = getZone(deckSlot, rows[index % rows.length], state.column);
+      const note = appendNote(target, (startStep + stepOffset) * S8, {
+        phraseRole,
+      });
+      if (note) counterNotes.push(note);
+      advanceDeckColumn(deckSlot, index % 2 === 1);
+    });
+    return counterNotes;
+  };
+
+  const firstDeckIndex = Math.floor(nextRandom() * deckSlots.length);
+  const deckDirection = nextRandom() < 0.5 ? -1 : 1;
+  const wrapDeckIndex = index => (
+    (index % deckSlots.length) + deckSlots.length
+  ) % deckSlots.length;
+  for (let phraseGroup = 0; phraseGroup < phraseGroupCount; phraseGroup++) {
+    const groupStartStep = phraseGroup * RHYTHM_GAME_PHRASE_BARS * 8;
+    const leadIndex = wrapDeckIndex(
+      firstDeckIndex + phraseGroup * deckDirection
+    );
+    const responseIndex = wrapDeckIndex(leadIndex + deckDirection);
+    const relayIndex = wrapDeckIndex(leadIndex + deckDirection * 2);
+    const leadDeck = deckSlots[leadIndex];
+    const responseDeck = deckSlots[responseIndex];
+    const relayDeck = deckSlots[relayIndex];
+    const leadTemplate = nextPhraseTemplate(leadDeck);
+    const leadVariationTemplate = nextPhraseTemplate(leadDeck);
+    const responseTemplate = nextPhraseTemplate(responseDeck);
+    const relayTemplate = nextPhraseTemplate(relayDeck);
+    const sectionRole = phraseGroup % 4;
+    const arrangementVariant = Math.floor(nextRandom() * 2);
+    const getAccentDeck = (phraseDeck, preferredDeck) => (
+      preferredDeck !== phraseDeck
+        ? preferredDeck
+        : deckSlots.find(deckSlot => deckSlot !== phraseDeck)
+    );
+
+    if (sectionRole === 0) {
+      // 主题先重复一次，第二次改节奏或改句子，让旋律有记忆点。
+      appendPhrase(leadDeck, groupStartStep, leadTemplate, { role: 'theme' });
+      appendPhrase(
+        leadDeck,
+        groupStartStep + 8,
+        arrangementVariant === 0 ? leadTemplate : leadVariationTemplate,
+        { role: 'theme-echo', variation: true }
+      );
+      appendChordedPhrase(
+        responseDeck,
+        getAccentDeck(responseDeck, relayDeck),
+        groupStartStep + 16,
+        responseTemplate,
+        {
+          role: 'theme-answer',
+          sustainUntilStep: groupStartStep + 24,
+        }
+      );
+      appendCadenceHold(
+        leadDeck,
+        groupStartStep + 24,
+        phraseGroup,
+        arrangementVariant
+      );
+      appendCounterLine(
+        responseDeck,
+        groupStartStep + 24,
+        arrangementVariant === 0 ? [3] : [2, 5],
+        'theme-counter'
+      );
+      continue;
+    }
+
+    if (sectionRole === 1) {
+      // 三台 Deck 像接龙一样传递乐句，双 Deck 则左右问答。
+      appendPhrase(leadDeck, groupStartStep, leadTemplate, {
+        role: 'dialogue-call',
+      });
+      appendPhrase(
+        arrangementVariant === 0 ? responseDeck : relayDeck,
+        groupStartStep + 8,
+        arrangementVariant === 0 ? responseTemplate : relayTemplate,
+        {
+          role: 'dialogue-answer',
+          variation: true,
+          sustainUntilStep: groupStartStep + 16,
+        }
+      );
+      appendPhrase(
+        arrangementVariant === 0 ? relayDeck : responseDeck,
+        groupStartStep + 16,
+        arrangementVariant === 0 ? relayTemplate : responseTemplate,
+        {
+          role: 'dialogue-relay',
+          sustainUntilStep: groupStartStep + 24,
+        }
+      );
+      appendCadenceHold(
+        leadDeck,
+        groupStartStep + 24,
+        phraseGroup,
+        2 + arrangementVariant
+      );
+      appendCounterLine(
+        responseDeck,
+        groupStartStep + 24,
+        arrangementVariant === 0 ? [3] : [2, 5],
+        'dialogue-counter'
+      );
+      continue;
+    }
+
+    if (sectionRole === 2) {
+      // 提升段用双押开头，第四小节拉出长音，疏密对比更明显。
+      appendChordedPhrase(
+        leadDeck,
+        getAccentDeck(leadDeck, responseDeck),
+        groupStartStep,
+        leadTemplate,
+        { role: 'lift-entry' }
+      );
+      appendPhrase(responseDeck, groupStartStep + 8, responseTemplate, {
+        role: 'lift-answer',
+        sustainUntilStep: groupStartStep + 16,
+      });
+      appendPhrase(relayDeck, groupStartStep + 16, relayTemplate, {
+        role: 'lift-relay',
+        variation: true,
+        sustainUntilStep: groupStartStep + 24,
+      });
+      appendCadenceHold(
+        responseDeck,
+        groupStartStep + 24,
+        phraseGroup,
+        2 + arrangementVariant
+      );
+      appendCounterLine(
+        leadDeck,
+        groupStartStep + 24,
+        arrangementVariant === 0 ? [3] : [2, 5],
+        'lift-counter'
+      );
+      continue;
+    }
+
+    // 收束段先留出长音空间，后三小节逐台回应，最后以双押落地。
+    appendCadenceHold(
+      leadDeck,
+      groupStartStep,
+      phraseGroup,
+      arrangementVariant === 0 ? 1 : 3
+    );
+    appendCounterLine(
+      responseDeck,
+      groupStartStep,
+      arrangementVariant === 0 ? [3] : [2, 5],
+      'resolve-opening'
+    );
+    appendPhrase(responseDeck, groupStartStep + 8, responseTemplate, {
+      role: 'resolve-answer',
+      sustainUntilStep: groupStartStep + 16,
+    });
+    appendPhrase(relayDeck, groupStartStep + 16, relayTemplate, {
+      role: 'resolve-relay',
+      variation: true,
+    });
+    appendChordedPhrase(
+      leadDeck,
+      getAccentDeck(leadDeck, responseDeck),
+      groupStartStep + 24,
+      leadVariationTemplate,
+      {
+        role: 'resolve-cadence',
+        variation: true,
+        sustainUntilStep: groupStartStep + 32,
+      }
+    );
+  }
+
+  notes.sort((left, right) =>
+    left.time - right.time || left.eventId - right.eventId
+  );
+  notes.forEach((note, index) => {
+    note.id = index + 1;
+  });
+
+  const totalJudgements = notes.reduce(
+    (total, note) => total + (
+      note.kind === 'hold'
+        ? 2 + note.holdTickTimes.length + note.slideTargets.length
+        : 1
+    ),
+    0
+  );
+
+  return {
+    barCount,
+    phraseGroupCount,
+    duration: chartDuration,
+    totalJudgements,
+    notes,
+  };
+}
+
+function classifyRhythmGameTiming(offsetSeconds) {
+  const distance = Math.abs(Number(offsetSeconds));
+  if (!Number.isFinite(distance)) return null;
+  if (distance <= RHYTHM_GAME_PERFECT_WINDOW) return 'perfect';
+  if (distance <= RHYTHM_GAME_GOOD_WINDOW) return 'good';
+  return null;
+}
+
+function classifyRhythmGameSlideTiming(offsetSeconds) {
+  const distance = Math.abs(Number(offsetSeconds));
+  if (!Number.isFinite(distance)) return null;
+  if (distance <= RHYTHM_GAME_PERFECT_WINDOW) return 'perfect';
+  if (distance <= RHYTHM_GAME_SLIDE_GOOD_WINDOW) return 'good';
+  return null;
+}
+
+function getRhythmGameGrade(accuracy) {
+  if (accuracy >= 0.96) return 'S';
+  if (accuracy >= 0.9) return 'A';
+  if (accuracy >= 0.78) return 'B';
+  if (accuracy >= 0.65) return 'C';
+  return 'D';
+}
+
+function formatRhythmGameTime(seconds) {
+  const wholeSeconds = Math.max(0, Math.ceil(Number(seconds) || 0));
+  const minutes = Math.floor(wholeSeconds / 60);
+  return `${minutes}:${String(wholeSeconds % 60).padStart(2, '0')}`;
+}
+
+function isRhythmGameActive() {
+  return rhythmGame.phase === 'countdown' || rhythmGame.phase === 'playing';
+}
+
+function isRhythmGameVisible() {
+  return isRhythmGameActive() || rhythmGame.phase === 'results';
+}
+
+function shouldQuantizePerformanceInput() {
+  return performanceSettings.rhythmSnap && !isRhythmGameActive();
+}
+
+function renderRhythmGameLaunch() {
+  const active = isRhythmGameVisible();
+  const disabled =
+    !performanceSettings.rhythmGameMode ||
+    performanceSettingsSaving ||
+    rhythmGameSettingsSaving ||
+    active;
+  rhythmGameLaunch.setAttribute(
+    'aria-pressed',
+    String(active && !rhythmGame.autoplay)
+  );
+  rhythmGameLaunch.disabled = disabled;
+  rhythmGameLaunchAction.textContent = active && !rhythmGame.autoplay
+    ? '进行中'
+    : '手动开始';
+  rhythmGameAutoplayLaunch.setAttribute(
+    'aria-pressed',
+    String(active && rhythmGame.autoplay)
+  );
+  rhythmGameAutoplayLaunch.classList.toggle(
+    'is-active',
+    active && rhythmGame.autoplay
+  );
+  rhythmGameAutoplayLaunch.disabled = disabled;
+  rhythmGameAutoplayAction.textContent = active && rhythmGame.autoplay
+    ? '演奏中'
+    : '自动演奏';
+  rhythmGameLaunchDescription.textContent =
+    `当前难度：${rhythmGameSettings.laneCount} 栏 · ` +
+    `${rhythmGameSettings.laneCount * 12} 区域 · 固定 1:00`;
+}
+
+function clearRhythmGameCues() {
+  for (const note of rhythmGame.visibleNotes) {
+    note.element = null;
+    note.kindElement = null;
+    note.keyElement = null;
+  }
+  rhythmGame.visibleNotes.clear();
+  rhythmGameCues.replaceChildren();
+}
+
+function resolveRhythmGameZoneIndex(note) {
+  const zoneKey = note.displayZoneKey ?? note.zoneKey;
+  return zones.findIndex(
+    zone => getRhythmGameZoneKey(zone) === zoneKey
+  );
+}
+
+function setRhythmGameCueTarget(note, target) {
+  if (!note || !target?.zoneKey) return;
+  note.displayZoneKey = target.zoneKey;
+  note.displayKeyboardLabel = target.keyboardLabel ?? '';
+  if (note.keyElement) {
+    note.keyElement.textContent = note.displayKeyboardLabel;
+  }
+}
+
+function getRhythmGameZoneCenter(zoneIndexValue) {
+  const { width, height, left, top } = getStageMetrics();
+  const column = zoneIndexValue % cols;
+  const row = Math.floor(zoneIndexValue / cols);
+  return {
+    x: left + (column + 0.5) * width / cols,
+    y: top + (row + 0.5) * height / rows,
+  };
+}
+
+function isRhythmGameAutoplayInput(inputId) {
+  return typeof inputId === 'string' &&
+    inputId.startsWith(RHYTHM_GAME_AUTOPLAY_INPUT_PREFIX);
+}
+
+function positionRhythmGameCue(note) {
+  if (!note.element) return false;
+  const zone = resolveRhythmGameZoneIndex(note);
+  if (zone < 0) return false;
+  note.element.style.gridColumn = String(zone % cols + 1);
+  note.element.style.gridRow = String(Math.floor(zone / cols) + 1);
+  return true;
+}
+
+function createRhythmGameCue(note) {
+  const element = document.createElement('div');
+  element.className = 'rhythm-game-note';
+  element.classList.toggle('is-hold', note.kind === 'hold');
+  element.classList.toggle(
+    'is-slide',
+    note.kind === 'hold' && note.slideTargets.length > 0
+  );
+  element.setAttribute('aria-hidden', 'true');
+  const target = document.createElement('div');
+  target.className = 'rhythm-game-note-target';
+  const emoji = document.createElement('span');
+  emoji.className = 'rhythm-game-note-emoji';
+  emoji.textContent = SFX_EMOJIS[note.sfxId] ?? '♪';
+  const key = document.createElement('span');
+  key.className = 'rhythm-game-note-key';
+  key.textContent = note.displayKeyboardLabel ?? note.keyboardLabel ?? '';
+  const kind = document.createElement('span');
+  kind.className = 'rhythm-game-note-kind';
+  kind.textContent = note.kind === 'hold' ? '按住' : '';
+  target.append(emoji, key, kind);
+  element.appendChild(target);
+  note.element = element;
+  note.kindElement = kind;
+  note.keyElement = key;
+  rhythmGame.visibleNotes.add(note);
+  positionRhythmGameCue(note);
+  rhythmGameCues.appendChild(element);
+}
+
+function removeRhythmGameCue(note) {
+  note.element?.remove();
+  note.element = null;
+  note.kindElement = null;
+  note.keyElement = null;
+  rhythmGame.visibleNotes.delete(note);
+}
+
+function completeRhythmGameCue(note, judgement, elapsed) {
+  if (!note.element) createRhythmGameCue(note);
+  note.status = 'done';
+  note.judgedAt = elapsed;
+  note.element?.classList.remove(
+    'is-due',
+    'is-holding',
+    'is-release-due',
+    'is-slide-due'
+  );
+  note.element?.classList.add('is-judged', `is-${judgement}`);
+  note.element?.style.setProperty('--rhythm-note-opacity', '1');
+  note.element?.style.setProperty('--rhythm-note-scale', '1');
+  if (note.kindElement) {
+    note.kindElement.textContent = judgement === 'miss' ? '中断' : '完成';
+  }
+}
+
+function activateRhythmGameHoldCue(note, judgement, inputId) {
+  if (!note.element) createRhythmGameCue(note);
+  note.status = 'holding';
+  note.judgement = judgement;
+  note.inputId = inputId;
+  note.currentZoneKey = note.zoneKey;
+  note.nextSlideIndex = 0;
+  setRhythmGameCueTarget(note, note);
+  note.element?.classList.remove('is-due');
+  note.element?.classList.add('is-holding');
+  note.element?.style.setProperty('--rhythm-note-opacity', '1');
+  note.element?.style.setProperty('--rhythm-note-scale', '1');
+  if (note.kindElement) note.kindElement.textContent = '按住';
+  rhythmGame.activeHolds.set(inputId, note);
+}
+
+function showRhythmGameJudgement(text, kind) {
+  rhythmGameJudgement.className = '';
+  rhythmGameJudgement.textContent = text;
+  void rhythmGameJudgement.offsetWidth;
+  rhythmGameJudgement.classList.add('is-visible', `is-${kind}`);
+}
+
+function updateRhythmGameHud(elapsed) {
+  rhythmGameScore.textContent = String(rhythmGame.score).padStart(6, '0');
+  rhythmGameCombo.textContent = String(rhythmGame.combo);
+  rhythmGameTime.textContent = formatRhythmGameTime(
+    rhythmGame.duration - Math.max(0, elapsed)
+  );
+}
+
+function awardRhythmGameHit(
+  judgement,
+  perfectScore = 1000,
+  goodScore = 650,
+  announce = true
+) {
+  rhythmGame.combo++;
+  rhythmGame.maxCombo = Math.max(rhythmGame.maxCombo, rhythmGame.combo);
+  if (judgement === 'perfect') {
+    rhythmGame.perfect++;
+    rhythmGame.score += perfectScore + Math.min(50, rhythmGame.combo - 1) * 10;
+    if (announce) showRhythmGameJudgement('完美', 'perfect');
+  } else {
+    rhythmGame.good++;
+    rhythmGame.score += goodScore + Math.min(50, rhythmGame.combo - 1) * 5;
+    if (announce) showRhythmGameJudgement('良好', 'good');
+  }
+}
+
+function addRhythmGameMisses(count = 1, message = '漏拍') {
+  rhythmGame.miss += Math.max(0, Number(count) || 0);
+  rhythmGame.combo = 0;
+  showRhythmGameJudgement(message, 'miss');
+}
+
+function recordRhythmGameMiss(note, elapsed) {
+  note.judgement = 'miss';
+  if (note.kind === 'hold') {
+    note.releaseJudgement = 'miss';
+    note.nextHoldTickIndex = note.holdTickTimes.length;
+    note.nextSlideIndex = note.slideTargets.length;
+    addRhythmGameMisses(
+      2 + note.holdTickTimes.length + note.slideTargets.length,
+      note.slideTargets.length > 0 ? '连音漏拍' : '长按漏拍'
+    );
+  } else {
+    addRhythmGameMisses();
+  }
+  completeRhythmGameCue(note, 'miss', elapsed);
+}
+
+function scoreDueRhythmGameHoldTicks(note, elapsed) {
+  while (
+    note.nextHoldTickIndex < note.holdTickTimes.length &&
+    note.holdTickTimes[note.nextHoldTickIndex] <= elapsed
+  ) {
+    awardRhythmGameHit('perfect', 420, 420, false);
+    note.nextHoldTickIndex++;
+  }
+}
+
+function finishRhythmGameHold(note, judgement, elapsed) {
+  if (!note || note.status !== 'holding') return;
+  scoreDueRhythmGameHoldTicks(note, Math.min(elapsed, note.endTime));
+  const remainingTicks = note.holdTickTimes.length - note.nextHoldTickIndex;
+  const remainingSlides = note.slideTargets.length - note.nextSlideIndex;
+  const remainingHoldJudgements = remainingTicks + remainingSlides;
+  if (remainingHoldJudgements > 0) {
+    note.nextHoldTickIndex = note.holdTickTimes.length;
+    note.nextSlideIndex = note.slideTargets.length;
+    addRhythmGameMisses(
+      remainingHoldJudgements,
+      note.slideTargets.length > 0 ? '连音中断' : '长按中断'
+    );
+  }
+
+  rhythmGame.activeHolds.delete(note.inputId);
+  const releaseJudgement = remainingHoldJudgements > 0 ? null : judgement;
+  note.releaseJudgement = releaseJudgement;
+  if (releaseJudgement) {
+    awardRhythmGameHit(releaseJudgement, 800, 520, false);
+    showRhythmGameJudgement(
+      releaseJudgement === 'perfect' ? '松手完美' : '松手良好',
+      releaseJudgement
+    );
+    completeRhythmGameCue(note, releaseJudgement, elapsed);
+  } else {
+    addRhythmGameMisses(1, '长按中断');
+    completeRhythmGameCue(note, 'miss', elapsed);
+  }
+}
+
+function releaseRhythmGameHold(inputId, cancelled = false) {
+  const note = rhythmGame.activeHolds.get(inputId);
+  if (!note || !ctx) return false;
+  const elapsed = ctx.currentTime - rhythmGame.startAt;
+  const judgement = cancelled
+    ? null
+    : classifyRhythmGameTiming(elapsed - note.endTime);
+  finishRhythmGameHold(note, judgement, elapsed);
+  updateRhythmGameHud(elapsed);
+  return true;
+}
+
+function handleRhythmGameHoldZoneChange(inputId, nextZoneIndex) {
+  const note = rhythmGame.activeHolds.get(inputId);
+  if (!note) return false;
+  const nextZoneKey = getRhythmGameZoneKey(zones[nextZoneIndex]);
+  if (nextZoneKey === note.currentZoneKey) return true;
+  const slideTarget = note.slideTargets[note.nextSlideIndex];
+  if (!slideTarget || nextZoneKey !== slideTarget.zoneKey || !ctx) {
+    releaseRhythmGameHold(inputId, true);
+    return false;
+  }
+
+  const elapsed = ctx.currentTime - rhythmGame.startAt;
+  const judgement = classifyRhythmGameSlideTiming(
+    elapsed - slideTarget.time
+  );
+  if (!judgement) {
+    releaseRhythmGameHold(inputId, true);
+    return false;
+  }
+
+  note.currentZoneKey = nextZoneKey;
+  note.nextSlideIndex++;
+  setRhythmGameCueTarget(note, slideTarget);
+  awardRhythmGameHit(judgement, 760, 500, false);
+  showRhythmGameJudgement(
+    judgement === 'perfect' ? '滑音完美' : '滑音良好',
+    judgement
+  );
+  updateRhythmGameHud(elapsed);
+  return true;
+}
+
+function judgeRhythmGameInput(zoneIndexValue, inputId) {
+  if (!isRhythmGameActive() || !ctx) return false;
+  if (rhythmGame.autoplay && !isRhythmGameAutoplayInput(inputId)) return false;
+  const zone = zones[zoneIndexValue];
+  const zoneKey = getRhythmGameZoneKey(zone);
+  if (!zoneKey) return false;
+  const elapsed = ctx.currentTime - rhythmGame.startAt;
+  if (elapsed < -RHYTHM_GAME_GOOD_WINDOW) return false;
+
+  let matchedNote = null;
+  let matchedOffset = Infinity;
+  for (const note of rhythmGame.notes) {
+    if (note.status !== 'pending') continue;
+    if (note.time > elapsed + RHYTHM_GAME_GOOD_WINDOW) break;
+    if (note.zoneKey !== zoneKey) continue;
+    const offset = elapsed - note.time;
+    if (
+      Math.abs(offset) <= RHYTHM_GAME_GOOD_WINDOW &&
+      Math.abs(offset) < Math.abs(matchedOffset)
+    ) {
+      matchedNote = note;
+      matchedOffset = offset;
+    }
+  }
+
+  const judgement = matchedNote
+    ? classifyRhythmGameTiming(matchedOffset)
+    : null;
+  if (!matchedNote || !judgement) {
+    rhythmGame.combo = 0;
+    rhythmGame.wrong++;
+    showRhythmGameJudgement('偏离', 'wrong');
+    updateRhythmGameHud(elapsed);
+    return false;
+  }
+
+  awardRhythmGameHit(judgement);
+  if (matchedNote.kind === 'hold') {
+    activateRhythmGameHoldCue(matchedNote, judgement, inputId);
+  } else {
+    matchedNote.judgement = judgement;
+    completeRhythmGameCue(matchedNote, judgement, elapsed);
+  }
+  updateRhythmGameHud(elapsed);
+  return true;
+}
+
+function startRhythmGameAutoplayNote(note) {
+  if (!note || note.status !== 'pending') return false;
+  const zoneIndexValue = resolveRhythmGameZoneIndex(note);
+  if (zoneIndexValue < 0) return false;
+  const inputId = `${RHYTHM_GAME_AUTOPLAY_INPUT_PREFIX}${note.id}`;
+  if (!judgeRhythmGameInput(zoneIndexValue, inputId)) return false;
+
+  const center = getRhythmGameZoneCenter(zoneIndexValue);
+  beginTouchTrail(inputId, center.x, center.y);
+  const state = {
+    zone: -1,
+    voice: null,
+    pendingEntryId: null,
+    lastX: center.x,
+    lastY: center.y,
+  };
+  pointers.set(inputId, state);
+  enterZone(inputId, state, zoneIndexValue);
+  if (note.kind === 'tap') {
+    rhythmGame.autoplayTapReleases.push({
+      inputId,
+      time: note.time + (
+        note.autoplayDuration ?? RHYTHM_GAME_AUTOPLAY_TAP_DURATION
+      ),
+    });
+  }
+  return true;
+}
+
+function updateRhythmGameAutoplay(elapsed) {
+  if (!rhythmGame.autoplay) return;
+
+  for (let index = rhythmGame.autoplayTapReleases.length - 1; index >= 0; index--) {
+    const release = rhythmGame.autoplayTapReleases[index];
+    if (release.time - elapsed > RHYTHM_GAME_AUTOPLAY_LOOKAHEAD) continue;
+    rhythmGame.autoplayTapReleases.splice(index, 1);
+    endInput(release.inputId, true);
+  }
+
+  for (const [inputId, note] of [...rhythmGame.activeHolds.entries()]) {
+    if (!isRhythmGameAutoplayInput(inputId)) continue;
+    let slideTarget = note.slideTargets[note.nextSlideIndex];
+    while (
+      slideTarget &&
+      slideTarget.time - elapsed <= RHYTHM_GAME_AUTOPLAY_LOOKAHEAD
+    ) {
+      const zoneIndexValue = resolveRhythmGameZoneIndex(slideTarget);
+      const state = pointers.get(inputId);
+      if (zoneIndexValue < 0 || !state) break;
+      const previousSlideIndex = note.nextSlideIndex;
+      const center = getRhythmGameZoneCenter(zoneIndexValue);
+      moveTouchTrail(inputId, center.x, center.y);
+      enterZone(inputId, state, zoneIndexValue);
+      state.lastX = center.x;
+      state.lastY = center.y;
+      if (note.nextSlideIndex === previousSlideIndex) break;
+      slideTarget = note.slideTargets[note.nextSlideIndex];
+    }
+    if (note.endTime - elapsed <= RHYTHM_GAME_AUTOPLAY_LOOKAHEAD) {
+      endInput(inputId, true);
+    }
+  }
+
+  while (
+    rhythmGame.nextAutoplayIndex < rhythmGame.notes.length &&
+    rhythmGame.notes[rhythmGame.nextAutoplayIndex].time - elapsed <=
+      RHYTHM_GAME_AUTOPLAY_LOOKAHEAD
+  ) {
+    const note = rhythmGame.notes[rhythmGame.nextAutoplayIndex];
+    rhythmGame.nextAutoplayIndex++;
+    if (note.status === 'pending') startRhythmGameAutoplayNote(note);
+  }
+}
+
+function resetRhythmGame() {
+  clearRhythmGameCues();
+  rhythmGame.activeHolds.clear();
+  rhythmGame.phase = 'idle';
+  rhythmGame.notes = [];
+  rhythmGame.duration = 0;
+  rhythmGame.startAt = 0;
+  rhythmGame.nextCueIndex = 0;
+  rhythmGame.nextMissIndex = 0;
+  rhythmGame.autoplay = false;
+  rhythmGame.nextAutoplayIndex = 0;
+  rhythmGame.autoplayTapReleases = [];
+  rhythmGame.totalJudgements = 0;
+  rhythmGame.score = 0;
+  rhythmGame.combo = 0;
+  rhythmGame.maxCombo = 0;
+  rhythmGame.perfect = 0;
+  rhythmGame.good = 0;
+  rhythmGame.miss = 0;
+  rhythmGame.wrong = 0;
+  rhythmGame.countdownText = '';
+  rhythmGameHud.hidden = true;
+  rhythmGameAutoBadge.hidden = true;
+  rhythmGameCountdown.textContent = '';
+  rhythmGameJudgement.textContent = '';
+  rhythmGameJudgement.className = '';
+  rhythmGameLayer.classList.remove('is-visible', 'is-results', 'is-autoplay');
+  rhythmGameLayer.setAttribute('aria-hidden', 'true');
+  rhythmGameLayer.inert = true;
+  stage.classList.remove('is-rhythm-game');
+  renderRhythmGameLaunch();
+  renderKeyGrid();
+}
+
+function leaveRhythmGame(showNotice = false) {
+  if (!isRhythmGameVisible()) return;
+  stopActivePerformanceInput();
+  resetRhythmGame();
+  showControls();
+  if (showNotice) showToyNotice('已退出音游模式');
+}
+
+function finishRhythmGame() {
+  if (!isRhythmGameActive()) return;
+  stopActivePerformanceInput();
+  clearRhythmGameCues();
+  rhythmGame.phase = 'results';
+  rhythmGameHud.hidden = true;
+  rhythmGameCountdown.textContent = '';
+  rhythmGameJudgement.textContent = '';
+  rhythmGameJudgement.className = '';
+  rhythmGameLayer.classList.add('is-results');
+  const hits = rhythmGame.perfect + rhythmGame.good;
+  const accuracy = rhythmGame.totalJudgements > 0
+    ? hits / rhythmGame.totalJudgements
+    : 0;
+  rhythmGameResultTitle.textContent = rhythmGame.autoplay
+    ? '自动演奏完成'
+    : '谱面完成';
+  rhythmGameResultGrade.textContent = getRhythmGameGrade(accuracy);
+  rhythmGameResultScore.textContent = rhythmGame.score.toLocaleString('zh-CN');
+  rhythmGameResultAccuracy.textContent = `${Math.round(accuracy * 100)}%`;
+  rhythmGameResultCombo.textContent = String(rhythmGame.maxCombo);
+  rhythmGameResultHits.textContent = `${rhythmGame.perfect} / ${rhythmGame.good}`;
+  rhythmGameResultMisses.textContent = String(rhythmGame.miss);
+  renderRhythmGameLaunch();
+  renderKeyGrid();
+  rhythmGameRetry.focus({ preventScroll: true });
+}
+
+async function startRhythmGame({ autoplay = false } = {}) {
+  if (!performanceSettings.rhythmGameMode || isRhythmGameActive()) return false;
+  if (rhythmGame.phase === 'results') resetRhythmGame();
+  const ready = await start();
+  if (!ready || !performanceSettings.rhythmGameMode || !ctx) return false;
+
+  stopActivePerformanceInput();
+  const chart = createRhythmGameChart(zones);
+  if (chart.notes.length === 0) {
+    showToyNotice('当前 Deck 没有可用区域。', true);
+    return false;
+  }
+  clearPerformanceVisualEffects();
+  clearRhythmGameCues();
+  rhythmGame.phase = 'countdown';
+  rhythmGame.notes = chart.notes;
+  rhythmGame.duration = chart.duration;
+  rhythmGame.totalJudgements = chart.totalJudgements;
+  const barDuration = SPB * 4;
+  rhythmGame.startAt = startTime + Math.ceil(
+    (ctx.currentTime + 2.4 - startTime) / barDuration
+  ) * barDuration;
+  rhythmGame.nextCueIndex = 0;
+  rhythmGame.nextMissIndex = 0;
+  rhythmGame.autoplay = Boolean(autoplay);
+  rhythmGame.nextAutoplayIndex = 0;
+  rhythmGame.autoplayTapReleases = [];
+  rhythmGame.activeHolds.clear();
+  rhythmGame.score = 0;
+  rhythmGame.combo = 0;
+  rhythmGame.maxCombo = 0;
+  rhythmGame.perfect = 0;
+  rhythmGame.good = 0;
+  rhythmGame.miss = 0;
+  rhythmGame.wrong = 0;
+  rhythmGame.countdownText = '';
+  rhythmGameCues.style.setProperty('--rhythm-game-cols', String(cols));
+  rhythmGameCues.style.setProperty('--rhythm-game-rows', String(rows));
+  rhythmGameLayer.classList.add('is-visible');
+  rhythmGameLayer.classList.remove('is-results');
+  rhythmGameLayer.classList.toggle('is-autoplay', rhythmGame.autoplay);
+  rhythmGameLayer.setAttribute('aria-hidden', 'false');
+  rhythmGameLayer.inert = false;
+  rhythmGameHud.hidden = false;
+  rhythmGameAutoBadge.hidden = !rhythmGame.autoplay;
+  stage.classList.add('is-rhythm-game');
+  closeSettings();
+  renderRhythmGameLaunch();
+  renderKeyGrid();
+  updateRhythmGameHud(ctx.currentTime - rhythmGame.startAt);
+  return true;
+}
+
+function updateRhythmGame(audioNow) {
+  if (!isRhythmGameActive()) return;
+  const elapsed = audioNow - rhythmGame.startAt;
+  rhythmGameCues.style.setProperty('--rhythm-game-cols', String(cols));
+  rhythmGameCues.style.setProperty('--rhythm-game-rows', String(rows));
+
+  let countdownText = '';
+  if (elapsed < -3) countdownText = '准备';
+  else if (elapsed < 0) countdownText = String(Math.ceil(-elapsed));
+  else if (elapsed < 0.42) countdownText = '开始';
+  if (countdownText !== rhythmGame.countdownText) {
+    rhythmGame.countdownText = countdownText;
+    rhythmGameCountdown.textContent = countdownText;
+  }
+  if (elapsed >= 0 && rhythmGame.phase === 'countdown') {
+    rhythmGame.phase = 'playing';
+  }
+
+  while (
+    rhythmGame.nextCueIndex < rhythmGame.notes.length &&
+    rhythmGame.notes[rhythmGame.nextCueIndex].time - elapsed <= RHYTHM_GAME_CUE_LEAD
+  ) {
+    createRhythmGameCue(rhythmGame.notes[rhythmGame.nextCueIndex]);
+    rhythmGame.nextCueIndex++;
+  }
+
+  updateRhythmGameAutoplay(elapsed);
+
+  while (
+    rhythmGame.nextMissIndex < rhythmGame.notes.length &&
+    rhythmGame.notes[rhythmGame.nextMissIndex].time + RHYTHM_GAME_MISS_WINDOW < elapsed
+  ) {
+    const note = rhythmGame.notes[rhythmGame.nextMissIndex];
+    if (note.status === 'pending') recordRhythmGameMiss(note, elapsed);
+    rhythmGame.nextMissIndex++;
+  }
+
+  for (const note of new Set(rhythmGame.activeHolds.values())) {
+    scoreDueRhythmGameHoldTicks(note, Math.min(elapsed, note.endTime));
+    const slideTarget = note.slideTargets[note.nextSlideIndex];
+    if (
+      slideTarget &&
+      elapsed > slideTarget.time + RHYTHM_GAME_SLIDE_GOOD_WINDOW
+    ) {
+      finishRhythmGameHold(note, null, elapsed);
+      continue;
+    }
+    if (elapsed > note.endTime + RHYTHM_GAME_GOOD_WINDOW) {
+      finishRhythmGameHold(note, null, elapsed);
+    }
+  }
+
+  for (const note of [...rhythmGame.visibleNotes]) {
+    if (!positionRhythmGameCue(note)) {
+      removeRhythmGameCue(note);
+      continue;
+    }
+    if (note.status === 'done') {
+      if (elapsed - note.judgedAt > 0.3) removeRhythmGameCue(note);
+      continue;
+    }
+    if (note.status === 'holding') {
+      const remaining = note.endTime - elapsed;
+      const progress = Math.max(0, Math.min(1, remaining / note.duration));
+      note.element.style.setProperty(
+        '--rhythm-hold-progress',
+        `${(progress * 100).toFixed(1)}%`
+      );
+      note.element.style.setProperty('--rhythm-note-scale', '1');
+      note.element.style.setProperty('--rhythm-note-opacity', '1');
+      const slideTarget = note.slideTargets[note.nextSlideIndex];
+      const slideUntil = slideTarget ? slideTarget.time - elapsed : Infinity;
+      const showSlideTarget =
+        slideTarget && slideUntil <= RHYTHM_GAME_SLIDE_CUE_LEAD;
+      if (showSlideTarget) {
+        setRhythmGameCueTarget(note, slideTarget);
+        positionRhythmGameCue(note);
+        const slideApproach = Math.max(
+          0,
+          Math.min(1, 1 - slideUntil / RHYTHM_GAME_SLIDE_CUE_LEAD)
+        );
+        note.element.style.setProperty(
+          '--rhythm-note-scale',
+          (1.2 - slideApproach * 0.2).toFixed(3)
+        );
+      }
+      const slideDue = Boolean(
+        slideTarget && Math.abs(slideUntil) <= RHYTHM_GAME_PERFECT_WINDOW
+      );
+      const releaseDue =
+        !slideTarget && Math.abs(remaining) <= RHYTHM_GAME_GOOD_WINDOW;
+      note.element.classList.toggle('is-slide-due', slideDue);
+      note.element.classList.toggle('is-release-due', releaseDue);
+      if (note.kindElement) {
+        note.kindElement.textContent = showSlideTarget
+          ? '滑到'
+          : releaseDue
+            ? '松开'
+            : '按住';
+      }
+      continue;
+    }
+    const until = note.time - elapsed;
+    const approach = Math.max(
+      0,
+      Math.min(1, 1 - until / RHYTHM_GAME_CUE_LEAD)
+    );
+    const scale = until >= 0
+      ? 1.42 - approach * 0.42
+      : 1 + Math.min(0.06, -until * 0.24);
+    const opacity = Math.max(0.34, Math.min(1, 0.34 + approach * 0.82));
+    note.element.style.setProperty('--rhythm-note-scale', scale.toFixed(3));
+    note.element.style.setProperty('--rhythm-note-opacity', opacity.toFixed(3));
+    note.element.classList.toggle(
+      'is-due',
+      Math.abs(until) <= RHYTHM_GAME_PERFECT_WINDOW
+    );
+  }
+
+  updateRhythmGameHud(elapsed);
+  if (
+    elapsed >= rhythmGame.duration &&
+    rhythmGame.nextMissIndex >= rhythmGame.notes.length &&
+    rhythmGame.activeHolds.size === 0
+  ) {
+    finishRhythmGame();
+  }
+}
+
+function isAnyCharacterHolding() {
+  return holding || djDecks.some(deck => deck.holding);
 }
 
 function renderKeyGrid() {
   keyGrid.style.setProperty('--key-grid-cols', String(cols));
   keyGrid.style.setProperty('--key-grid-rows', String(rows));
-  keyGrid.classList.toggle('is-visible', performanceSettings.showGrid);
+  keyGrid.classList.toggle(
+    'is-visible',
+    performanceSettings.showGrid || shortcutOverlayVisible || isRhythmGameActive()
+  );
+  keyGrid.classList.toggle('is-dj-grid', isDeckPerformanceMode());
 
   const fragment = document.createDocumentFragment();
   for (const zone of zones) {
@@ -536,12 +2623,31 @@ function renderKeyGrid() {
     cell.className = 'key-grid-cell';
     cell.dataset.sample = zone.sample;
     if (zone.note) cell.dataset.note = zone.note;
+    if (isDeckPerformanceMode()) {
+      cell.dataset.deckId = zone.deckId;
+      if (zone.deckIndex > 0 && zone.localColumn === 0 && djLandscape) {
+        cell.classList.add('is-deck-start-landscape');
+      }
+      if (zone.deckIndex > 0 && zone.localRow === 0 && !djLandscape) {
+        cell.classList.add('is-deck-start-portrait');
+      }
+      const key = document.createElement('span');
+      key.className = 'key-grid-key';
+      key.textContent = zone.keyboardLabel;
+      cell.appendChild(key);
+    }
     fragment.appendChild(cell);
   }
   keyGrid.replaceChildren(fragment);
+  renderShortcutToggle();
 }
 
 function applyPerformanceSettings(previousSettings) {
+  const modeSettingNames = ['djMode', 'rhythmGameMode', 'pianoMode'];
+  const modeChanged = previousSettings && modeSettingNames.some(
+    settingName =>
+      previousSettings[settingName] !== performanceSettings[settingName]
+  );
   if (
     previousSettings &&
     previousSettings.rhythmSnap !== performanceSettings.rhythmSnap
@@ -550,10 +2656,23 @@ function applyPerformanceSettings(previousSettings) {
     clearQueuedPerformanceInput();
   }
 
+  if (modeChanged) {
+    shortcutOverlayVisible = false;
+    if (isRhythmGameVisible()) resetRhythmGame();
+    stopActivePerformanceInput();
+  }
+
+  if (
+    previousSettings &&
+    previousSettings.spatialAudio !== performanceSettings.spatialAudio
+  ) {
+    updateLiveStereoOutputs();
+  }
+
   if (
     zones.length === 0 ||
     !previousSettings ||
-    previousSettings.pianoMode !== performanceSettings.pianoMode
+    modeChanged
   ) {
     buildGrid();
   } else {
@@ -561,16 +2680,104 @@ function applyPerformanceSettings(previousSettings) {
   }
 }
 
-function replacePerformanceSettings(nextSettings) {
-  const previousSettings = { ...performanceSettings };
+function normalizePerformanceSettings(nextSettings, preferredMode = 'djMode') {
+  const normalized = {};
   for (const key of Object.keys(DEFAULT_PERFORMANCE_SETTINGS)) {
-    performanceSettings[key] = nextSettings[key] === true;
+    normalized[key] = nextSettings?.[key] === true;
   }
+  const modeSettingNames = ['djMode', 'rhythmGameMode', 'pianoMode'];
+  const activeModes = modeSettingNames.filter(
+    settingName => normalized[settingName]
+  );
+  if (activeModes.length > 1) {
+    const retainedMode = activeModes.includes(preferredMode)
+      ? preferredMode
+      : activeModes[0];
+    for (const settingName of modeSettingNames) {
+      normalized[settingName] = settingName === retainedMode;
+    }
+  }
+  return normalized;
+}
+
+function replacePerformanceSettings(nextSettings, preferredMode = 'djMode') {
+  const previousSettings = { ...performanceSettings };
+  Object.assign(
+    performanceSettings,
+    normalizePerformanceSettings(nextSettings, preferredMode)
+  );
   applyPerformanceSettings(previousSettings);
 }
 
+function getToggledPerformanceSettings(settingName) {
+  const nextSettings = {
+    ...performanceSettings,
+    [settingName]: !performanceSettings[settingName],
+  };
+  return normalizePerformanceSettings(
+    nextSettings,
+    nextSettings[settingName] ? settingName : 'djMode'
+  );
+}
+
+function getChangedPerformanceCloudItems(nextSettings) {
+  const items = {};
+  for (const [settingName, cloudKey] of Object.entries(
+    PERFORMANCE_SETTING_KEYS
+  )) {
+    if (nextSettings[settingName] === performanceSettings[settingName]) continue;
+    items[cloudKey] = nextSettings[settingName] ? '1' : '0';
+  }
+  return items;
+}
+
 function resetPerformanceSettingsToDefaults() {
-  replacePerformanceSettings(DEFAULT_PERFORMANCE_SETTINGS);
+  replaceDjSettings(DEFAULT_DJ_SETTINGS, false);
+  replaceRhythmGameSettings(DEFAULT_RHYTHM_GAME_SETTINGS, false);
+  replacePerformanceSettings({
+    ...DEFAULT_PERFORMANCE_SETTINGS,
+    djMode:
+      DEFAULT_PERFORMANCE_SETTINGS.djMode &&
+      (DEBUG_UNLOCK_SFX || toyCloudState.sfxUnlocked),
+  });
+}
+
+function replaceRhythmGameSettings(nextSettings, rebuild = true) {
+  const laneCount = [1, 2, 3].includes(nextSettings?.laneCount)
+    ? nextSettings.laneCount
+    : DEFAULT_RHYTHM_GAME_SETTINGS.laneCount;
+  const layoutChanged = laneCount !== rhythmGameSettings.laneCount;
+  rhythmGameSettings.laneCount = laneCount;
+  if (layoutChanged && rebuild && performanceSettings.rhythmGameMode) {
+    if (isRhythmGameVisible()) resetRhythmGame();
+    stopActivePerformanceInput();
+    buildGrid();
+  }
+  renderRhythmGameSettings();
+}
+
+function replaceDjSettings(nextSettings, rebuild = true) {
+  const deckCount = nextSettings?.deckCount === 3 ? 3 : 2;
+  const trailStyle = nextSettings?.trailStyle === 'emoji' ? 'emoji' : 'normal';
+  const deckSfxIds = DEFAULT_DJ_SETTINGS.deckSfxIds.map((fallback, slot) => {
+    const candidate = nextSettings?.deckSfxIds?.[slot];
+    return SFX_SAMPLE_SETS[candidate] ? candidate : fallback;
+  });
+  const layoutChanged =
+    deckCount !== djSettings.deckCount ||
+    deckSfxIds.some((sfxId, slot) => sfxId !== djSettings.deckSfxIds[slot]);
+  const trailStyleChanged = trailStyle !== djSettings.trailStyle;
+
+  djSettings.deckCount = deckCount;
+  djSettings.deckSfxIds = deckSfxIds;
+  djSettings.trailStyle = trailStyle;
+  if (trailStyleChanged) releaseAllTouchTrails();
+  if (layoutChanged && rebuild) {
+    if (isRhythmGameVisible()) resetRhythmGame();
+    stopActivePerformanceInput();
+    buildGrid();
+  }
+  renderDjSettings();
 }
 
 function markToyCloudUnavailable(state = toyCloudState) {
@@ -588,6 +2795,1974 @@ function readCloudPerformanceSettings(cloud) {
   return settings;
 }
 
+function readCloudDjSettings(cloud) {
+  const storedDeckCount = Number(cloud[TOY_CLOUD_KEYS.djDeckCount]);
+  return {
+    deckCount: storedDeckCount === 2 || storedDeckCount === 3
+      ? storedDeckCount
+      : DEFAULT_DJ_SETTINGS.deckCount,
+    trailStyle:
+      cloud[TOY_CLOUD_KEYS.djTrailStyle] === 'emoji' ? 'emoji' : 'normal',
+    deckSfxIds: DJ_DECK_CLOUD_KEYS.map((key, slot) => {
+      const sfxId = cloud[key];
+      return SFX_SAMPLE_SETS[sfxId]
+        ? sfxId
+        : DEFAULT_DJ_SETTINGS.deckSfxIds[slot];
+    }),
+  };
+}
+
+function readCloudRhythmGameSettings(cloud) {
+  const laneCount = Number(cloud[TOY_CLOUD_KEYS.rhythmGameLaneCount]);
+  return {
+    laneCount: [1, 2, 3].includes(laneCount)
+      ? laneCount
+      : DEFAULT_RHYTHM_GAME_SETTINGS.laneCount,
+  };
+}
+
+/* ---------- DJ 录制分享码：紧凑二进制 + 可选 LZSS + Base64url ---------- */
+function writeDjRecordingVarUint(target, value) {
+  let remaining = Math.max(0, Math.round(Number(value) || 0));
+  if (!Number.isSafeInteger(remaining) || remaining > 0x0fffffff) {
+    throw new Error('DJ recording integer is out of range');
+  }
+  do {
+    let byte = remaining & 0x7f;
+    remaining = Math.floor(remaining / 128);
+    if (remaining > 0) byte |= 0x80;
+    target.push(byte);
+  } while (remaining > 0);
+}
+
+function readDjRecordingVarUint(bytes, cursor) {
+  let value = 0;
+  let scale = 1;
+  for (let count = 0; count < 5; count++) {
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording ended inside an integer');
+    }
+    const byte = bytes[cursor.index++];
+    value += (byte & 0x7f) * scale;
+    if ((byte & 0x80) === 0) return value;
+    scale *= 128;
+  }
+  throw new Error('DJ recording integer is too large');
+}
+
+function djRecordingCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function appendDjRecordingCrc(bytes) {
+  const output = new Uint8Array(bytes.length + 4);
+  output.set(bytes);
+  const crc = djRecordingCrc32(bytes);
+  output[bytes.length] = crc & 0xff;
+  output[bytes.length + 1] = (crc >>> 8) & 0xff;
+  output[bytes.length + 2] = (crc >>> 16) & 0xff;
+  output[bytes.length + 3] = (crc >>> 24) & 0xff;
+  return output;
+}
+
+function verifyDjRecordingCrc(bytes) {
+  if (bytes.length < 5) throw new Error('DJ recording is incomplete');
+  const data = bytes.subarray(0, bytes.length - 4);
+  const offset = bytes.length - 4;
+  const expected = (
+    bytes[offset] |
+    bytes[offset + 1] << 8 |
+    bytes[offset + 2] << 16 |
+    bytes[offset + 3] << 24
+  ) >>> 0;
+  if (djRecordingCrc32(data) !== expected) {
+    throw new Error('DJ recording checksum mismatch');
+  }
+  return data;
+}
+
+function compressDjRecordingBytes(bytes) {
+  const output = [];
+  writeDjRecordingVarUint(output, bytes.length);
+  const positions = new Map();
+
+  const remember = (position) => {
+    if (position + 2 >= bytes.length) return;
+    const key = bytes[position] << 16 |
+      bytes[position + 1] << 8 |
+      bytes[position + 2];
+    const list = positions.get(key) ?? [];
+    list.push(position);
+    while (list.length > 48) list.shift();
+    positions.set(key, list);
+  };
+
+  let index = 0;
+  while (index < bytes.length) {
+    const flagIndex = output.length;
+    output.push(0);
+    let flags = 0;
+
+    for (let bit = 0; bit < 8 && index < bytes.length; bit++) {
+      let bestLength = 0;
+      let bestOffset = 0;
+      if (index + 2 < bytes.length) {
+        const key = bytes[index] << 16 |
+          bytes[index + 1] << 8 |
+          bytes[index + 2];
+        const candidates = positions.get(key) ?? [];
+        for (let candidateIndex = candidates.length - 1;
+          candidateIndex >= 0;
+          candidateIndex--) {
+          const candidate = candidates[candidateIndex];
+          const offset = index - candidate;
+          if (offset <= 0 || offset > 4095) continue;
+          const maxLength = Math.min(18, bytes.length - index);
+          let length = 0;
+          while (
+            length < maxLength &&
+            bytes[candidate + length] === bytes[index + length]
+          ) length++;
+          if (length > bestLength && length >= 3) {
+            bestLength = length;
+            bestOffset = offset;
+            if (length === maxLength) break;
+          }
+        }
+      }
+
+      if (bestLength >= 3) {
+        flags |= 1 << bit;
+        output.push(bestOffset >>> 4);
+        output.push((bestOffset & 0x0f) << 4 | (bestLength - 3));
+        for (let step = 0; step < bestLength; step++) remember(index + step);
+        index += bestLength;
+      } else {
+        output.push(bytes[index]);
+        remember(index);
+        index++;
+      }
+    }
+    output[flagIndex] = flags;
+  }
+  return Uint8Array.from(output);
+}
+
+function decompressDjRecordingBytes(bytes) {
+  const cursor = { index: 0 };
+  const length = readDjRecordingVarUint(bytes, cursor);
+  if (length <= 0 || length > 262144) {
+    throw new Error('DJ recording expands beyond the supported size');
+  }
+  const output = new Uint8Array(length);
+  let outputIndex = 0;
+
+  while (outputIndex < length) {
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording compressed data is incomplete');
+    }
+    const flags = bytes[cursor.index++];
+    for (let bit = 0; bit < 8 && outputIndex < length; bit++) {
+      if ((flags & (1 << bit)) === 0) {
+        if (cursor.index >= bytes.length) {
+          throw new Error('DJ recording literal is incomplete');
+        }
+        output[outputIndex++] = bytes[cursor.index++];
+        continue;
+      }
+
+      if (cursor.index + 1 >= bytes.length) {
+        throw new Error('DJ recording match is incomplete');
+      }
+      const high = bytes[cursor.index++];
+      const low = bytes[cursor.index++];
+      const offset = high << 4 | low >>> 4;
+      const matchLength = (low & 0x0f) + 3;
+      if (offset <= 0 || offset > outputIndex) {
+        throw new Error('DJ recording match points outside the decoded data');
+      }
+      for (let step = 0; step < matchLength && outputIndex < length; step++) {
+        output[outputIndex] = output[outputIndex - offset];
+        outputIndex++;
+      }
+    }
+  }
+  if (cursor.index !== bytes.length) {
+    throw new Error('DJ recording compressed data has trailing bytes');
+  }
+  return output;
+}
+
+function djRecordingBytesToBase64Url(bytes) {
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function djRecordingBase64UrlToBytes(encoded) {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded)) {
+    throw new Error('DJ recording contains invalid Base64url characters');
+  }
+  const padded = encoded
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function isValidDjRecordingZone(zoneId, deckCount) {
+  if (!Number.isInteger(zoneId) || zoneId < 0 || zoneId >= 36) return false;
+  const deckSlot = Math.floor(zoneId / 12);
+  return deckCount === 3 || deckSlot !== 1;
+}
+
+function writeDjRecordingNotes(bytes, track) {
+  if (!Array.isArray(track.notes)) {
+    throw new Error('DJ recording notes are invalid');
+  }
+  const notes = [...track.notes].sort(
+    (left, right) => left.startUnits - right.startUnits || left.zone - right.zone
+  );
+  if (notes.length <= 0 || notes.length > DJ_RECORDING_MAX_NOTES) {
+    throw new Error('DJ recording note count is invalid');
+  }
+
+  let previousStart = 0;
+  for (const note of notes) {
+    if (
+      !isValidDjRecordingZone(note.zone, track.deckCount) ||
+      !Number.isInteger(note.startUnits) ||
+      note.startUnits < 0 ||
+      note.startUnits > track.durationUnits
+    ) {
+      throw new Error('DJ recording note is invalid');
+    }
+    const encodedStart = track.rhythmSnap
+      ? Math.round(note.startUnits / DJ_RECORDING_SNAP_UNITS)
+      : Math.round(note.startUnits);
+    const decodedStart = track.rhythmSnap
+      ? encodedStart * DJ_RECORDING_SNAP_UNITS
+      : encodedStart;
+    if (
+      encodedStart < previousStart ||
+      decodedStart > track.durationUnits ||
+      (track.rhythmSnap && decodedStart !== note.startUnits)
+    ) {
+      throw new Error('DJ recording notes are out of order');
+    }
+    writeDjRecordingVarUint(bytes, encodedStart - previousStart);
+    previousStart = encodedStart;
+
+    const hasGate = Number.isInteger(note.gateUnits);
+    const retunes = Array.isArray(note.retunes) ? note.retunes : [];
+    if (
+      (note.gateUnits !== null && !hasGate) ||
+      (hasGate && (
+        note.gateUnits < 0 ||
+        note.startUnits + note.gateUnits > track.durationUnits ||
+        Math.floor(note.zone % 12 / 4) !== 2
+      )) ||
+      (!hasGate && retunes.length > 0) ||
+      retunes.length > 256
+    ) {
+      throw new Error('DJ recording held note is invalid');
+    }
+    const marker = note.zone | (hasGate ? 0x40 : 0) |
+      (retunes.length > 0 ? 0x80 : 0);
+    bytes.push(marker);
+    if (!hasGate) continue;
+
+    writeDjRecordingVarUint(bytes, note.gateUnits);
+    if (retunes.length === 0) continue;
+    writeDjRecordingVarUint(bytes, retunes.length);
+    let previousOffset = 0;
+    for (const retune of retunes) {
+      if (
+        !Number.isInteger(retune.offsetUnits) ||
+        retune.offsetUnits < previousOffset ||
+        retune.offsetUnits > note.gateUnits ||
+        !isValidDjRecordingZone(retune.zone, track.deckCount) ||
+        Math.floor(retune.zone / 12) !== Math.floor(note.zone / 12) ||
+        Math.floor(retune.zone % 12 / 4) !== 2
+      ) {
+        throw new Error('DJ recording retune is invalid');
+      }
+      writeDjRecordingVarUint(bytes, retune.offsetUnits - previousOffset);
+      bytes.push(retune.zone);
+      previousOffset = retune.offsetUnits;
+    }
+  }
+}
+
+function readDjRecordingNotes(bytes, cursor, options) {
+  const { deckCount, rhythmSnap, durationUnits, noteCount } = options;
+  const notes = [];
+  let encodedStart = 0;
+  while (noteCount === null ? cursor.index < bytes.length : notes.length < noteCount) {
+    if (notes.length >= DJ_RECORDING_MAX_NOTES) {
+      throw new Error('DJ recording note count is invalid');
+    }
+    encodedStart += readDjRecordingVarUint(bytes, cursor);
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording note is incomplete');
+    }
+    const marker = bytes[cursor.index++];
+    const zone = marker & 0x3f;
+    if (!isValidDjRecordingZone(zone, deckCount)) {
+      throw new Error('DJ recording note points to an inactive zone');
+    }
+    const startUnits = rhythmSnap
+      ? encodedStart * DJ_RECORDING_SNAP_UNITS
+      : encodedStart;
+    if (startUnits > durationUnits) {
+      throw new Error('DJ recording note starts after the recording ends');
+    }
+
+    const hasGate = Boolean(marker & 0x40);
+    const hasRetunes = Boolean(marker & 0x80);
+    let gateUnits = null;
+    const retunes = [];
+    if (hasGate) {
+      gateUnits = readDjRecordingVarUint(bytes, cursor);
+      if (
+        startUnits + gateUnits > durationUnits ||
+        Math.floor(zone % 12 / 4) !== 2
+      ) {
+        throw new Error('DJ recording note extends beyond the recording');
+      }
+    }
+    if (hasRetunes) {
+      if (!hasGate) throw new Error('DJ recording retune has no held note');
+      const retuneCount = readDjRecordingVarUint(bytes, cursor);
+      if (retuneCount > 256) throw new Error('DJ recording has too many retunes');
+      let offsetUnits = 0;
+      for (let retuneIndex = 0; retuneIndex < retuneCount; retuneIndex++) {
+        offsetUnits += readDjRecordingVarUint(bytes, cursor);
+        if (cursor.index >= bytes.length) {
+          throw new Error('DJ recording retune is incomplete');
+        }
+        const retuneZone = bytes[cursor.index++];
+        if (
+          !isValidDjRecordingZone(retuneZone, deckCount) ||
+          Math.floor(retuneZone / 12) !== Math.floor(zone / 12) ||
+          Math.floor(retuneZone % 12 / 4) !== 2 ||
+          offsetUnits > gateUnits
+        ) {
+          throw new Error('DJ recording retune is invalid');
+        }
+        retunes.push({ offsetUnits, zone: retuneZone });
+      }
+    }
+    notes.push({ startUnits, zone, gateUnits, retunes });
+  }
+  if (notes.length <= 0) {
+    throw new Error('DJ recording note count is invalid');
+  }
+  return notes;
+}
+
+function encodeDjRecording(track) {
+  const requestedBpm = Number(track.bpm ?? BPM);
+  const maximumDurationUnits = Math.ceil(
+    DJ_RECORDING_MAX_SECONDS / (60 / BPM) * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  );
+  if (
+    !Number.isFinite(requestedBpm) ||
+    Math.round(requestedBpm) !== BPM ||
+    (track.deckCount !== 2 && track.deckCount !== 3) ||
+    !Number.isInteger(track.phaseUnits) ||
+    track.phaseUnits < 0 ||
+    track.phaseUnits >= DJ_RECORDING_LOOP_UNITS ||
+    (track.rhythmSnap && track.phaseUnits % DJ_RECORDING_SNAP_UNITS !== 0) ||
+    !Number.isInteger(track.durationUnits) ||
+    track.durationUnits <= 0 ||
+    track.durationUnits > maximumDurationUnits
+  ) {
+    throw new Error('DJ recording header is invalid');
+  }
+  const bytes = [];
+  const flags =
+    (track.rhythmSnap ? 1 : 0) |
+    (track.deckCount === 3 ? 2 : 0) |
+    (track.trailStyle === 'emoji' ? 4 : 0) |
+    (track.spatialAudio ? 8 : 0);
+  bytes.push(flags);
+  if (!Array.isArray(track.deckSfxIds) || track.deckSfxIds.length !== 3) {
+    throw new Error('DJ recording sound set is invalid');
+  }
+  const sfxCodes = track.deckSfxIds.map(
+    sfxId => DJ_RECORDING_SFX_CODES[sfxId]
+  );
+  if (sfxCodes.some(code => !Number.isInteger(code))) {
+    throw new Error('DJ recording contains an unknown sound set');
+  }
+  bytes.push(sfxCodes[0] | sfxCodes[1] << 2 | sfxCodes[2] << 4);
+  if (track.rhythmSnap) {
+    bytes.push(track.phaseUnits / DJ_RECORDING_SNAP_UNITS);
+  } else {
+    writeDjRecordingVarUint(bytes, track.phaseUnits);
+  }
+  writeDjRecordingVarUint(bytes, track.durationUnits);
+  writeDjRecordingNotes(bytes, track);
+
+  const raw = appendDjRecordingCrc(Uint8Array.from(bytes));
+  const compressed = compressDjRecordingBytes(raw);
+  const useCompressed = compressed.length + 2 < raw.length;
+  const payload = useCompressed ? compressed : raw;
+  const kind = useCompressed ? 'Z' : 'R';
+  const code = `DGT${DJ_RECORDING_FORMAT_VERSION}${kind}.` +
+    djRecordingBytesToBase64Url(payload);
+  if (code.length > DJ_RECORDING_MAX_CODE_LENGTH) {
+    throw new Error('DJ recording share code is too long');
+  }
+  return code;
+}
+
+function decodeDjRecording(code) {
+  const normalized = String(code ?? '').replace(/\s+/g, '');
+  if (normalized.length === 0 || normalized.length > DJ_RECORDING_MAX_CODE_LENGTH) {
+    throw new Error('DJ recording code length is invalid');
+  }
+  const match = normalized.match(/^DGT(\d+)([RZ])\.([A-Za-z0-9_-]+)$/);
+  if (!match) {
+    throw new Error('DJ recording version is unsupported');
+  }
+  const version = Number(match[1]);
+  if (version !== 1 && version !== DJ_RECORDING_FORMAT_VERSION) {
+    throw new Error('DJ recording version is unsupported');
+  }
+  let raw = djRecordingBase64UrlToBytes(match[3]);
+  if (match[2] === 'Z') raw = decompressDjRecordingBytes(raw);
+  const bytes = verifyDjRecordingCrc(raw);
+  const cursor = { index: 0 };
+  if (bytes.length < 4) throw new Error('DJ recording header is incomplete');
+
+  const flags = bytes[cursor.index++];
+  if (flags & 0xf0) throw new Error('DJ recording flags are invalid');
+  const deckCount = flags & 2 ? 3 : 2;
+  const packedSfx = bytes[cursor.index++];
+  if (packedSfx & 0xc0) throw new Error('DJ recording sound set is invalid');
+  const deckSfxIds = [0, 1, 2].map(slot => {
+    const codeValue = packedSfx >>> (slot * 2) & 0x03;
+    const sfxId = DJ_RECORDING_SFX_IDS[codeValue];
+    if (!sfxId) throw new Error('DJ recording sound set is invalid');
+    return sfxId;
+  });
+  const rhythmSnap = Boolean(flags & 1);
+  let bpm = BPM;
+  let phaseUnits;
+  let noteCount = null;
+  if (version === 1) {
+    if (cursor.index + 1 >= bytes.length) {
+      throw new Error('DJ recording header is incomplete');
+    }
+    bpm = bytes[cursor.index++];
+    if (bpm < 40 || bpm > 240) throw new Error('DJ recording BPM is invalid');
+    cursor.index++; // DGT1 旧音场位置；DGT2 起只保留立体声开关。
+    phaseUnits = readDjRecordingVarUint(bytes, cursor);
+  } else if (rhythmSnap) {
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording header is incomplete');
+    }
+    phaseUnits = bytes[cursor.index++] * DJ_RECORDING_SNAP_UNITS;
+  } else {
+    phaseUnits = readDjRecordingVarUint(bytes, cursor);
+  }
+  const durationUnits = readDjRecordingVarUint(bytes, cursor);
+  const maxDurationUnits = Math.ceil(
+    DJ_RECORDING_MAX_SECONDS / (60 / bpm) * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  );
+  if (
+    phaseUnits >= DJ_RECORDING_LOOP_UNITS ||
+    durationUnits <= 0 ||
+    durationUnits > maxDurationUnits
+  ) {
+    throw new Error('DJ recording duration or beat phase is invalid');
+  }
+  if (version === 1) {
+    noteCount = readDjRecordingVarUint(bytes, cursor);
+    if (noteCount <= 0 || noteCount > DJ_RECORDING_MAX_NOTES) {
+      throw new Error('DJ recording note count is invalid');
+    }
+  }
+  const notes = readDjRecordingNotes(bytes, cursor, {
+    deckCount,
+    rhythmSnap,
+    durationUnits,
+    noteCount,
+  });
+  if (cursor.index !== bytes.length) {
+    throw new Error('DJ recording contains trailing data');
+  }
+
+  return {
+    version,
+    bpm,
+    rhythmSnap,
+    deckCount,
+    deckSfxIds,
+    trailStyle: flags & 4 ? 'emoji' : 'normal',
+    spatialAudio: Boolean(flags & 8),
+    phaseUnits,
+    durationUnits,
+    notes,
+  };
+}
+
+function djRecordingSecondsToUnits(seconds, bpm = BPM) {
+  return Math.max(0, Math.round(
+    Number(seconds) / (60 / bpm) * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  ));
+}
+
+function djRecordingUnitsToSeconds(units, bpm = BPM) {
+  return Math.max(0, Number(units) || 0) /
+    DJ_RECORDING_TIME_UNITS_PER_BEAT * (60 / bpm);
+}
+
+function getDjRecordingZoneId(zone) {
+  if (
+    !zone ||
+    !Number.isInteger(zone.deckSlot) ||
+    !Number.isInteger(zone.localRow) ||
+    !Number.isInteger(zone.localColumn)
+  ) return -1;
+  return zone.deckSlot * 12 + zone.localRow * 4 + zone.localColumn;
+}
+
+function resolveDjRecordingZoneIndex(zoneId) {
+  const deckSlot = Math.floor(zoneId / 12);
+  const localIndex = zoneId % 12;
+  const localRow = Math.floor(localIndex / 4);
+  const localColumn = localIndex % 4;
+  return zones.findIndex(zone =>
+    zone.deckSlot === deckSlot &&
+    zone.localRow === localRow &&
+    zone.localColumn === localColumn
+  );
+}
+
+function formatDjRecordingTime(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function djStringToUtf8Bytes(value) {
+  const bytes = [];
+  for (const character of String(value ?? '')) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint <= 0x7f) {
+      bytes.push(codePoint);
+    } else if (codePoint <= 0x7ff) {
+      bytes.push(
+        0xc0 | codePoint >>> 6,
+        0x80 | codePoint & 0x3f
+      );
+    } else if (codePoint <= 0xffff) {
+      bytes.push(
+        0xe0 | codePoint >>> 12,
+        0x80 | codePoint >>> 6 & 0x3f,
+        0x80 | codePoint & 0x3f
+      );
+    } else {
+      bytes.push(
+        0xf0 | codePoint >>> 18,
+        0x80 | codePoint >>> 12 & 0x3f,
+        0x80 | codePoint >>> 6 & 0x3f,
+        0x80 | codePoint & 0x3f
+      );
+    }
+  }
+  return Uint8Array.from(bytes);
+}
+
+function djUtf8BytesToString(bytes) {
+  let result = '';
+  let index = 0;
+  while (index < bytes.length) {
+    const lead = bytes[index++];
+    if (lead <= 0x7f) {
+      result += String.fromCodePoint(lead);
+      continue;
+    }
+
+    let continuationCount;
+    let codePoint;
+    let minimumCodePoint;
+    if (lead >= 0xc2 && lead <= 0xdf) {
+      continuationCount = 1;
+      codePoint = lead & 0x1f;
+      minimumCodePoint = 0x80;
+    } else if (lead >= 0xe0 && lead <= 0xef) {
+      continuationCount = 2;
+      codePoint = lead & 0x0f;
+      minimumCodePoint = 0x800;
+    } else if (lead >= 0xf0 && lead <= 0xf4) {
+      continuationCount = 3;
+      codePoint = lead & 0x07;
+      minimumCodePoint = 0x10000;
+    } else {
+      throw new Error('DJ library name contains invalid UTF-8');
+    }
+
+    if (index + continuationCount > bytes.length) {
+      throw new Error('DJ library name is incomplete');
+    }
+    for (let offset = 0; offset < continuationCount; offset++) {
+      const continuation = bytes[index++];
+      if ((continuation & 0xc0) !== 0x80) {
+        throw new Error('DJ library name contains invalid UTF-8');
+      }
+      codePoint = codePoint << 6 | continuation & 0x3f;
+    }
+    if (
+      codePoint < minimumCodePoint ||
+      codePoint > 0x10ffff ||
+      (codePoint >= 0xd800 && codePoint <= 0xdfff)
+    ) {
+      throw new Error('DJ library name contains invalid UTF-8');
+    }
+    result += String.fromCodePoint(codePoint);
+  }
+  return result;
+}
+
+function getDjLibraryNameByteLength(value) {
+  return djStringToUtf8Bytes(value).length;
+}
+
+function truncateDjLibraryName(value) {
+  let result = '';
+  for (const character of String(value ?? '')) {
+    if (
+      getDjLibraryNameByteLength(result + character) >
+      DJ_LIBRARY_MAX_NAME_BYTES
+    ) break;
+    result += character;
+  }
+  return result;
+}
+
+function normalizeDjLibraryName(value, fallback = '') {
+  const normalized = String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const truncated = truncateDjLibraryName(normalized);
+  if (truncated) return truncated;
+  return truncateDjLibraryName(String(fallback ?? '').trim());
+}
+
+function createDefaultDjLibraryName(timestamp = Date.now()) {
+  const date = new Date(timestamp);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `DJ ${hours}${minutes}`;
+}
+
+function encodeDjSharedRecording(name, recordingCode) {
+  const normalizedName = normalizeDjLibraryName(
+    name,
+    createDefaultDjLibraryName()
+  );
+  const normalizedCode = String(recordingCode ?? '').replace(/\s+/g, '');
+  decodeDjRecording(normalizedCode);
+  const encodedName = djRecordingBytesToBase64Url(
+    djStringToUtf8Bytes(normalizedName)
+  );
+  const sharedCode =
+    `${DJ_LIBRARY_SHARE_PREFIX}.${encodedName}.${normalizedCode}`;
+  if (sharedCode.length > DJ_LIBRARY_MAX_SHARE_CODE_LENGTH) {
+    throw new Error('DJ library share code is too long');
+  }
+  return sharedCode;
+}
+
+function decodeDjSharedRecording(value) {
+  const normalized = String(value ?? '').replace(/\s+/g, '');
+  if (
+    normalized.length === 0 ||
+    normalized.length > DJ_LIBRARY_MAX_SHARE_CODE_LENGTH
+  ) {
+    throw new Error('DJ library share code length is invalid');
+  }
+  if (!normalized.startsWith(`${DJ_LIBRARY_SHARE_PREFIX}.`)) {
+    return {
+      name: '',
+      code: normalized,
+      track: decodeDjRecording(normalized),
+      named: false,
+    };
+  }
+
+  const parts = normalized.split('.');
+  if (parts.length !== 4 || parts[0] !== DJ_LIBRARY_SHARE_PREFIX) {
+    throw new Error('DJ library share code is invalid');
+  }
+  const nameBytes = djRecordingBase64UrlToBytes(parts[1]);
+  if (
+    nameBytes.length === 0 ||
+    nameBytes.length > DJ_LIBRARY_MAX_NAME_BYTES
+  ) {
+    throw new Error('DJ library name length is invalid');
+  }
+  const name = normalizeDjLibraryName(djUtf8BytesToString(nameBytes));
+  if (!name) throw new Error('DJ library name is invalid');
+  const code = `${parts[2]}.${parts[3]}`;
+  return {
+    name,
+    code,
+    track: decodeDjRecording(code),
+    named: true,
+  };
+}
+
+function createDjShareUrl(name, recordingCode) {
+  const url = new URL(DJ_SHARE_URL_BASE);
+  url.searchParams.set(
+    DJ_SHARE_QUERY_PARAM,
+    encodeDjSharedRecording(name, recordingCode)
+  );
+  return url.toString();
+}
+
+function decodeDjShareQuery(search) {
+  const shareCode = new URLSearchParams(String(search ?? '')).get(
+    DJ_SHARE_QUERY_PARAM
+  );
+  return shareCode ? decodeDjSharedRecording(shareCode) : null;
+}
+
+function prepareDjShareLinkPlayback() {
+  let shared;
+  try {
+    shared = decodeDjShareQuery(window.location.search);
+  } catch (error) {
+    console.warn('[大狗Tap] 分享链接读取失败。', error);
+    djTransport.statusMessage = '分享链接无效或内容损坏';
+    subEl.textContent = '分享链接无效 · 点击进入页面';
+    renderDjRecorder();
+    return false;
+  }
+  if (!shared) return false;
+
+  const name = shared.name || createDefaultDjLibraryName();
+  djTransport.loadedTrack = shared.track;
+  djTransport.loadedTrackOrigin = 'import';
+  djTransport.shareCode = shared.code;
+  djTransport.loopPlayback = false;
+  djTransport.statusMessage = '分享链接已载入 · 点击页面开始播放';
+  djImportName.value = name;
+  djImportNameAutoFilled = true;
+  djRecordingCode.value = encodeDjSharedRecording(name, shared.code);
+  pendingDjSharePlayback = true;
+  subEl.textContent = `点击开始播放 · ${name}`;
+  renderDjRecorder();
+  return true;
+}
+
+async function playPendingDjShareLink() {
+  if (!pendingDjSharePlayback) return false;
+  await toyStateReady;
+  const playing = await startDjPlayback(true);
+  if (playing) pendingDjSharePlayback = false;
+  return playing;
+}
+
+function createDjLibraryId() {
+  try {
+    const uuid = window.crypto?.randomUUID?.();
+    if (uuid) return uuid;
+  } catch (error) {
+    console.info('[大狗Tap] 当前浏览器无法生成 UUID。', error);
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function formatDjLibraryDate(timestamp) {
+  const date = new Date(timestamp);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${month}-${day} ${hours}:${minutes}`;
+}
+
+function loadDjLibrary() {
+  djLibraryEntries = [];
+  selectedDjLibraryId = null;
+  try {
+    const raw = window.localStorage.getItem(DJ_LIBRARY_STORAGE_KEY);
+    if (!raw) return;
+    const payload = JSON.parse(raw);
+    if (
+      payload?.version !== DJ_LIBRARY_SCHEMA_VERSION ||
+      !Array.isArray(payload.tracks)
+    ) {
+      throw new Error('DJ library schema is unsupported');
+    }
+
+    const entries = [];
+    const usedIds = new Set();
+    for (const candidate of payload.tracks) {
+      if (entries.length >= DJ_LIBRARY_MAX_TRACKS) break;
+      try {
+        const shared = decodeDjSharedRecording(candidate?.code);
+        const createdAt = Number.isFinite(Number(candidate?.createdAt))
+          ? Number(candidate.createdAt)
+          : Date.now();
+        const updatedAt = Number.isFinite(Number(candidate?.updatedAt))
+          ? Number(candidate.updatedAt)
+          : createdAt;
+        let id = String(candidate?.id ?? '').slice(0, 80);
+        if (!id || usedIds.has(id)) id = createDjLibraryId();
+        usedIds.add(id);
+        entries.push({
+          id,
+          name: normalizeDjLibraryName(
+            candidate?.name,
+            shared.name || createDefaultDjLibraryName(createdAt)
+          ),
+          code: shared.code,
+          createdAt,
+          updatedAt,
+        });
+      } catch (error) {
+        console.warn('[大狗Tap] 已跳过损坏的本机曲目。', error);
+      }
+    }
+    entries.sort((left, right) => right.updatedAt - left.updatedAt);
+    djLibraryEntries = entries;
+  } catch (error) {
+    console.warn('[大狗Tap] 本机曲库读取失败。', error);
+  }
+}
+
+function persistDjLibraryEntries(entries) {
+  const payload = {
+    version: DJ_LIBRARY_SCHEMA_VERSION,
+    tracks: entries,
+  };
+  try {
+    window.localStorage.setItem(
+      DJ_LIBRARY_STORAGE_KEY,
+      JSON.stringify(payload)
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] 本机曲库保存失败。', error);
+    throw new Error('曲库保存失败，存储空间可能已满');
+  }
+  djLibraryEntries = entries;
+}
+
+function saveDjLibraryTrack(name, code) {
+  const shared = decodeDjSharedRecording(code);
+  const now = Date.now();
+  const normalizedName = normalizeDjLibraryName(
+    name,
+    shared.name || createDefaultDjLibraryName(now)
+  );
+  const existing = djLibraryEntries.find(entry => entry.code === shared.code);
+  if (!existing && djLibraryEntries.length >= DJ_LIBRARY_MAX_TRACKS) {
+    throw new Error(`曲库最多保存 ${DJ_LIBRARY_MAX_TRACKS} 首`);
+  }
+  const entry = existing
+    ? { ...existing, name: normalizedName, updatedAt: now }
+    : {
+      id: createDjLibraryId(),
+      name: normalizedName,
+      code: shared.code,
+      createdAt: now,
+      updatedAt: now,
+    };
+  const nextEntries = [
+    entry,
+    ...djLibraryEntries.filter(item => item.id !== entry.id),
+  ];
+  persistDjLibraryEntries(nextEntries);
+  selectedDjLibraryId = entry.id;
+  return { entry, track: shared.track };
+}
+
+function renameDjLibraryTrack(id, name) {
+  const existing = djLibraryEntries.find(entry => entry.id === id);
+  if (!existing) return null;
+  const renamed = {
+    ...existing,
+    name: normalizeDjLibraryName(name, existing.name),
+    updatedAt: Date.now(),
+  };
+  persistDjLibraryEntries([
+    renamed,
+    ...djLibraryEntries.filter(entry => entry.id !== id),
+  ]);
+  selectedDjLibraryId = id;
+  return renamed;
+}
+
+function getDjLibraryTrackMeta(entry) {
+  const track = decodeDjRecording(entry.code);
+  return {
+    track,
+    text: `${formatDjRecordingTime(djRecordingUnitsToSeconds(
+      track.durationUnits,
+      track.bpm
+    ))} · ${track.notes.length} 音符 · ${formatDjLibraryDate(entry.updatedAt)}`,
+  };
+}
+
+function selectDjLibraryTrack(id) {
+  selectedDjLibraryId = id;
+  djTransport.statusMessage = '';
+  renderDjLibrary();
+  requestAnimationFrame(() => {
+    djLibraryDetail.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function createDjLibraryCardButton(label, onClick, disabled = false) {
+  const button = document.createElement('button');
+  button.className = 'dj-library-card-button';
+  button.type = 'button';
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function renderDjLibrary() {
+  const busy = isDjTransportBusy();
+  const selectedEntry = djLibraryEntries.find(
+    entry => entry.id === selectedDjLibraryId
+  ) ?? null;
+  if (!selectedEntry) selectedDjLibraryId = null;
+
+  djLibrarySummary.textContent =
+    `本机曲库 · ${djLibraryEntries.length} / ${DJ_LIBRARY_MAX_TRACKS}`;
+  djLibraryEmpty.hidden = djLibraryEntries.length > 0;
+  djLibraryList.replaceChildren();
+
+  const fragment = document.createDocumentFragment();
+  for (const entry of djLibraryEntries) {
+    let meta;
+    try {
+      meta = getDjLibraryTrackMeta(entry).text;
+    } catch (error) {
+      console.warn('[大狗Tap] 曲目详情读取失败。', error);
+      meta = '分享码内容损坏';
+    }
+    const card = document.createElement('article');
+    card.className = 'dj-library-card';
+    card.classList.toggle('is-selected', entry.id === selectedDjLibraryId);
+
+    const copy = document.createElement('div');
+    copy.className = 'dj-library-card-copy';
+    const title = document.createElement('div');
+    title.className = 'dj-library-card-title';
+    title.textContent = entry.name;
+    const metadata = document.createElement('div');
+    metadata.className = 'dj-library-card-meta';
+    metadata.textContent = meta;
+    copy.append(title, metadata);
+
+    const actions = document.createElement('div');
+    actions.className = 'dj-library-card-actions';
+    actions.append(
+      createDjLibraryCardButton('查看', () => {
+        selectDjLibraryTrack(entry.id);
+      }),
+      createDjLibraryCardButton('播放', () => {
+        void playDjLibraryTrack(entry.id);
+      }, busy),
+      createDjLibraryCardButton('导出', () => {
+        void copyDjLibraryTrack(entry.id);
+      })
+    );
+    card.append(copy, actions);
+    fragment.appendChild(card);
+  }
+  djLibraryList.appendChild(fragment);
+
+  const detailVisible = Boolean(selectedEntry);
+  djLibraryDetail.classList.toggle('is-visible', detailVisible);
+  djLibraryDetail.setAttribute('aria-hidden', String(!detailVisible));
+  djLibraryRename.disabled = !selectedEntry;
+  djLibraryPlay.disabled = !selectedEntry || busy;
+  djLibraryExport.disabled = !selectedEntry;
+  djLibraryShareLink.disabled = !selectedEntry;
+  djLibraryDelete.disabled = !selectedEntry;
+  djLibraryDetailUrl.value = '';
+  if (!selectedEntry) {
+    djLibraryDetailMeta.textContent = '';
+    djLibraryDetailName.value = '';
+    djLibraryDetailCode.value = '';
+    return;
+  }
+
+  try {
+    djLibraryDetailMeta.textContent = getDjLibraryTrackMeta(selectedEntry).text;
+    djLibraryDetailCode.value = encodeDjSharedRecording(
+      selectedEntry.name,
+      selectedEntry.code
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] 曲目分享码展示失败。', error);
+    djLibraryDetailMeta.textContent = '分享码内容损坏';
+    djLibraryDetailCode.value = '';
+    djLibraryPlay.disabled = true;
+    djLibraryExport.disabled = true;
+    djLibraryShareLink.disabled = true;
+  }
+  djLibraryDetailName.value = selectedEntry.name;
+}
+
+async function copyDjText(value, fallbackElement) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  fallbackElement.value = value;
+  fallbackElement.focus();
+  fallbackElement.select();
+  if (!document.execCommand('copy')) throw new Error('copy command failed');
+}
+
+async function copyDjLibraryTrack(id) {
+  const entry = djLibraryEntries.find(item => item.id === id);
+  if (!entry) return;
+  selectedDjLibraryId = id;
+  renderDjLibrary();
+  try {
+    const shareCode = encodeDjSharedRecording(entry.name, entry.code);
+    await copyDjText(shareCode, djLibraryDetailCode);
+    showToyNotice(`“${entry.name}”分享码已复制`);
+  } catch (error) {
+    console.warn('[大狗Tap] 曲目分享码复制失败。', error);
+    showToyNotice('复制失败，请在曲目详情里手动选择', true);
+  }
+}
+
+async function copyDjLibraryTrackLink(id) {
+  const entry = djLibraryEntries.find(item => item.id === id);
+  if (!entry) return;
+  selectedDjLibraryId = id;
+  renderDjLibrary();
+  try {
+    const shareUrl = createDjShareUrl(entry.name, entry.code);
+    djLibraryDetailUrl.value = shareUrl;
+    await copyDjText(shareUrl, djLibraryDetailUrl);
+    showToyNotice(`“${entry.name}”分享链接已复制`);
+  } catch (error) {
+    console.warn('[大狗Tap] 曲目分享链接生成失败。', error);
+    showToyNotice('生成失败，请继续使用分享码', true);
+  }
+}
+
+async function playDjLibraryTrack(id) {
+  if (isDjTransportBusy()) return;
+  const entry = djLibraryEntries.find(item => item.id === id);
+  if (!entry) return;
+  try {
+    const track = decodeDjRecording(entry.code);
+    selectedDjLibraryId = id;
+    djTransport.loadedTrack = track;
+    djTransport.loadedTrackOrigin = 'import';
+    djTransport.shareCode = entry.code;
+    djTransport.loopPlayback = false;
+    djTransport.statusMessage = '';
+    djImportName.value = entry.name;
+    djRecordingCode.value = encodeDjSharedRecording(entry.name, entry.code);
+    renderDjRecorder();
+    await startDjPlayback();
+  } catch (error) {
+    console.warn('[大狗Tap] 本机曲目播放失败。', error);
+    djTransport.statusMessage = '曲目内容损坏，无法播放';
+    renderDjRecorder();
+  }
+}
+
+function deleteSelectedDjLibraryTrack() {
+  const entry = djLibraryEntries.find(
+    item => item.id === selectedDjLibraryId
+  );
+  if (!entry) return;
+  if (!window.confirm(`确定删除“${entry.name}”吗？`)) return;
+  try {
+    persistDjLibraryEntries(
+      djLibraryEntries.filter(item => item.id !== entry.id)
+    );
+    selectedDjLibraryId = null;
+    djTransport.statusMessage = '曲目已删除';
+    renderDjRecorder();
+  } catch (error) {
+    djTransport.statusMessage = error.message;
+    renderDjRecorder();
+  }
+}
+
+function enforceDjLibraryNameInput(input) {
+  const normalized = truncateDjLibraryName(input.value);
+  if (input.value !== normalized) input.value = normalized;
+  return normalized;
+}
+
+function isDjRecordingActive() {
+  return djTransport.phase === 'armed' || djTransport.phase === 'recording';
+}
+
+function isDjTransportBusy() {
+  return isDjRecordingActive() || djTransport.phase === 'playing';
+}
+
+function snapshotDjRecordingConfig() {
+  return {
+    bpm: BPM,
+    rhythmSnap: performanceSettings.rhythmSnap,
+    deckCount: djSettings.deckCount,
+    deckSfxIds: [...djSettings.deckSfxIds],
+    trailStyle: djSettings.trailStyle,
+    spatialAudio: performanceSettings.spatialAudio,
+  };
+}
+
+function isDjPlaybackLoopEnabled() {
+  return djTransport.loadedTrackOrigin === 'import' &&
+    djTransport.loopPlayback;
+}
+
+function setDjRecorderTab(tab, moveFocus = false) {
+  djRecorderTab = ['record', 'import', 'library'].includes(tab)
+    ? tab
+    : 'record';
+  renderDjRecorder();
+  if (!moveFocus) return;
+  const activeButton = djRecorderTabButtons.find(
+    button => button.dataset.djRecorderTab === djRecorderTab
+  );
+  activeButton?.focus({ preventScroll: true });
+}
+
+function openDjRecorder(tab = djRecorderTab) {
+  if (!performanceSettings.djMode) return;
+  if (isRhythmGameVisible()) {
+    showToyNotice('请先退出当前音游谱面');
+    return;
+  }
+  if (settingsOpen) closeSettings();
+  stopActivePerformanceInput();
+  djRecorderOpen = true;
+  djRecorderOverlay.inert = false;
+  djRecorderOverlay.classList.add('is-open');
+  djRecorderOverlay.setAttribute('aria-hidden', 'false');
+  djRecorderOpenButton.setAttribute('aria-expanded', 'true');
+  setDjRecorderTab(tab);
+  requestAnimationFrame(() => {
+    const activeButton = djRecorderTabButtons.find(
+      button => button.dataset.djRecorderTab === djRecorderTab
+    );
+    activeButton?.focus({ preventScroll: true });
+  });
+}
+
+function closeDjRecorder(restoreFocus = true) {
+  if (!djRecorderOpen) return;
+  djRecorderOpen = false;
+  djRecorderOverlay.inert = true;
+  djRecorderOverlay.classList.remove('is-open');
+  djRecorderOverlay.setAttribute('aria-hidden', 'true');
+  djRecorderOpenButton.setAttribute('aria-expanded', 'false');
+  if (restoreFocus && performanceSettings.djMode) {
+    djRecorderOpenButton.focus({ preventScroll: true });
+  }
+}
+
+function renderDjRecorder() {
+  const recording = isDjRecordingActive();
+  const playing = djTransport.phase === 'playing';
+  const busy = recording || playing;
+  const hasTrack = Boolean(djTransport.loadedTrack && djTransport.shareCode);
+  const recordedTrack = hasTrack && djTransport.loadedTrackOrigin === 'recording';
+  const importedTrack = hasTrack && djTransport.loadedTrackOrigin === 'import';
+  const dockVisible = performanceSettings.djMode;
+
+  djRecorderDock.classList.toggle('is-visible', dockVisible);
+  djRecorderDock.setAttribute('aria-hidden', String(!dockVisible));
+  djRecorderOpenButton.disabled = !dockVisible;
+  if (!dockVisible && djRecorderOpen) closeDjRecorder(false);
+
+  for (const button of djRecorderTabButtons) {
+    const selected = button.dataset.djRecorderTab === djRecorderTab;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-selected', String(selected));
+  }
+  const recordViewActive = djRecorderTab === 'record';
+  const importViewActive = djRecorderTab === 'import';
+  const libraryViewActive = djRecorderTab === 'library';
+  djRecorderRecordView.classList.toggle('is-active', recordViewActive);
+  djRecorderRecordView.setAttribute('aria-hidden', String(!recordViewActive));
+  djRecorderImportView.classList.toggle('is-active', importViewActive);
+  djRecorderImportView.setAttribute('aria-hidden', String(!importViewActive));
+  djRecorderLibraryView.classList.toggle('is-active', libraryViewActive);
+  djRecorderLibraryView.setAttribute('aria-hidden', String(!libraryViewActive));
+
+  for (const button of djRecordingDurationButtons) {
+    const selected = Number(button.dataset.djRecordingSeconds) ===
+      djTransport.recordingLimitSeconds;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = busy;
+  }
+
+  djRecordingToggle.textContent = recording ? '停止录制' : '开始录制';
+  djRecordingToggle.disabled = !performanceSettings.djMode || playing;
+  djRecordingPlay.textContent = playing && recordedTrack
+    ? '停止播放'
+    : '播放录制';
+  djRecordingPlay.disabled = !performanceSettings.djMode || recording ||
+    !recordedTrack || (playing && !recordedTrack);
+  djRecordingImportPlay.textContent = playing && importedTrack
+    ? '停止播放'
+    : '播放导入';
+  djRecordingImportPlay.disabled = !performanceSettings.djMode || recording ||
+    !importedTrack || (playing && !importedTrack);
+  djRecordingShare.disabled = busy || !recordedTrack;
+  djRecordingShareLink.disabled = busy || !recordedTrack;
+  djRecordingSave.disabled = busy || !recordedTrack;
+  djRecordingImport.disabled = busy;
+  djRecordingName.disabled = busy;
+  djImportName.disabled = busy;
+  djRecordingCode.disabled = busy;
+  djRecordingLoop.disabled = busy;
+  djRecordingLoop.setAttribute(
+    'aria-checked',
+    String(djTransport.loopPlayback)
+  );
+  if (recordedTrack && !djRecordingName.value) {
+    djRecordingName.value = createDefaultDjLibraryName();
+  }
+  try {
+    djRecordingShareCode.value = recordedTrack
+      ? encodeDjSharedRecording(djRecordingName.value, djTransport.shareCode)
+      : '';
+  } catch (error) {
+    console.warn('[大狗Tap] 录制分享码展示失败。', error);
+    djRecordingShareCode.value = '';
+  }
+  if (!recordedTrack) djRecordingShareUrl.value = '';
+  djShareResult.classList.toggle('is-visible', recordedTrack);
+  djShareResult.setAttribute('aria-hidden', String(!recordedTrack));
+  renderDjLibrary();
+
+  if (djTransport.statusMessage) {
+    djRecorderStatus.textContent = djTransport.statusMessage;
+  } else if (libraryViewActive) {
+    djRecorderStatus.textContent =
+      `本机曲库 · ${djLibraryEntries.length} / ${DJ_LIBRARY_MAX_TRACKS}`;
+  } else if (hasTrack) {
+    const duration = djRecordingUnitsToSeconds(
+      djTransport.loadedTrack.durationUnits,
+      djTransport.loadedTrack.bpm
+    );
+    const loopLabel = importedTrack && djTransport.loopPlayback
+      ? ' · 循环'
+      : '';
+    djRecorderStatus.textContent =
+      `${formatDjRecordingTime(duration)} · ` +
+      `${djTransport.loadedTrack.notes.length} 音符 · ` +
+      `${djTransport.shareCode.length} 字符${loopLabel}`;
+  } else {
+    djRecorderStatus.textContent = recordViewActive
+      ? `准备录制 · ${formatDjRecordingTime(djTransport.recordingLimitSeconds)}`
+      : '粘贴分享码后导入并保存';
+  }
+
+  djTransportHud.classList.toggle('is-visible', busy);
+  djTransportHud.classList.toggle('is-recording', recording);
+  djTransportHud.classList.toggle('is-playing', playing);
+  djTransportHud.setAttribute('aria-hidden', String(!busy));
+  renderDjTransportHud(ctx?.currentTime ?? 0);
+}
+
+function renderDjTransportHud(audioNow) {
+  djTransportHud.classList.remove('is-ending');
+  if (djTransport.phase === 'armed') {
+    djTransportState.textContent = 'REC';
+    djTransportTime.textContent =
+      `待机 · ${formatDjRecordingTime(djTransport.recordingLimitSeconds)}`;
+    return;
+  }
+  if (djTransport.phase === 'recording') {
+    const elapsed = Math.min(
+      djTransport.recordingLimitSeconds,
+      Math.max(0, audioNow - djTransport.startAt)
+    );
+    const remaining = Math.max(
+      0,
+      djTransport.recordingLimitSeconds - elapsed
+    );
+    const endingSoon = remaining <= DJ_RECORDING_END_WARNING_SECONDS;
+    djTransportHud.classList.toggle('is-ending', endingSoon);
+    djTransportState.textContent = endingSoon ? '即将结束' : 'REC';
+    djTransportTime.textContent = endingSoon
+      ? `剩余 ${formatDjRecordingTime(Math.ceil(remaining))}`
+      : `${formatDjRecordingTime(elapsed)} / ` +
+        formatDjRecordingTime(djTransport.recordingLimitSeconds);
+    return;
+  }
+  if (djTransport.phase === 'playing') {
+    const track = djTransport.loadedTrack;
+    const duration = track
+      ? djRecordingUnitsToSeconds(track.durationUnits, track.bpm)
+      : 0;
+    const elapsed = Math.max(0, audioNow - djTransport.playbackStartAt);
+    djTransportState.textContent = 'PLAY';
+    const loopLabel = isDjPlaybackLoopEnabled() ? ' · 循环' : '';
+    djTransportTime.textContent = audioNow < djTransport.playbackStartAt
+      ? '同步节拍…'
+      : `${formatDjRecordingTime(Math.min(elapsed, duration))} / ` +
+        formatDjRecordingTime(duration) + loopLabel;
+  }
+}
+
+async function startDjRecording() {
+  if (!performanceSettings.djMode || djTransport.phase !== 'idle') return;
+  if (!DJ_RECORDING_DURATION_OPTIONS.includes(
+    djTransport.recordingLimitSeconds
+  )) {
+    djTransport.recordingLimitSeconds = DJ_RECORDING_DEFAULT_SECONDS;
+  }
+  const ready = await start();
+  if (!ready) return;
+
+  stopActivePerformanceInput();
+  djTransport.phase = 'armed';
+  djTransport.armedConfig = snapshotDjRecordingConfig();
+  djTransport.notes = [];
+  djTransport.openNotes = new Set();
+  djTransport.startAt = 0;
+  djTransport.phaseUnits = 0;
+  djTransport.statusMessage = '等待第一次演奏';
+  djRecordingName.value = '';
+  djRecordingNoteByVoice = new WeakMap();
+  closeSettings();
+  closeDjRecorder(false);
+  renderPerformanceSettings();
+}
+
+function beginArmedDjRecording(when) {
+  if (djTransport.phase !== 'armed') return;
+  djTransport.phase = 'recording';
+  djTransport.startAt = when;
+  const loopPhase = ((when - startTime) / SPB % 16 + 16) % 16;
+  djTransport.phaseUnits = Math.round(
+    loopPhase * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  ) % DJ_RECORDING_LOOP_UNITS;
+  djTransport.loadedTrack = null;
+  djTransport.loadedTrackOrigin = null;
+  djTransport.shareCode = '';
+  djTransport.loopPlayback = false;
+  djTransport.statusMessage = '';
+  renderDjRecorder();
+}
+
+function recordDjNoteStart(entry, voice) {
+  if (!isDjRecordingActive() || !performanceSettings.djMode) return;
+  beginArmedDjRecording(entry.when);
+  if (djTransport.phase !== 'recording') return;
+
+  const elapsed = entry.when - djTransport.startAt;
+  if (elapsed > djTransport.recordingLimitSeconds) {
+    finishDjRecording({
+      reason: `已录满 ${formatDjRecordingTime(
+        djTransport.recordingLimitSeconds
+      )}`,
+    });
+    return;
+  }
+  if (djTransport.notes.length >= DJ_RECORDING_MAX_NOTES) {
+    finishDjRecording({ reason: '录制音符达到上限' });
+    return;
+  }
+  const zone = zones[entry.zone];
+  const zoneId = getDjRecordingZoneId(zone);
+  if (zoneId < 0) return;
+
+  const note = {
+    startUnits: djRecordingSecondsToUnits(elapsed),
+    zone: zoneId,
+    gateUnits: null,
+    retunes: [],
+  };
+  djTransport.notes.push(note);
+  if (voice) {
+    djTransport.openNotes.add(note);
+    djRecordingNoteByVoice.set(voice, note);
+  }
+}
+
+function recordDjRetune(voice, zoneIndexValue, when) {
+  if (djTransport.phase !== 'recording') return;
+  const note = djRecordingNoteByVoice.get(voice);
+  if (!note || note.gateUnits !== null) return;
+  const zoneId = getDjRecordingZoneId(zones[zoneIndexValue]);
+  if (zoneId < 0) return;
+  const absoluteUnits = djRecordingSecondsToUnits(
+    Math.max(0, when - djTransport.startAt)
+  );
+  const offsetUnits = Math.max(0, absoluteUnits - note.startUnits);
+  const previous = note.retunes.at(-1);
+  if (previous?.zone === zoneId && previous.offsetUnits === offsetUnits) return;
+  note.retunes.push({ offsetUnits, zone: zoneId });
+}
+
+function recordDjVoiceRelease(voice, when) {
+  if (djTransport.phase !== 'recording') return;
+  const note = djRecordingNoteByVoice.get(voice);
+  if (!note || note.gateUnits !== null) return;
+  const releaseUnits = djRecordingSecondsToUnits(
+    Math.max(0, when - djTransport.startAt)
+  );
+  note.gateUnits = Math.max(0, Math.min(
+    releaseUnits - note.startUnits,
+    djRecordingSecondsToUnits(djTransport.recordingLimitSeconds) -
+      note.startUnits
+  ));
+  note.retunes = note.retunes.filter(
+    retune => retune.offsetUnits <= note.gateUnits
+  );
+  djTransport.openNotes.delete(note);
+}
+
+function finishDjRecording({ reason = '' } = {}) {
+  if (!isDjRecordingActive()) return;
+  if (djTransport.phase === 'armed' || djTransport.notes.length === 0) {
+    djTransport.phase = 'idle';
+    djTransport.armedConfig = null;
+    djTransport.notes = [];
+    djTransport.openNotes = new Set();
+    djTransport.statusMessage = '没有录到演奏';
+    djRecordingNoteByVoice = new WeakMap();
+    renderPerformanceSettings();
+    openDjRecorder('record');
+    showToyNotice('没有录到演奏');
+    return;
+  }
+
+  const maximumEnd = djTransport.startAt + djTransport.recordingLimitSeconds;
+  const latestStart = djTransport.notes.reduce(
+    (latest, note) => Math.max(
+      latest,
+      djTransport.startAt + djRecordingUnitsToSeconds(note.startUnits)
+    ),
+    djTransport.startAt
+  );
+  const endAt = Math.min(
+    maximumEnd,
+    Math.max(ctx?.currentTime ?? latestStart, latestStart)
+  );
+  const endUnits = djRecordingSecondsToUnits(endAt - djTransport.startAt);
+  for (const note of djTransport.openNotes) {
+    note.gateUnits = Math.max(0, endUnits - note.startUnits);
+    note.retunes = note.retunes.filter(
+      retune => retune.offsetUnits <= note.gateUnits
+    );
+  }
+
+  const config = djTransport.armedConfig ?? snapshotDjRecordingConfig();
+  const noteEndUnits = djTransport.notes.reduce(
+    (latest, note) => Math.max(
+      latest,
+      note.startUnits + (note.gateUnits ?? 0)
+    ),
+    0
+  );
+  const durationUnits = Math.max(1, Math.min(
+    djRecordingSecondsToUnits(djTransport.recordingLimitSeconds),
+    Math.max(endUnits, noteEndUnits)
+  ));
+  const track = {
+    version: DJ_RECORDING_FORMAT_VERSION,
+    ...config,
+    phaseUnits: djTransport.phaseUnits,
+    durationUnits,
+    notes: djTransport.notes.map(note => ({
+      ...note,
+      retunes: note.retunes.map(retune => ({ ...retune })),
+    })),
+  };
+
+  try {
+    const shareCode = encodeDjRecording(track);
+    djTransport.loadedTrack = track;
+    djTransport.loadedTrackOrigin = 'recording';
+    djTransport.shareCode = shareCode;
+    djTransport.loopPlayback = false;
+    djTransport.statusMessage = reason;
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 录制编码失败。', error);
+    djTransport.loadedTrack = null;
+    djTransport.loadedTrackOrigin = null;
+    djTransport.shareCode = '';
+    djTransport.statusMessage = '录制编码失败';
+  }
+  djTransport.phase = 'idle';
+  djTransport.armedConfig = null;
+  djTransport.notes = [];
+  djTransport.openNotes = new Set();
+  djRecordingNoteByVoice = new WeakMap();
+  renderPerformanceSettings();
+  openDjRecorder('record');
+  if (djTransport.loadedTrack) {
+    showToyNotice(
+      `录制完成：${djTransport.loadedTrack.notes.length} 个音符，` +
+      `${djTransport.shareCode.length} 字符`
+    );
+  }
+}
+
+function buildDjPlaybackEvents(track) {
+  const events = [];
+  track.notes.forEach((note, noteIndex) => {
+    events.push({ kind: 'press', noteIndex, units: note.startUnits, zone: note.zone });
+    for (const retune of note.retunes) {
+      events.push({
+        kind: 'retune',
+        noteIndex,
+        units: note.startUnits + retune.offsetUnits,
+        zone: retune.zone,
+      });
+    }
+    if (note.gateUnits !== null) {
+      events.push({
+        kind: 'release',
+        noteIndex,
+        units: note.startUnits + note.gateUnits,
+        zone: note.zone,
+      });
+    }
+  });
+  const priority = { press: 0, retune: 1, release: 2 };
+  events.sort((left, right) =>
+    left.units - right.units ||
+    priority[left.kind] - priority[right.kind] ||
+    left.noteIndex - right.noteIndex
+  );
+  return events;
+}
+
+function getDjPlaybackStartAt(track) {
+  const loopDuration = 16 * SPB;
+  const phaseSeconds = djRecordingUnitsToSeconds(track.phaseUnits, track.bpm);
+  const phaseBase = startTime + phaseSeconds;
+  const earliest = ctx.currentTime + 0.18;
+  const cycle = Math.max(0, Math.ceil((earliest - phaseBase) / loopDuration));
+  return phaseBase + cycle * loopDuration;
+}
+
+async function startDjPlayback(allowModeSwitch = false) {
+  const track = djTransport.loadedTrack;
+  const modeAvailable = performanceSettings.djMode ||
+    allowModeSwitch;
+  if (!track || !modeAvailable || djTransport.phase !== 'idle') {
+    return false;
+  }
+  const ready = await start();
+  if (!ready) return false;
+
+  stopActivePerformanceInput();
+  djTransport.restoreState = {
+    performanceSettings: { ...performanceSettings },
+    djSettings: {
+      deckCount: djSettings.deckCount,
+      deckSfxIds: [...djSettings.deckSfxIds],
+      trailStyle: djSettings.trailStyle,
+    },
+  };
+  replacePerformanceSettings({
+    ...performanceSettings,
+    djMode: true,
+    rhythmGameMode: false,
+    pianoMode: false,
+    rhythmSnap: track.rhythmSnap,
+    spatialAudio: track.spatialAudio,
+  }, 'djMode');
+  replaceDjSettings({
+    deckCount: track.deckCount,
+    deckSfxIds: [...track.deckSfxIds],
+    trailStyle: track.trailStyle,
+  });
+
+  djTransport.phase = 'playing';
+  djTransport.playbackEvents = buildDjPlaybackEvents(track);
+  djTransport.playbackIndex = 0;
+  djTransport.playbackVoices = new Map();
+  djTransport.playbackOneShots = new Set();
+  djTransport.playbackStartAt = getDjPlaybackStartAt(track);
+  djTransport.statusMessage = '';
+  closeSettings();
+  closeDjRecorder(false);
+  renderPerformanceSettings();
+  return true;
+}
+
+function scheduleDjPlaybackZoneFlash(zoneIndexValue, when) {
+  const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    flashZone(zoneIndexValue);
+  }, waitMs);
+  inputVisualTimers.add(timer);
+}
+
+function getDjPlaybackTouchId(noteIndex) {
+  return `${DJ_PLAYBACK_TOUCH_PREFIX}${noteIndex}`;
+}
+
+function scheduleDjPlaybackTouchRelease(inputId) {
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    releaseTouchTrail(inputId);
+  }, DJ_PLAYBACK_TAP_HOLD_SECONDS * 1000);
+  inputVisualTimers.add(timer);
+}
+
+function scheduleDjPlaybackTouchFeedback(
+  event,
+  zoneIndexValue,
+  track,
+  when
+) {
+  const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    if (djTransport.phase !== 'playing') return;
+
+    const inputId = getDjPlaybackTouchId(event.noteIndex);
+    if (event.kind === 'release') {
+      releaseTouchTrail(inputId);
+      return;
+    }
+
+    const center = getRhythmGameZoneCenter(zoneIndexValue);
+    if (event.kind === 'press') {
+      beginTouchTrail(inputId, center.x, center.y);
+      pulseTouchTrail(inputId);
+      if (track.notes[event.noteIndex]?.gateUnits === null) {
+        scheduleDjPlaybackTouchRelease(inputId);
+      }
+      return;
+    }
+
+    if (!touchTrails.has(inputId)) {
+      beginTouchTrail(inputId, center.x, center.y);
+    } else {
+      moveTouchTrail(inputId, center.x, center.y);
+    }
+    pulseTouchTrail(inputId);
+  }, waitMs);
+  inputVisualTimers.add(timer);
+}
+
+function clearDjPlaybackTouchTrails() {
+  for (const inputId of touchTrails.keys()) {
+    if (
+      typeof inputId === 'string' &&
+      inputId.startsWith(DJ_PLAYBACK_TOUCH_PREFIX)
+    ) {
+      touchTrails.delete(inputId);
+    }
+  }
+}
+
+function scheduleDjPlaybackEvent(event, track, when) {
+  if (event.kind === 'press') {
+    const zoneIndexValue = resolveDjRecordingZoneIndex(event.zone);
+    if (zoneIndexValue < 0) return;
+    const zone = zones[zoneIndexValue];
+    const audioSample = resolveSfxSample(zone.sample, zone.sfxId);
+    const rate = barkPlaybackRate(audioSample, zone.pitchTier, zone.targetMidi);
+    const voice = playPressVoice(
+      audioSample,
+      rate,
+      when,
+      zone.deckId,
+      oneShot => {
+        djTransport.playbackOneShots.add(oneShot);
+        oneShot.source?.addEventListener?.('ended', () => {
+          djTransport.playbackOneShots.delete(oneShot);
+        }, { once: true });
+      }
+    );
+    if (voice) djTransport.playbackVoices.set(event.noteIndex, voice);
+    scheduleDjPlaybackZoneFlash(zoneIndexValue, when);
+    scheduleDjPlaybackTouchFeedback(event, zoneIndexValue, track, when);
+    scheduleActivationVisual(zoneIndexValue, when, zone.deckId);
+    return;
+  }
+
+  const voice = djTransport.playbackVoices.get(event.noteIndex);
+  if (!voice) return;
+  if (event.kind === 'retune') {
+    const zoneIndexValue = resolveDjRecordingZoneIndex(event.zone);
+    if (zoneIndexValue < 0) return;
+    const zone = zones[zoneIndexValue];
+    const rate = barkPlaybackRate(voice.name, zone.pitchTier, zone.targetMidi);
+    if (retuneSustainVoice(voice, rate, when)) {
+      scheduleDjPlaybackZoneFlash(zoneIndexValue, when);
+      scheduleDjPlaybackTouchFeedback(event, zoneIndexValue, track, when);
+      scheduleActivationVisual(zoneIndexValue, when, zone.deckId);
+    }
+    return;
+  }
+  releaseVoice(voice, true, when);
+  scheduleDjPlaybackTouchFeedback(event, -1, track, when);
+}
+
+function scheduleDjPlaybackEvents(horizon) {
+  if (djTransport.phase !== 'playing' || !djTransport.loadedTrack) return;
+  const track = djTransport.loadedTrack;
+  const duration = Math.max(
+    S16,
+    djRecordingUnitsToSeconds(track.durationUnits, track.bpm)
+  );
+  while (true) {
+    while (djTransport.playbackIndex < djTransport.playbackEvents.length) {
+      const event = djTransport.playbackEvents[djTransport.playbackIndex];
+      const when = djTransport.playbackStartAt +
+        djRecordingUnitsToSeconds(event.units, track.bpm);
+      const eventHorizon = event.kind === 'release'
+        ? Math.min(horizon, ctx.currentTime + INPUT_QUEUE_LOOKAHEAD)
+        : horizon;
+      if (when >= eventHorizon) return;
+      scheduleDjPlaybackEvent(event, track, Math.max(ctx.currentTime, when));
+      djTransport.playbackIndex++;
+    }
+    if (!isDjPlaybackLoopEnabled()) return;
+    const nextCycleStartAt = djTransport.playbackStartAt + duration;
+    if (nextCycleStartAt >= horizon) return;
+    djTransport.playbackStartAt = nextCycleStartAt;
+    djTransport.playbackIndex = 0;
+    djTransport.playbackVoices = new Map();
+  }
+}
+
+function stopDjPlayback({ natural = false } = {}) {
+  if (djTransport.phase !== 'playing') return;
+  const voices = [...djTransport.playbackVoices.values()];
+  const oneShots = [...djTransport.playbackOneShots];
+  djTransport.phase = 'idle';
+  djTransport.playbackEvents = [];
+  djTransport.playbackIndex = 0;
+  djTransport.playbackVoices = new Map();
+  djTransport.playbackOneShots = new Set();
+  if (!natural) clearInputVisualTimers();
+  clearDjPlaybackTouchTrails();
+  for (const voice of voices) {
+    if (!natural || voice.held) forceStopVoice(voice);
+  }
+  if (!natural) {
+    for (const oneShot of oneShots) stopDjPlaybackOneShot(oneShot);
+  }
+
+  const restore = djTransport.restoreState;
+  djTransport.restoreState = null;
+  if (restore) {
+    replacePerformanceSettings(restore.performanceSettings);
+    replaceDjSettings(restore.djSettings);
+  }
+  renderPerformanceSettings();
+}
+
+function updateDjTransport(audioNow) {
+  renderDjTransportHud(audioNow);
+  if (
+    djTransport.phase === 'recording' &&
+    audioNow >= djTransport.startAt + djTransport.recordingLimitSeconds
+  ) {
+    finishDjRecording({
+      reason: `已录满 ${formatDjRecordingTime(
+        djTransport.recordingLimitSeconds
+      )}`,
+    });
+    return;
+  }
+  if (djTransport.phase !== 'playing' || !djTransport.loadedTrack) return;
+  if (isDjPlaybackLoopEnabled()) return;
+  const duration = djRecordingUnitsToSeconds(
+    djTransport.loadedTrack.durationUnits,
+    djTransport.loadedTrack.bpm
+  );
+  if (
+    djTransport.playbackIndex >= djTransport.playbackEvents.length &&
+    audioNow >= djTransport.playbackStartAt + duration + 0.8
+  ) {
+    stopDjPlayback({ natural: true });
+    showToyNotice('录制播放完成');
+  }
+}
+
+function importDjRecording() {
+  let shared;
+  try {
+    const normalized = djRecordingCode.value.replace(/\s+/g, '');
+    shared = decodeDjSharedRecording(normalized);
+    const requestedName = normalizeDjLibraryName(djImportName.value);
+    const name = requestedName || shared.name || createDefaultDjLibraryName();
+    djTransport.loadedTrack = shared.track;
+    djTransport.loadedTrackOrigin = 'import';
+    djTransport.shareCode = shared.code;
+    djTransport.statusMessage = '';
+    djImportName.value = name;
+    djImportNameAutoFilled = true;
+    djRecordingCode.value = encodeDjSharedRecording(name, shared.code);
+    try {
+      const saved = saveDjLibraryTrack(name, shared.code);
+      djImportName.value = saved.entry.name;
+      djTransport.statusMessage = '已导入并存入本机曲库';
+    } catch (storageError) {
+      console.warn('[大狗Tap] 导入后存入曲库失败。', storageError);
+      djTransport.statusMessage = storageError.message;
+    }
+    renderDjRecorder();
+    showToyNotice(
+      `已导入 ${formatDjRecordingTime(
+        djRecordingUnitsToSeconds(
+          shared.track.durationUnits,
+          shared.track.bpm
+        )
+      )} 的 DJ 曲目`
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 录制导入失败。', error);
+    djTransport.statusMessage = '分享码无效或内容损坏';
+    renderDjRecorder();
+  }
+}
+
+function saveCurrentDjRecordingToLibrary() {
+  if (
+    !djTransport.shareCode ||
+    djTransport.loadedTrackOrigin !== 'recording' ||
+    isDjTransportBusy()
+  ) return;
+  try {
+    const saved = saveDjLibraryTrack(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    djRecordingName.value = saved.entry.name;
+    djTransport.statusMessage = '已存入本机曲库';
+    renderDjRecorder();
+    showToyNotice(`“${saved.entry.name}”已存入曲库`);
+  } catch (error) {
+    console.warn('[大狗Tap] 录制存入曲库失败。', error);
+    djTransport.statusMessage = error.message;
+    renderDjRecorder();
+  }
+}
+
+async function copyDjRecordingShareCode() {
+  if (
+    !djTransport.shareCode ||
+    djTransport.loadedTrackOrigin !== 'recording'
+  ) return;
+  try {
+    const shareCode = encodeDjSharedRecording(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    djRecordingShareCode.value = shareCode;
+    await copyDjText(shareCode, djRecordingShareCode);
+    showToyNotice('分享码已复制');
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 分享码复制失败。', error);
+    showToyNotice('复制失败，请手动选择分享码', true);
+  }
+}
+
+async function copyDjRecordingShareLink() {
+  if (
+    !djTransport.shareCode ||
+    djTransport.loadedTrackOrigin !== 'recording'
+  ) return;
+  try {
+    const shareUrl = createDjShareUrl(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    djRecordingShareUrl.value = shareUrl;
+    await copyDjText(shareUrl, djRecordingShareUrl);
+    showToyNotice('分享链接已生成并复制');
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 分享链接生成失败。', error);
+    showToyNotice('生成失败，请继续使用分享码', true);
+  }
+}
+
+function renderDjSettings() {
+  const visible = performanceSettings.djMode;
+  const transportBusy = isDjTransportBusy();
+  djSettingsPanel.classList.toggle('is-visible', visible);
+  djSettingsPanel.setAttribute('aria-hidden', String(!visible));
+
+  for (const button of djCountButtons) {
+    const selected = Number(button.dataset.djCount) === djSettings.deckCount;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = djSettingsSaving || transportBusy;
+  }
+
+  for (const button of djTrailStyleButtons) {
+    const selected = button.dataset.djTrailStyle === djSettings.trailStyle;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = djSettingsSaving || transportBusy;
+  }
+
+  for (const row of djDeckAssignmentRows) {
+    const slot = Number(row.dataset.djSlot);
+    row.classList.toggle('is-hidden', djSettings.deckCount === 2 && slot === 1);
+    for (const button of row.querySelectorAll('[data-dj-sfx]')) {
+      const selected = button.dataset.djSfx === djSettings.deckSfxIds[slot];
+      button.classList.toggle('is-active', selected);
+      button.setAttribute('aria-checked', String(selected));
+      button.disabled = djSettingsSaving || transportBusy;
+    }
+  }
+  renderDjRecorder();
+}
+
+function renderRhythmGameSettings() {
+  const visible = performanceSettings.rhythmGameMode;
+  rhythmGameSettingsPanel.classList.toggle('is-visible', visible);
+  rhythmGameSettingsPanel.setAttribute('aria-hidden', String(!visible));
+  for (const button of rhythmGameLaneButtons) {
+    const selected =
+      Number(button.dataset.rhythmLaneCount) === rhythmGameSettings.laneCount;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = rhythmGameSettingsSaving || isRhythmGameVisible();
+  }
+  renderRhythmGameLaunch();
+}
+
 function renderPerformanceSettings() {
   const cloudAvailable =
     toyCloudState.initialized &&
@@ -600,14 +4775,34 @@ function renderPerformanceSettings() {
       'aria-checked',
       String(performanceSettings[settingName] === true)
     );
-    button.disabled = !toyCloudState.initialized || performanceSettingsSaving;
+    button.disabled =
+      !toyCloudState.initialized ||
+      performanceSettingsSaving ||
+      djSettingsSaving ||
+      rhythmGameSettingsSaving ||
+      isDjTransportBusy();
   }
+  const activeDeckModeName = performanceSettings.djMode
+    ? 'DJ'
+    : performanceSettings.rhythmGameMode
+      ? '音游'
+      : '';
+  pianoModeDescription.textContent = activeDeckModeName
+    ? `开启后退出${activeDeckModeName}模式，开放一个八度音阶`
+    : '开放一个八度的音阶';
+  renderDjSettings();
+  renderRhythmGameSettings();
+  renderStereoAudioControls();
 
   performanceSettingsStatus.classList.toggle(
     'is-error',
     toyCloudState.initialized && !cloudAvailable
   );
-  if (performanceSettingsSaving) {
+  if (
+    performanceSettingsSaving ||
+    djSettingsSaving ||
+    rhythmGameSettingsSaving
+  ) {
     performanceSettingsStatus.textContent = '正在保存到哔哩哔哩云端…';
   } else if (!toyCloudState.initialized) {
     performanceSettingsStatus.textContent = '正在读取哔哩哔哩云端设置…';
@@ -640,6 +4835,9 @@ function renderToyCloudState() {
 }
 
 async function detectToyEnvironment() {
+  // Toy SDK 通过父页面握手；独立打开的网页直接使用本地设置，避免等待握手超时。
+  if (window.self === window.top) return null;
+
   const toy = window.toy;
   if (
     !toy ||
@@ -691,7 +4889,42 @@ async function initializeToyCloudState() {
     toyCloudState.cloudReadable = true;
     toyCloudState.sfxUnlocked =
       DEBUG_UNLOCK_SFX || cloud[TOY_CLOUD_KEYS.sfxUnlocked] === '1';
-    replacePerformanceSettings(readCloudPerformanceSettings(cloud));
+    replaceDjSettings(readCloudDjSettings(cloud), false);
+    replaceRhythmGameSettings(readCloudRhythmGameSettings(cloud), false);
+    const cloudPerformanceSettings = readCloudPerformanceSettings(cloud);
+    if (!toyCloudState.sfxUnlocked) {
+      cloudPerformanceSettings.djMode = false;
+      cloudPerformanceSettings.rhythmGameMode = false;
+    }
+    const preferredCloudMode = cloud[TOY_CLOUD_KEYS.rhythmGameMode] === '1'
+      ? 'rhythmGameMode'
+      : cloud[TOY_CLOUD_KEYS.djMode] === '1'
+        ? 'djMode'
+        : cloud[TOY_CLOUD_KEYS.pianoMode] === '1'
+          ? 'pianoMode'
+          : 'djMode';
+    const normalizedCloudSettings = normalizePerformanceSettings(
+      cloudPerformanceSettings,
+      preferredCloudMode
+    );
+    const modeCorrection = {};
+    for (const settingName of ['djMode', 'rhythmGameMode', 'pianoMode']) {
+      if (
+        normalizedCloudSettings[settingName] ===
+        cloudPerformanceSettings[settingName]
+      ) continue;
+      modeCorrection[PERFORMANCE_SETTING_KEYS[settingName]] =
+        normalizedCloudSettings[settingName] ? '1' : '0';
+    }
+    replacePerformanceSettings(normalizedCloudSettings, preferredCloudMode);
+    if (Object.keys(modeCorrection).length > 0) {
+      try {
+        await toy.setCloudStorage(modeCorrection);
+      } catch (error) {
+        markToyCloudUnavailable(toyCloudState);
+        console.warn('[大狗Tap] 演奏模式冲突修正失败。', error);
+      }
+    }
 
     if (!toyCloudState.locallyChanged.settingsSeen) {
       toyCloudState.settingsSeen =
@@ -706,7 +4939,7 @@ async function initializeToyCloudState() {
         cloud[TOY_CLOUD_KEYS.hajimiNewSeen] === '1';
     }
   } catch (error) {
-    // 读取不可用时，三个演奏设置也必须整体保持默认值。
+    // 读取不可用时，演奏设置整体保持默认值。
     toyCloudState.cloudReadable = false;
     resetPerformanceSettingsToDefaults();
     console.warn('[大狗Tap] Toy 云状态读取失败。', error);
@@ -912,6 +5145,7 @@ function selectSfxOption(option) {
   }
   if (selectedSfxId === 'hajimi') ensureHajimiAnimationLoaded();
   applyHajimiAnimationVisibility();
+  renderSoundFieldSources();
 }
 
 function activateSfxOption(option) {
@@ -953,12 +5187,23 @@ async function handlePerformanceSettingClick(button) {
   if (!cloudKey) return;
 
   const state = await toyStateReady;
-  const nextValue = !performanceSettings[settingName];
+  const nextSettings = getToggledPerformanceSettings(settingName);
+  const nextValue = nextSettings[settingName];
+  const lockedDeckMode =
+    settingName === 'djMode' || settingName === 'rhythmGameMode';
+  if (lockedDeckMode && nextValue && !state.sfxUnlocked) {
+    const modeName = settingName === 'rhythmGameMode' ? '音游模式' : 'DJ 模式';
+    if (!state.environmentAvailable || !state.toy) {
+      showToyNotice(`请在哔哩哔哩内打开并解锁音效后使用${modeName}`, true);
+    } else if (!state.cloudReadable) {
+      showToyNotice('云端状态读取失败，请刷新后重试。', true);
+    } else {
+      showToyNotice(`${modeName}需要多套音效，请先点击开发视频完成解锁。`);
+    }
+    return;
+  }
   if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
+    replacePerformanceSettings(nextSettings, settingName);
     renderToyCloudState();
     showToyNotice('云存储不可用，本次设置仅在当前页面有效。');
     return;
@@ -967,20 +5212,14 @@ async function handlePerformanceSettingClick(button) {
   performanceSettingsSaving = true;
   renderPerformanceSettings();
   try {
-    await state.toy.setCloudStorage({
-      [cloudKey]: nextValue ? '1' : '0',
-    });
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
+    await state.toy.setCloudStorage(
+      getChangedPerformanceCloudItems(nextSettings)
+    );
+    replacePerformanceSettings(nextSettings, settingName);
   } catch (error) {
     // 写入失败后降级为本地会话设置，保留用户刚刚选择的值。
     markToyCloudUnavailable(state);
-    replacePerformanceSettings({
-      ...performanceSettings,
-      [settingName]: nextValue,
-    });
+    replacePerformanceSettings(nextSettings, settingName);
     console.warn('[大狗Tap] 演奏设置写入失败。', error);
     showToyNotice('云存储不可用，本次设置仅在当前页面有效。');
   } finally {
@@ -995,8 +5234,335 @@ for (const button of performanceSettingButtons) {
   });
 }
 
+landscapePerformanceSetting.addEventListener('click', () => {
+  void setLandscapePerformance(!landscapePerformanceEnabled);
+});
+landscapeGateRetry.addEventListener('click', () => {
+  const landscapeRequest = requestLandscapeExperience();
+  renderLandscapePerformancePreference();
+  void landscapeRequest.then(() => renderLandscapePerformancePreference());
+});
+landscapeGateDisable.addEventListener('click', () => {
+  void setLandscapePerformance(false);
+});
+
+window.addEventListener('orientationchange', () => {
+  window.setTimeout(renderLandscapePerformancePreference, 0);
+});
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement !== document.documentElement) {
+    landscapeFullscreenOwned = false;
+  }
+  renderLandscapePerformancePreference();
+});
+
+async function persistDjSettings(nextSettings, cloudItems) {
+  if (djSettingsSaving) return;
+  const state = await toyStateReady;
+  if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
+    replaceDjSettings(nextSettings);
+    renderToyCloudState();
+    showToyNotice('云存储不可用，本次 DJ 设置仅在当前页面有效。');
+    return;
+  }
+
+  djSettingsSaving = true;
+  renderToyCloudState();
+  try {
+    await state.toy.setCloudStorage(cloudItems);
+    replaceDjSettings(nextSettings);
+  } catch (error) {
+    markToyCloudUnavailable(state);
+    replaceDjSettings(nextSettings);
+    console.warn('[大狗Tap] DJ 设置写入失败。', error);
+    showToyNotice('云存储不可用，本次 DJ 设置仅在当前页面有效。');
+  } finally {
+    djSettingsSaving = false;
+    renderToyCloudState();
+  }
+}
+
+async function persistRhythmGameSettings(nextSettings) {
+  if (rhythmGameSettingsSaving) return;
+  const state = await toyStateReady;
+  if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
+    replaceRhythmGameSettings(nextSettings);
+    renderToyCloudState();
+    showToyNotice('云存储不可用，本次音游设置仅在当前页面有效。');
+    return;
+  }
+
+  rhythmGameSettingsSaving = true;
+  renderToyCloudState();
+  try {
+    await state.toy.setCloudStorage({
+      [TOY_CLOUD_KEYS.rhythmGameLaneCount]: String(nextSettings.laneCount),
+    });
+    replaceRhythmGameSettings(nextSettings);
+  } catch (error) {
+    markToyCloudUnavailable(state);
+    replaceRhythmGameSettings(nextSettings);
+    console.warn('[大狗Tap] 音游设置写入失败。', error);
+    showToyNotice('云存储不可用，本次音游设置仅在当前页面有效。');
+  } finally {
+    rhythmGameSettingsSaving = false;
+    renderToyCloudState();
+  }
+}
+
+for (const button of rhythmGameLaneButtons) {
+  button.addEventListener('click', () => {
+    const laneCount = Number(button.dataset.rhythmLaneCount);
+    if (![1, 2, 3].includes(laneCount)) return;
+    if (laneCount === rhythmGameSettings.laneCount) return;
+    void persistRhythmGameSettings({ laneCount });
+  });
+}
+
+for (const button of djCountButtons) {
+  button.addEventListener('click', () => {
+    const deckCount = Number(button.dataset.djCount) === 3 ? 3 : 2;
+    if (deckCount === djSettings.deckCount) return;
+    void persistDjSettings(
+      { ...djSettings, deckCount },
+      { [TOY_CLOUD_KEYS.djDeckCount]: String(deckCount) }
+    );
+  });
+}
+
+for (const button of djTrailStyleButtons) {
+  button.addEventListener('click', () => {
+    const trailStyle = button.dataset.djTrailStyle === 'emoji'
+      ? 'emoji'
+      : 'normal';
+    if (trailStyle === djSettings.trailStyle) return;
+    void persistDjSettings(
+      { ...djSettings, trailStyle },
+      { [TOY_CLOUD_KEYS.djTrailStyle]: trailStyle }
+    );
+  });
+}
+
+for (const button of djSfxChoiceButtons) {
+  button.addEventListener('click', () => {
+    const row = button.closest('.dj-deck-assignment');
+    const slot = Number(row?.dataset.djSlot);
+    const sfxId = button.dataset.djSfx;
+    if (!Number.isInteger(slot) || !SFX_SAMPLE_SETS[sfxId]) return;
+    if (djSettings.deckSfxIds[slot] === sfxId) return;
+    if (LOCKED_SFX_IDS.has(sfxId) && !toyCloudState.sfxUnlocked) {
+      showToyNotice('该音效尚未解锁，请先点击开发视频完成解锁。');
+      return;
+    }
+
+    const deckSfxIds = [...djSettings.deckSfxIds];
+    deckSfxIds[slot] = sfxId;
+    void persistDjSettings(
+      { ...djSettings, deckSfxIds },
+      { [DJ_DECK_CLOUD_KEYS[slot]]: sfxId }
+    );
+  });
+}
+
+djRecorderOpenButton.addEventListener('click', () => openDjRecorder());
+djRecorderClose.addEventListener('click', () => closeDjRecorder());
+for (const button of djRecorderTabButtons) {
+  button.addEventListener('click', () => {
+    setDjRecorderTab(button.dataset.djRecorderTab, true);
+  });
+}
+for (const button of djRecordingDurationButtons) {
+  button.addEventListener('click', () => {
+    if (isDjTransportBusy()) return;
+    const seconds = Number(button.dataset.djRecordingSeconds);
+    if (!DJ_RECORDING_DURATION_OPTIONS.includes(seconds)) return;
+    djTransport.recordingLimitSeconds = seconds;
+    djTransport.statusMessage = '';
+    renderDjRecorder();
+  });
+}
+djRecordingToggle.addEventListener('click', () => {
+  if (isDjRecordingActive()) {
+    finishDjRecording();
+    return;
+  }
+  void startDjRecording();
+});
+djRecordingPlay.addEventListener('click', () => {
+  if (djTransport.phase === 'playing') {
+    stopDjPlayback();
+    return;
+  }
+  void startDjPlayback();
+});
+djRecordingImportPlay.addEventListener('click', () => {
+  if (djTransport.phase === 'playing') {
+    stopDjPlayback();
+    return;
+  }
+  void startDjPlayback();
+});
+djRecordingShare.addEventListener('click', () => {
+  void copyDjRecordingShareCode();
+});
+djRecordingShareLink.addEventListener('click', () => {
+  void copyDjRecordingShareLink();
+});
+djRecordingSave.addEventListener('click', saveCurrentDjRecordingToLibrary);
+djRecordingImport.addEventListener('click', importDjRecording);
+djRecordingLoop.addEventListener('click', () => {
+  if (isDjTransportBusy()) return;
+  djTransport.loopPlayback = !djTransport.loopPlayback;
+  djTransport.statusMessage = '';
+  renderDjRecorder();
+});
+djRecordingCode.addEventListener('input', () => {
+  try {
+    const shared = decodeDjSharedRecording(djRecordingCode.value);
+    if (shared.name) {
+      djImportName.value = shared.name;
+      djImportNameAutoFilled = true;
+    } else if (djImportNameAutoFilled) {
+      djImportName.value = '';
+      djImportNameAutoFilled = false;
+    }
+  } catch (error) {
+    // 输入中的分享码尚未完整，保留当前名称。
+  }
+  if (djTransport.statusMessage === '分享码无效或内容损坏') {
+    djTransport.statusMessage = '';
+    renderDjRecorder();
+  }
+});
+function refreshDjRecordedShareName() {
+  enforceDjLibraryNameInput(djRecordingName);
+  if (
+    djTransport.loadedTrackOrigin === 'recording' &&
+    djTransport.shareCode
+  ) {
+    djRecordingShareCode.value = encodeDjSharedRecording(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    if (djRecordingShareUrl.value) {
+      djRecordingShareUrl.value = createDjShareUrl(
+        djRecordingName.value,
+        djTransport.shareCode
+      );
+    }
+  }
+}
+djRecordingName.addEventListener('input', (event) => {
+  if (event.isComposing) return;
+  refreshDjRecordedShareName();
+});
+djRecordingName.addEventListener('compositionend', refreshDjRecordedShareName);
+djImportName.addEventListener('input', (event) => {
+  djImportNameAutoFilled = false;
+  if (event.isComposing) return;
+  enforceDjLibraryNameInput(djImportName);
+});
+djImportName.addEventListener('compositionend', () => {
+  djImportNameAutoFilled = false;
+  enforceDjLibraryNameInput(djImportName);
+});
+djLibraryDetailName.addEventListener('input', (event) => {
+  if (event.isComposing) return;
+  enforceDjLibraryNameInput(djLibraryDetailName);
+});
+djLibraryDetailName.addEventListener('compositionend', () => {
+  enforceDjLibraryNameInput(djLibraryDetailName);
+});
+djLibraryRename.addEventListener('click', () => {
+  if (!selectedDjLibraryId) return;
+  try {
+    const renamed = renameDjLibraryTrack(
+      selectedDjLibraryId,
+      djLibraryDetailName.value
+    );
+    if (!renamed) return;
+    if (
+      djTransport.loadedTrackOrigin === 'import' &&
+      djTransport.shareCode === renamed.code
+    ) {
+      djImportName.value = renamed.name;
+      djRecordingCode.value = encodeDjSharedRecording(
+        renamed.name,
+        renamed.code
+      );
+    }
+    djTransport.statusMessage = '曲目名称已保存';
+    renderDjRecorder();
+    showToyNotice(`已改名为“${renamed.name}”`);
+  } catch (error) {
+    djTransport.statusMessage = error.message;
+    renderDjRecorder();
+  }
+});
+djLibraryPlay.addEventListener('click', () => {
+  if (selectedDjLibraryId) void playDjLibraryTrack(selectedDjLibraryId);
+});
+djLibraryExport.addEventListener('click', () => {
+  if (selectedDjLibraryId) void copyDjLibraryTrack(selectedDjLibraryId);
+});
+djLibraryShareLink.addEventListener('click', () => {
+  if (selectedDjLibraryId) {
+    void copyDjLibraryTrackLink(selectedDjLibraryId);
+  }
+});
+djLibraryDelete.addEventListener('click', deleteSelectedDjLibraryTrack);
+djTransportStop.addEventListener('click', () => {
+  if (isDjRecordingActive()) {
+    finishDjRecording();
+    return;
+  }
+  stopDjPlayback();
+});
+for (const eventName of [
+  'pointerdown',
+  'pointermove',
+  'pointerup',
+  'pointercancel',
+  'click',
+]) {
+  djTransportHud.addEventListener(eventName, event => event.stopPropagation());
+  djRecorderOverlay.addEventListener(eventName, event => event.stopPropagation());
+}
+djRecorderOverlay.addEventListener('pointerdown', (event) => {
+  if (event.target === djRecorderOverlay) closeDjRecorder();
+});
+djRecorderPanel.addEventListener('click', event => event.stopPropagation());
+
+rhythmGameLaunch.addEventListener('click', () => {
+  void startRhythmGame({ autoplay: false });
+});
+rhythmGameAutoplayLaunch.addEventListener('click', () => {
+  void startRhythmGame({ autoplay: true });
+});
+rhythmGameEnd.addEventListener('click', () => leaveRhythmGame(true));
+rhythmGameBack.addEventListener('click', () => leaveRhythmGame());
+rhythmGameRetry.addEventListener('click', () => {
+  void startRhythmGame({ autoplay: rhythmGame.autoplay });
+});
+for (const container of [rhythmGameHud, rhythmGameResults]) {
+  for (const eventName of [
+    'pointerdown',
+    'pointermove',
+    'pointerup',
+    'pointercancel',
+    'click',
+  ]) {
+    container.addEventListener(eventName, event => event.stopPropagation());
+  }
+}
+
 function openSettings() {
   if (settingsOpen) return;
+  if (isRhythmGameVisible()) {
+    showToyNotice('请先退出当前音游谱面');
+    return;
+  }
+  if (djRecorderOpen) closeDjRecorder(false);
   markSettingsSeen();
   settingsOpen = true;
   settingsOverlay.inert = false;
@@ -1031,7 +5597,12 @@ for (const eventName of ['pointerdown', 'pointermove', 'pointerup', 'pointercanc
 }
 settingsPanel.addEventListener('click', (event) => event.stopPropagation());
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeSettings();
+  if (event.key !== 'Escape') return;
+  if (djRecorderOpen) {
+    closeDjRecorder();
+    return;
+  }
+  closeSettings();
 });
 
 authorHomeButton.addEventListener('click', handleAuthorHomeClick);
@@ -1069,12 +5640,14 @@ for (const option of sfxOptions) {
   });
 }
 
-for (const eventName of ['pointerdown', 'pointermove', 'pointerup']) {
-  authorLink.addEventListener(eventName, (event) => event.stopPropagation());
+for (const link of [authorLink, djAuthorLink]) {
+  for (const eventName of ['pointerdown', 'pointermove', 'pointerup']) {
+    link.addEventListener(eventName, (event) => event.stopPropagation());
+  }
+  link.addEventListener('click', (event) => event.stopPropagation());
 }
 authorLink.addEventListener('click', (event) => {
   event.preventDefault();
-  event.stopPropagation();
   openCreatorSpace();
 });
 
@@ -1084,7 +5657,7 @@ document.addEventListener(
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('#music-toggle, #sfx-toggle')
+      target.closest('#music-toggle, #sfx-toggle, #stereo-audio-toggle')
     ) {
       return;
     }
@@ -1175,6 +5748,7 @@ const C = {
   blue:  '#3e7bfa',   // 点缀（少量）
 };
 const ACCENTS = [C.coral, C.teal, C.blue];
+const TOUCH_TRAIL_COLORS = Object.freeze([C.amber, C.teal, C.blue]);
 
 /* 形状取色：约 62% 主色黄，28% 灰，10% 点缀色 */
 function pickColor(rng) {
@@ -1199,6 +5773,15 @@ const EFFECTS = [
   'stars',    // 星星弹跳
   'grid',     // 旋转线栅
 ];
+const RHYTHM_GAME_EFFECTS = Object.freeze([
+  'confetti', // 纸屑
+  'zigzag',   // 折线
+  'pop',      // 几何雨
+  'stars',    // 星星
+]);
+const RHYTHM_GAME_EFFECT_SCALE = 0.34;
+const RHYTHM_GAME_EFFECT_ALPHA = 0.72;
+const RHYTHM_GAME_EFFECT_LIFE = 0.42;
 
 /* ============================================================
  * 音频初始化
@@ -1593,6 +6176,7 @@ function scheduler() {
     stepCount = (stepCount + 1) % 64;
   }
   scheduleQueuedInputs(ctx.currentTime + INPUT_QUEUE_LOOKAHEAD);
+  scheduleDjPlaybackEvents(ctx.currentTime + INPUT_LOOKAHEAD);
 }
 
 /* ============================================================
@@ -1624,14 +6208,49 @@ function safeStop(source, when = ctx.currentTime) {
   try { source.stop(when); } catch (_) { /* 已经结束或尚未启动均可忽略 */ }
 }
 
+function createStereoOutput(deckId) {
+  const input = ctx.createGain();
+  const panner = typeof ctx.createStereoPanner === 'function'
+    ? ctx.createStereoPanner()
+    : null;
+
+  if (panner) {
+    input.connect(panner);
+    panner.connect(sfxBus);
+  } else {
+    input.connect(sfxBus);
+  }
+
+  const output = {
+    deckId,
+    input,
+    panner,
+  };
+  liveStereoOutputs.add(output);
+  updateStereoOutput(output, true);
+  return output;
+}
+
+function disconnectStereoOutput(output) {
+  if (!output) return;
+  liveStereoOutputs.delete(output);
+  try { output.input.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  if (output.panner) {
+    try { output.panner.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+  }
+}
+
 function cleanupVoice(voice) {
   if (!voice || voice.cleaned) return;
   voice.cleaned = true;
   clearTimeout(voice.cleanupTimer);
   liveVoices.delete(voice);
 
-  if (activeSustainVoice === voice) activeSustainVoice = null;
-  if (mouthVoice === voice) unlockMouth(voice, 0);
+  const scopeId = voice.deckId ?? 'solo';
+  if (activeSustainVoices.get(scopeId) === voice) {
+    activeSustainVoices.delete(scopeId);
+  }
+  unlockMouth(voice, 0);
 
   for (const node of [
     voice.drySource, voice.dryGain,
@@ -1641,6 +6260,7 @@ function cleanupVoice(voice) {
     if (!node) continue;
     try { node.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   }
+  disconnectStereoOutput(voice.stereoOutput);
 }
 
 function createTailSource(voice, boundary, sourceOffset) {
@@ -1650,7 +6270,7 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.playbackRate.setValueAtTime(voice.rate, boundary);
   gain.gain.setValueAtTime(voice.sampleGain, boundary);
   source.connect(gain);
-  gain.connect(sfxBus);
+  gain.connect(voice.stereoOutput.input);
   source.start(boundary, sourceOffset);
 
   voice.tailSource = source;
@@ -1660,7 +6280,13 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.onended = () => cleanupVoice(voice);
 }
 
-function playPressVoice(name, rate, when) {
+function playPressVoice(
+  name,
+  rate,
+  when,
+  deckId = null,
+  observeOneShot = null
+) {
   const sourceBuffer = buffers[name];
   const sustain = sustainLoops[name];
   const sampleGain = SFX_SAMPLE_GAIN[name] ?? 1;
@@ -1669,20 +6295,32 @@ function playPressVoice(name, rate, when) {
   if (!sustain) {
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
+    const stereoOutput = createStereoOutput(deckId);
+    const oneShot = {
+      source,
+      gain,
+      stereoOutput,
+      ended: false,
+      stopped: false,
+    };
     source.buffer = sourceBuffer;
     source.playbackRate.setValueAtTime(rate, when);
     gain.gain.setValueAtTime(sampleGain, when);
     source.connect(gain);
-    gain.connect(sfxBus);
+    gain.connect(stereoOutput.input);
     source.onended = () => {
+      oneShot.ended = true;
       try { source.disconnect(); } catch (_) { /* 节点可能已断开 */ }
       try { gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
+      disconnectStereoOutput(stereoOutput);
     };
+    if (typeof observeOneShot === 'function') observeOneShot(oneShot);
     source.start(when);
     return null;
   }
 
   const handoffAt = when + sustain.tailOffset / rate;
+  const stereoOutput = createStereoOutput(deckId);
 
   // 完整原音始终先启动；短按只需取消未来的静音事件即可保持原效果。
   const drySource = ctx.createBufferSource();
@@ -1692,7 +6330,7 @@ function playPressVoice(name, rate, when) {
   dryGain.gain.setValueAtTime(sampleGain, when);
   dryGain.gain.setValueAtTime(0, handoffAt);
   drySource.connect(dryGain);
-  dryGain.connect(sfxBus);
+  dryGain.connect(stereoOutput.input);
 
   // 延音源从原音尾段起点开始，起音源在同一采样时刻静音。
   const loopSource = ctx.createBufferSource();
@@ -1702,11 +6340,12 @@ function playPressVoice(name, rate, when) {
   loopSource.playbackRate.setValueAtTime(rate, handoffAt);
   loopGain.gain.setValueAtTime(sampleGain, handoffAt);
   loopSource.connect(loopGain);
-  loopGain.connect(sfxBus);
+  loopGain.connect(stereoOutput.input);
 
   const voice = {
     id: ++voiceSerial,
     name,
+    deckId,
     rate,
     sampleGain,
     when,
@@ -1718,6 +6357,7 @@ function playPressVoice(name, rate, when) {
     dryGain,
     loopSource,
     loopGain,
+    stereoOutput,
     tailSource: null,
     tailGain: null,
     tailEndAt: 0,
@@ -1739,6 +6379,15 @@ function playPressVoice(name, rate, when) {
   drySource.start(when);
   loopSource.start(handoffAt, sustain.attackOffset);
   return voice;
+}
+
+function stopDjPlaybackOneShot(oneShot) {
+  if (!oneShot || oneShot.ended || oneShot.stopped) return;
+  const now = ctx.currentTime;
+  const stopAt = now + EMERGENCY_FADE;
+  oneShot.stopped = true;
+  fadeGain(oneShot.gain, now, stopAt);
+  safeStop(oneShot.source, stopAt);
 }
 
 function texturePositionAt(voice, now) {
@@ -1768,7 +6417,15 @@ function textureRateAt(voice, now) {
   return rate;
 }
 
-function isRetunableSustainVoice(voice) {
+function isRetunableSustainVoice(voice, when = null) {
+  const modeReady = voice && (
+    voice.mode === 'sustain' ||
+    (
+      voice.mode === 'pending' &&
+      Number.isFinite(when) &&
+      when >= voice.handoffAt
+    )
+  );
   return Boolean(
     voice &&
     (
@@ -1776,7 +6433,7 @@ function isRetunableSustainVoice(voice) {
       voice.name === 'mi' ||
       voice.name === 'dingdongji_ji'
     ) &&
-    voice.mode === 'sustain' &&
+    modeReady &&
     voice.held &&
     !voice.released &&
     !voice.stopped &&
@@ -1785,7 +6442,7 @@ function isRetunableSustainVoice(voice) {
 }
 
 function retuneSustainVoice(voice, rate, when = ctx.currentTime) {
-  if (!isRetunableSustainVoice(voice)) return false;
+  if (!isRetunableSustainVoice(voice, when)) return false;
 
   const now = ctx.currentTime;
   const changeAt = Math.max(now, voice.handoffAt, when);
@@ -1830,12 +6487,13 @@ function nextTextureRelease(voice, now) {
 function claimSustainVoice(voice) {
   if (!voice || !voice.held || voice.released || voice.claimed) return;
 
-  const previous = activeSustainVoice;
+  const scopeId = voice.deckId ?? 'solo';
+  const previous = activeSustainVoices.get(scopeId);
   if (previous && previous !== voice) releaseVoice(previous, true);
 
   voice.claimed = true;
   voice.mode = 'sustain';
-  activeSustainVoice = voice;
+  activeSustainVoices.set(scopeId, voice);
   lockMouth(voice);
 }
 
@@ -1852,19 +6510,45 @@ function updateSustainClaims(audioNow) {
     }
   }
 
-  // 同一帧有多个候选时，最后触发的指针取得唯一长音。
+  // 每台 Deck 各自保留一个长音；同一 Deck 的后触发声音接管前一个。
   due.sort((a, b) => a.id - b.id);
   for (const voice of due) claimSustainVoice(voice);
 }
 
-function releaseVoice(voice, musical = true) {
+function scheduleVoiceReleaseVisual(voice, releaseAt, holdMs, openFallback) {
+  const releaseVisual = () => {
+    if (voice.stopped || voice.cleaned) return;
+    if (isMouthVoice(voice)) unlockMouth(voice, holdMs);
+    else if (openFallback) openMouth(holdMs, voice.deckId);
+  };
+  const waitMs = Math.max(0, (releaseAt - ctx.currentTime) * 1000);
+  if (waitMs <= 1) {
+    releaseVisual();
+    return;
+  }
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    releaseVisual();
+  }, waitMs);
+  inputVisualTimers.add(timer);
+}
+
+function releaseVoice(voice, musical = true, releaseAt = ctx.currentTime) {
   if (!voice || voice.released || voice.stopped || voice.cleaned) return;
 
-  const now = ctx.currentTime;
+  const audioNow = ctx.currentTime;
+  const now = Math.max(
+    audioNow,
+    Number.isFinite(releaseAt) ? releaseAt : audioNow
+  );
+  recordDjVoiceRelease(voice, now);
   voice.held = false;
   voice.released = true;
 
-  if (activeSustainVoice === voice) activeSustainVoice = null;
+  const scopeId = voice.deckId ?? 'solo';
+  if (activeSustainVoices.get(scopeId) === voice) {
+    activeSustainVoices.delete(scopeId);
+  }
 
   if (!musical) {
     forceStopVoice(voice);
@@ -1878,10 +6562,8 @@ function releaseVoice(voice, musical = true) {
     voice.dryGain.gain.setValueAtTime(voice.sampleGain, now);
     safeStop(voice.loopSource, now);
 
-    if (mouthVoice === voice) {
-      const remainMs = Math.max(0, (voice.visualEndAt - now) * 1000);
-      unlockMouth(voice, remainMs);
-    }
+    const remainMs = Math.max(0, (voice.visualEndAt - now) * 1000);
+    scheduleVoiceReleaseVisual(voice, now, remainMs, false);
     return;
   }
 
@@ -1899,8 +6581,7 @@ function releaseVoice(voice, musical = true) {
   createTailSource(voice, release.boundary, release.sourceOffset);
 
   const remainMs = Math.max(0, (voice.tailEndAt - now) * 1000);
-  if (mouthVoice === voice) unlockMouth(voice, remainMs);
-  else openMouth(remainMs);
+  scheduleVoiceReleaseVisual(voice, now, remainMs, true);
 }
 
 function fadeGain(gainNode, now, stopAt) {
@@ -1916,13 +6597,17 @@ function forceStopVoice(voice) {
   if (!voice || voice.stopped || voice.cleaned) return;
 
   const now = ctx.currentTime;
+  recordDjVoiceRelease(voice, now);
   const stopAt = now + EMERGENCY_FADE;
   voice.held = false;
   voice.released = true;
   voice.stopped = true;
   voice.mode = 'stopped';
 
-  if (activeSustainVoice === voice) activeSustainVoice = null;
+  const scopeId = voice.deckId ?? 'solo';
+  if (activeSustainVoices.get(scopeId) === voice) {
+    activeSustainVoices.delete(scopeId);
+  }
   fadeGain(voice.dryGain, now, stopAt);
   fadeGain(voice.loopGain, now, stopAt);
   fadeGain(voice.tailGain, now, stopAt);
@@ -1930,7 +6615,7 @@ function forceStopVoice(voice) {
   safeStop(voice.loopSource, stopAt);
   safeStop(voice.tailSource, stopAt);
 
-  if (mouthVoice === voice) unlockMouth(voice, EMERGENCY_FADE * 1000);
+  if (isMouthVoice(voice)) unlockMouth(voice, EMERGENCY_FADE * 1000);
   voice.cleanupTimer = setTimeout(
     () => cleanupVoice(voice),
     (EMERGENCY_FADE + 0.05) * 1000
@@ -1943,11 +6628,56 @@ function forceStopVoice(voice) {
 function buildGrid() {
   const { width, height } = getStageMetrics();
   const landscape = width >= height;
-  cols = landscape ? (performanceSettings.pianoMode ? 8 : 4) : 3;
-  rows = landscape ? 3 : (performanceSettings.pianoMode ? 8 : 4);
-
+  if (zones.length > 0 && landscape !== djLandscape && pointers.size > 0) {
+    for (const inputId of [...rhythmGame.activeHolds.keys()]) {
+      releaseRhythmGameHold(inputId, true);
+    }
+    stopActivePerformanceInput();
+  }
+  djLandscape = landscape;
   zones = [];
-  if (landscape) {
+  keyboardZoneByCode.clear();
+
+  if (isDeckPerformanceMode()) {
+    const activeSlots = getActiveDeckSlots();
+    cols = landscape ? activeSlots.length * 4 : 4;
+    rows = landscape ? 3 : activeSlots.length * 3;
+    const rowMap = [
+      { n: 'da', s: '大' },
+      { n: 'gou', s: '狗' },
+      { n: 'jiao', s: '叫' },
+    ];
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const deckIndex = landscape ? Math.floor(c / 4) : Math.floor(r / 3);
+        const localRow = landscape ? r : r % 3;
+        const localColumn = landscape ? c % 4 : c;
+        const deckSlot = activeSlots[deckIndex];
+        const key = DJ_KEY_GROUPS[deckSlot][localRow][localColumn];
+        const zone = {
+          sample: rowMap[localRow].n,
+          syllable: rowMap[localRow].s,
+          pitchTier: localColumn,
+          targetMidi: undefined,
+          note: undefined,
+          solfege: undefined,
+          deckId: `dj-${deckSlot}`,
+          deckSlot,
+          deckIndex,
+          sfxId: djSettings.deckSfxIds[deckSlot],
+          localRow,
+          localColumn,
+          keyboardCode: key.code,
+          keyboardLabel: key.label,
+        };
+        keyboardZoneByCode.set(key.code, zones.length);
+        zones.push(zone);
+      }
+    }
+  } else if (landscape) {
+    cols = performanceSettings.pianoMode ? 8 : 4;
+    rows = 3;
     // 横屏：纵向依次 da / gou / jiao；钢琴模式横向 do 到高音 do。
     const rowMap = [{ n: 'da', s: '大' }, { n: 'gou', s: '狗' }, { n: 'jiao', s: '叫' }];
     for (let r = 0; r < rows; r++) {
@@ -1960,10 +6690,14 @@ function buildGrid() {
           targetMidi: pianoKey?.midi,
           note: pianoKey?.note,
           solfege: pianoKey?.solfege,
+          deckId: null,
+          sfxId: selectedSfxId,
         });
       }
     }
   } else {
+    cols = 3;
+    rows = performanceSettings.pianoMode ? 8 : 4;
     // 竖屏：横向依次 da / gou / jiao；钢琴模式纵向从高音 do 降到 do。
     const colMap = [{ n: 'da', s: '大' }, { n: 'gou', s: '狗' }, { n: 'jiao', s: '叫' }];
     for (let r = 0; r < rows; r++) {
@@ -1981,11 +6715,14 @@ function buildGrid() {
           targetMidi: pianoKey?.midi,
           note: pianoKey?.note,
           solfege: pianoKey?.solfege,
+          deckId: null,
+          sfxId: selectedSfxId,
         });
       }
     }
   }
 
+  if (typeof renderDjStage === 'function') renderDjStage();
   if (typeof renderKeyGrid === 'function') renderKeyGrid();
 }
 
@@ -2123,6 +6860,229 @@ function drawPiece(g, kind, color, x, y, r, rot) {
   g.restore();
 }
 
+function drawTouchCharacterImage(
+  g,
+  sfxId,
+  x,
+  y,
+  size,
+  alpha,
+  rotation = 0
+) {
+  if (size <= 0 || alpha <= 0) return;
+  const image = touchTrailImages[sfxId] ?? touchTrailImages.dagou;
+  if (!image.complete || image.naturalWidth <= 0) return;
+
+  g.save();
+  g.translate(x, y);
+  g.rotate(rotation);
+  g.globalAlpha = alpha;
+  g.shadowColor = 'rgba(111, 106, 99, .28)';
+  g.shadowBlur = Math.min(8, size * 0.18);
+  const scale = size / Math.max(image.naturalWidth, image.naturalHeight);
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  g.drawImage(image, -width / 2, -height / 2, width, height);
+  g.restore();
+}
+
+function drawTouchRing(
+  g,
+  x,
+  y,
+  radius,
+  color,
+  alpha,
+  lineWidth,
+  shadowBlur = 0
+) {
+  if (radius <= 0 || alpha <= 0 || lineWidth <= 0) return;
+  g.save();
+  g.globalAlpha = alpha;
+  g.strokeStyle = color;
+  g.lineWidth = lineWidth;
+  if (shadowBlur > 0) {
+    g.shadowColor = color;
+    g.shadowBlur = shadowBlur;
+  }
+  g.beginPath();
+  g.arc(x, y, radius, 0, Math.PI * 2);
+  g.stroke();
+  g.restore();
+}
+
+function drawRhythmGameTouchFeedback(now, characterMode) {
+  const feedbackLife = 0.22;
+  for (const [pointerId, trail] of touchTrails) {
+    const releaseProgress = trail.releasedAt === null
+      ? 0
+      : clamp01((now - trail.releasedAt) / TOUCH_TRAIL_RELEASE);
+    if (releaseProgress >= 1) {
+      touchTrails.delete(pointerId);
+      continue;
+    }
+    const pulseProgress = clamp01((now - trail.pulseAt) / feedbackLife);
+    const alpha =
+      (1 - smooth(pulseProgress)) * (1 - smooth(releaseProgress));
+    if (alpha <= 0.001) continue;
+
+    const radius = 8 + easeOutCubic(pulseProgress) * 18;
+    drawTouchRing(
+      touchFx2d,
+      trail.x,
+      trail.y,
+      radius,
+      trail.color,
+      alpha * 0.52,
+      2.2 - pulseProgress * 0.7
+    );
+
+    if (characterMode) {
+      drawTouchCharacterImage(
+        touchFx2d,
+        trail.sfxId,
+        trail.x,
+        Math.max(18, trail.y - 12 - pulseProgress * 5),
+        22 + easeOutCubic(pulseProgress) * 7,
+        alpha * 0.72
+      );
+      continue;
+    }
+
+    touchFx2d.save();
+    touchFx2d.globalAlpha = alpha * 0.68;
+    drawPiece(
+      touchFx2d,
+      'diamond',
+      trail.color,
+      trail.x,
+      trail.y,
+      3.6 * (1 - pulseProgress * 0.28),
+      Math.PI / 4
+    );
+    touchFx2d.restore();
+  }
+  touchFx2d.globalAlpha = 1;
+}
+
+function drawTouchTrails(now) {
+  touchFx2d.clearRect(0, 0, fxW, fxH);
+  const characterMode =
+    isDeckPerformanceMode() && djSettings.trailStyle === 'emoji';
+  if (isRhythmGameActive()) {
+    drawRhythmGameTouchFeedback(now, characterMode);
+    return;
+  }
+
+  for (const [pointerId, trail] of touchTrails) {
+    trail.points = trail.points.filter(
+      point => now - point.at < TOUCH_TRAIL_POINT_LIFE
+    );
+    const releaseProgress = trail.releasedAt === null
+      ? 0
+      : clamp01((now - trail.releasedAt) / TOUCH_TRAIL_RELEASE);
+    if (releaseProgress >= 1) {
+      touchTrails.delete(pointerId);
+      continue;
+    }
+
+    const releaseAlpha = 1 - smooth(releaseProgress);
+    const pointCount = trail.points.length;
+    trail.points.forEach((point, index) => {
+      const age = clamp01((now - point.at) / TOUCH_TRAIL_POINT_LIFE);
+      const order = pointCount > 0 ? (index + 1) / pointCount : 1;
+      const alpha = (1 - smooth(age)) * (0.18 + order * 0.58) * releaseAlpha;
+      if (characterMode) {
+        const distanceFromHead = pointCount - 1 - index;
+        if (distanceFromHead > 0 && distanceFromHead % 2 === 1) return;
+        drawTouchCharacterImage(
+          touchFx2d,
+          point.sfxId,
+          point.x,
+          Math.max(14, point.y - 18),
+          (12 + order * 10) * (1 - age * 0.3),
+          alpha,
+          Math.sin(now * 3 + index) * 0.08
+        );
+        return;
+      }
+
+      const size = (2.5 + order * 4.5) * (1 - age * 0.38);
+      touchFx2d.globalAlpha = alpha;
+      drawPiece(
+        touchFx2d,
+        TOUCH_TRAIL_SHAPES[index % TOUCH_TRAIL_SHAPES.length],
+        point.color,
+        point.x,
+        point.y,
+        size,
+        now * 2.2 + index * 0.7
+      );
+    });
+
+    const intro = easeOutBack(clamp01((now - trail.startedAt) / 0.12));
+    const pulse = 1 - clamp01((now - trail.pulseAt) / 0.18);
+    const radius = (24 + pulse * 9 + releaseProgress * 18) * intro;
+    const shadowBlur = 10 + pulse * 7;
+    drawTouchRing(
+      touchFx2d,
+      trail.x,
+      trail.y,
+      radius,
+      trail.color,
+      releaseAlpha,
+      3 + pulse * 1.8,
+      shadowBlur
+    );
+    drawTouchRing(
+      touchFx2d,
+      trail.x,
+      trail.y,
+      radius + 7 + pulse * 4,
+      trail.color,
+      0.28 * releaseAlpha,
+      2,
+      shadowBlur
+    );
+    if (characterMode) {
+      const releasePop = Math.sin(
+        Math.min(1, releaseProgress / 0.5) * Math.PI / 2
+      );
+      const exitProgress = releaseProgress * releaseProgress;
+      const exitDistance = TOUCH_TRAIL_EXIT_DISTANCE * exitProgress;
+      const characterX = trail.x + trail.exitX * exitDistance;
+      const characterY = Math.max(24, trail.y - 30)
+        + trail.exitY * exitDistance;
+      drawTouchCharacterImage(
+        touchFx2d,
+        trail.sfxId,
+        characterX,
+        characterY,
+        (34 + pulse * 8 + releasePop * 7) * intro,
+        releaseAlpha,
+        Math.sin(now * 5 + trail.x * 0.01) * 0.07
+          + trail.exitX * releaseProgress * 0.22
+      );
+      continue;
+    }
+
+    touchFx2d.save();
+    touchFx2d.globalAlpha = 0.92 * releaseAlpha;
+    drawPiece(
+      touchFx2d,
+      'diamond',
+      trail.color,
+      trail.x,
+      trail.y,
+      5.5 * intro * (1 + pulse * 0.32),
+      Math.PI / 4 + now * 0.8
+    );
+    touchFx2d.restore();
+  }
+
+  touchFx2d.globalAlpha = 1;
+}
+
 /* ============================================================
  * 全屏特效引擎（仿 Mikutap）
  *  - 每次触发生成一个全屏特效实例，叠在旧特效之上
@@ -2131,6 +7091,13 @@ function drawPiece(g, kind, color, x, y, r, rot) {
  * ==========================================================*/
 const FX_IN = 0.55;    // 入场时长（秒）
 const FX_OUT = 0.4;    // 退场时长（秒）
+const TOUCH_TRAIL_MAX_POINTS = 10;
+const TOUCH_TRAIL_POINT_GAP = 8;
+const TOUCH_TRAIL_POINT_LIFE = 0.32;
+const TOUCH_TRAIL_RELEASE = 0.2;
+const TOUCH_TRAIL_EXIT_MOMENTUM_WINDOW = 0.12;
+const TOUCH_TRAIL_EXIT_DISTANCE = 120;
+const TOUCH_TRAIL_SHAPES = Object.freeze(['circle', 'diamond', 'square']);
 
 let fxW = 0, fxH = 0;  // 画布尺寸（CSS 像素）
 let fxList = [];       // 活跃特效（数组顺序 = 叠放顺序）
@@ -2150,18 +7117,156 @@ function getStageMetrics() {
   };
 }
 
+function touchTrailNow() {
+  return performance.now() / 1000;
+}
+
+function getTouchTrailPoint(clientX, clientY) {
+  const { width, height, left, top } = getStageMetrics();
+  return {
+    x: Math.max(0, Math.min(width, clientX - left)),
+    y: Math.max(0, Math.min(height, clientY - top)),
+  };
+}
+
+function getTouchTrailAppearance(clientX, clientY) {
+  const zone = zones[zoneIndex(clientX, clientY)];
+  return {
+    color: Number.isInteger(zone?.deckSlot)
+      ? TOUCH_TRAIL_COLORS[zone.deckSlot]
+      : C.amber,
+    sfxId: CHARACTER_IMAGE_SETS[zone?.sfxId] ? zone.sfxId : 'dagou',
+  };
+}
+
+function beginTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
+  const point = getTouchTrailPoint(clientX, clientY);
+  const { color, sfxId } = getTouchTrailAppearance(clientX, clientY);
+  touchTrails.set(pointerId, {
+    x: point.x,
+    y: point.y,
+    sampleX: point.x,
+    sampleY: point.y,
+    color,
+    sfxId,
+    startedAt: at,
+    updatedAt: at,
+    sampleAt: at,
+    pulseAt: at,
+    releasedAt: null,
+    exitX: 0,
+    exitY: -1,
+    points: [{ ...point, color, sfxId, at }],
+  });
+}
+
+function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
+  const trail = touchTrails.get(pointerId);
+  if (!trail || trail.releasedAt !== null) return;
+
+  const point = getTouchTrailPoint(clientX, clientY);
+  const { color, sfxId } = getTouchTrailAppearance(clientX, clientY);
+  const dx = point.x - trail.sampleX;
+  const dy = point.y - trail.sampleY;
+  const distance = Math.hypot(dx, dy);
+  const steps = Math.min(
+    TOUCH_TRAIL_MAX_POINTS,
+    Math.floor(distance / TOUCH_TRAIL_POINT_GAP)
+  );
+
+  for (let index = 1; index <= steps; index++) {
+    const progress = index / steps;
+    trail.points.push({
+      x: trail.sampleX + dx * progress,
+      y: trail.sampleY + dy * progress,
+      color,
+      sfxId,
+      at: trail.sampleAt + (at - trail.sampleAt) * progress,
+    });
+  }
+  if (steps > 0) {
+    trail.sampleX = point.x;
+    trail.sampleY = point.y;
+    trail.sampleAt = at;
+  }
+  if (trail.points.length > TOUCH_TRAIL_MAX_POINTS) {
+    trail.points.splice(0, trail.points.length - TOUCH_TRAIL_MAX_POINTS);
+  }
+
+  trail.x = point.x;
+  trail.y = point.y;
+  trail.color = color;
+  trail.sfxId = sfxId;
+  trail.updatedAt = at;
+}
+
+function pulseTouchTrail(pointerId, at = touchTrailNow()) {
+  const trail = touchTrails.get(pointerId);
+  if (trail && trail.releasedAt === null) trail.pulseAt = at;
+}
+
+function releaseTouchTrail(pointerId, at = touchTrailNow()) {
+  const trail = touchTrails.get(pointerId);
+  if (!trail || trail.releasedAt !== null) return;
+
+  const momentumPoint = trail.points.find(
+    point => at - point.at <= TOUCH_TRAIL_EXIT_MOMENTUM_WINDOW
+  );
+  const momentumX = momentumPoint ? trail.x - momentumPoint.x : 0;
+  const momentumY = momentumPoint ? trail.y - momentumPoint.y : 0;
+  const momentumDistance = Math.hypot(momentumX, momentumY);
+  if (momentumDistance >= TOUCH_TRAIL_POINT_GAP) {
+    trail.exitX = momentumX / momentumDistance;
+    trail.exitY = momentumY / momentumDistance;
+  }
+  trail.releasedAt = at;
+}
+
+function releaseAllTouchTrails(at = touchTrailNow()) {
+  for (const pointerId of touchTrails.keys()) releaseTouchTrail(pointerId, at);
+}
+
+function clearPerformanceVisualEffects() {
+  fxList.length = 0;
+  touchTrails.clear();
+  flashLayer.replaceChildren();
+  fx2d.clearRect(0, 0, fxW, fxH);
+  touchFx2d.clearRect(0, 0, fxW, fxH);
+}
+
 function fxResize() {
+  const previousWidth = fxW;
+  const previousHeight = fxH;
   const dpr = Math.min(devicePixelRatio || 1, 2);
   const { width, height } = getStageMetrics();
   fxW = width;
   fxH = height;
   const sceneUnit = fxW >= fxH ? fxH / 2 : fxW / 1.5;
   stage.style.setProperty('--scene-unit', `${sceneUnit}px`);
-  fxCanvas.width = Math.round(fxW * dpr);
-  fxCanvas.height = Math.round(fxH * dpr);
-  fxCanvas.style.width = fxW + 'px';
-  fxCanvas.style.height = fxH + 'px';
-  fx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const [canvas, context] of [
+    [fxCanvas, fx2d],
+    [touchFxCanvas, touchFx2d],
+  ]) {
+    canvas.width = Math.round(fxW * dpr);
+    canvas.height = Math.round(fxH * dpr);
+    canvas.style.width = fxW + 'px';
+    canvas.style.height = fxH + 'px';
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  if (previousWidth > 0 && previousHeight > 0) {
+    const scaleX = fxW / previousWidth;
+    const scaleY = fxH / previousHeight;
+    for (const trail of touchTrails.values()) {
+      trail.x *= scaleX;
+      trail.y *= scaleY;
+      trail.sampleX *= scaleX;
+      trail.sampleY *= scaleY;
+      for (const point of trail.points) {
+        point.x *= scaleX;
+        point.y *= scaleY;
+      }
+    }
+  }
   // 活跃特效重新对齐网页容器正中心
   for (const e of fxList) { e.cx = cx0(); e.cy = cy0(); }
 }
@@ -2583,13 +7688,23 @@ function strokePartial(g, pts, lens, vis) {
   return pts[pts.length - 1];
 }
 
-/* 生成一个全屏特效实例（原点固定在屏幕正中心） */
-function buildEffect(type) {
+/* 生成一个特效实例；DJ 模式从对应 Deck 中心发散。 */
+function buildEffect(type, origin = null, options = {}) {
   const rng = mulberry32((Math.random() * 1e9) | 0);
+  const usesScreenCoordinates =
+    type === 'zigzag' || type === 'pop' || type === 'stars';
+  const sourceCenter = options.localize && usesScreenCoordinates
+    ? { x: cx0(), y: cy0() }
+    : { x: origin?.x ?? cx0(), y: origin?.y ?? cy0() };
   const inst = {
     type,
-    cx: cx0(), cy: cy0(),
+    cx: origin?.x ?? cx0(), cy: origin?.y ?? cy0(),
+    sourceCx: sourceCenter.x,
+    sourceCy: sourceCenter.y,
     t0: 0, state: 'in', outT0: 0,
+    scale: Number.isFinite(options.scale) ? options.scale : 1,
+    alpha: Number.isFinite(options.alpha) ? options.alpha : 1,
+    life: Number.isFinite(options.life) ? options.life : null,
     rot0: rng() * Math.PI * 2,
     dir: rng() < 0.5 ? -1 : 1,
     shapes: [],
@@ -2598,19 +7713,64 @@ function buildEffect(type) {
   return inst;
 }
 
-/* 触发全屏特效：新特效叠上，旧特效退场 */
-function spawnEffect(zi, when) {
-  const type = EFFECTS[zi % EFFECTS.length];
+function getDeckEffectOrigin(deckId) {
+  const deck = getDjDeck(deckId);
+  if (!deck) return null;
+  const deckRect = deck.element.getBoundingClientRect();
+  const stageRect = stage.getBoundingClientRect();
+  return {
+    x: deckRect.left - stageRect.left + deckRect.width / 2,
+    y: deckRect.top - stageRect.top + deckRect.height / 2,
+  };
+}
+
+function getZoneEffectOrigin(zoneIndexValue) {
+  const { width, height } = getStageMetrics();
+  const column = zoneIndexValue % cols;
+  const row = Math.floor(zoneIndexValue / cols);
+  return {
+    x: (column + 0.5) * width / cols,
+    y: (row + 0.5) * height / rows,
+  };
+}
+
+/* 同一 Deck 的新特效接替旧特效，多台 Deck 可以同时保留各自画面。 */
+function spawnEffect(zi, when, deckId = null, options = {}) {
+  const effectTypes = options.effectTypes ?? EFFECTS;
+  const type = options.effectType ?? effectTypes[zi % effectTypes.length];
   const now = nowSec();
+  const effectScope = deckId ?? 'solo';
 
   for (const e of fxList) {
-    if (e.state !== 'out') { e.state = 'out'; e.outT0 = now; }
+    if (e.scope === effectScope && e.state !== 'out') {
+      e.state = 'out';
+      e.outT0 = now;
+    }
   }
-  while (fxList.length > 6) fxList.shift();   // 快速连打时兜底清理
+  while (fxList.length > 12) fxList.shift();   // 多台 Deck 快速连打时兜底清理
 
-  const inst = buildEffect(type);
+  const origin = options.origin ?? (
+    deckId ? getDeckEffectOrigin(deckId) : null
+  );
+  const inst = buildEffect(type, origin, options);
+  inst.scope = effectScope;
   inst.t0 = Math.min(when, now + 0.05);       // 尽量贴节拍，最多延迟 50ms
   fxList.push(inst);
+}
+
+function spawnRhythmGameEffect(zi, when, deckId = null) {
+  const effectType = RHYTHM_GAME_EFFECTS[
+    Math.floor(Math.random() * RHYTHM_GAME_EFFECTS.length)
+  ];
+  spawnEffect(zi, when, deckId, {
+    effectTypes: RHYTHM_GAME_EFFECTS,
+    effectType,
+    origin: getZoneEffectOrigin(zi),
+    scale: RHYTHM_GAME_EFFECT_SCALE,
+    alpha: RHYTHM_GAME_EFFECT_ALPHA,
+    life: RHYTHM_GAME_EFFECT_LIFE,
+    localize: true,
+  });
 }
 
 /* 每帧绘制：固定米白背景 → 各特效（按叠放顺序） */
@@ -2619,6 +7779,14 @@ function fxFrame(now) {
 
   for (let i = fxList.length - 1; i >= 0; i--) {
     const inst = fxList[i];
+    if (
+      inst.state !== 'out' &&
+      inst.life !== null &&
+      now - inst.t0 >= inst.life
+    ) {
+      inst.state = 'out';
+      inst.outT0 = inst.t0 + inst.life;
+    }
     let outK = 0;
     if (inst.state === 'out') {
       outK = clamp01((now - inst.outT0) / FX_OUT);
@@ -2628,19 +7796,40 @@ function fxFrame(now) {
     if (t < 0) continue;                                  // 等待节拍点
 
     // 常驻特效整体随节拍呼吸；退场特效整体淡出 + 缩小
-    const fade = 1 - smooth(outK);
-    const sc = inst.state === 'out' ? 1 - 0.22 * outK : 1 + beatP * 0.02;
+    const fade = (1 - smooth(outK)) * inst.alpha;
+    const exitScale = inst.state === 'out' ? 1 - 0.22 * outK : 1;
+    const sc = inst.scale * exitScale * (1 + beatP * 0.02);
     fx2d.save();
     fx2d.translate(inst.cx, inst.cy);
     fx2d.scale(sc, sc);
-    fx2d.translate(-inst.cx, -inst.cy);
+    fx2d.translate(-inst.sourceCx, -inst.sourceCy);
     DRAW[inst.type](fx2d, inst, t, fade);
     fx2d.restore();
   }
 }
 
 /* ---------- 张嘴 / 闭嘴（JS 弹簧驱动，快速果断带 Q 弹） ---------- */
-function openMouth(holdMs) {
+function isMouthVoice(voice) {
+  if (!voice) return false;
+  const deck = voice.deckId ? getDjDeck(voice.deckId) : null;
+  return deck ? deck.mouthVoice === voice : mouthVoice === voice;
+}
+
+function openMouth(holdMs, deckId = null) {
+  const deck = deckId ? getDjDeck(deckId) : null;
+  if (deck) {
+    deck.mouthPopped = true;
+    deck.inner.classList.toggle('bark-image', !sfxMuted);
+    clearTimeout(deck.mouthTimer);
+    deck.mouthTimer = setTimeout(() => {
+      if (!deck.mouthVoice) {
+        deck.mouthPopped = false;
+        deck.inner.classList.remove('bark-image');
+      }
+    }, holdMs);
+    return;
+  }
+
   mouthPopped = true;
   dogInner.classList.toggle('bark-image', !sfxMuted);
   clearTimeout(mouthTimer);
@@ -2653,6 +7842,16 @@ function openMouth(holdMs) {
 }
 
 function lockMouth(voice) {
+  const deck = voice.deckId ? getDjDeck(voice.deckId) : null;
+  if (deck) {
+    deck.mouthVoice = voice;
+    clearTimeout(deck.mouthTimer);
+    deck.mouthPopped = true;
+    deck.inner.classList.toggle('bark-image', !sfxMuted);
+    deck.holding = true;
+    return;
+  }
+
   mouthVoice = voice;
   clearTimeout(mouthTimer);
   mouthPopped = true;
@@ -2661,10 +7860,28 @@ function lockMouth(voice) {
 }
 
 function unlockMouth(voice, holdMs) {
+  const deck = voice.deckId ? getDjDeck(voice.deckId) : null;
+  if (deck) {
+    if (deck.mouthVoice !== voice) return;
+    deck.mouthVoice = null;
+    deck.holding = false;
+    openMouth(holdMs, deck.id);
+    return;
+  }
+
   if (mouthVoice !== voice) return;
   mouthVoice = null;
   holding = false;  // 松手：果冻动画 Q 弹回落
   openMouth(holdMs);
+}
+
+function kickCharacter(deckId = null) {
+  const deck = deckId ? getDjDeck(deckId) : null;
+  if (deck) {
+    deck.barkPopVel = Math.min(deck.barkPopVel + BARK_KICK, BARK_KICK_MAX);
+    return;
+  }
+  barkPopVel = Math.min(barkPopVel + BARK_KICK, BARK_KICK_MAX);
 }
 
 /* ============================================================
@@ -2679,18 +7896,45 @@ function flashZone(zi) {
   el.style.top    = `calc(${r * 100 / rows}% + 3px)`;
   el.style.width  = `calc(${100 / cols}% - 6px)`;
   el.style.height = `calc(${100 / rows}% - 6px)`;
+  if (isRhythmGameActive()) {
+    const sfxId = zones[zi]?.sfxId ?? 'dagou';
+    const character = CHARACTER_IMAGE_SETS[sfxId] ??
+      CHARACTER_IMAGE_SETS.dagou;
+    el.dataset.sfx = sfxId;
+    const image = document.createElement('img');
+    image.className = 'rhythm-zone-image';
+    image.src = character.open;
+    image.alt = '';
+    image.draggable = false;
+    el.appendChild(image);
+  }
   el.addEventListener('animationend', () => el.remove());
   flashLayer.appendChild(el);
 }
 
 function reflowQueuedInputTimes() {
-  if (!performanceSettings.rhythmSnap) {
+  if (!shouldQuantizePerformanceInput()) {
     const now = ctx?.currentTime ?? 0;
     for (const entry of inputQueue) entry.when = now;
     return;
   }
 
-  let when = quantize(S8);
+  const quantizedWhen = quantize(S8);
+  if (isDeckPerformanceMode()) {
+    const nextTimes = new Map();
+    for (const entry of inputQueue) {
+      const scopeId = entry.deckId ?? 'solo';
+      let when = nextTimes.get(scopeId) ?? quantizedWhen;
+      const committed = lastCommittedDjInputTimes.get(scopeId);
+      if (Number.isFinite(committed)) when = Math.max(when, committed + S8);
+      entry.when = when;
+      nextTimes.set(scopeId, when + S8);
+    }
+    inputQueue.sort((a, b) => a.when - b.when || a.id - b.id);
+    return;
+  }
+
+  let when = quantizedWhen;
   if (Number.isFinite(lastCommittedInputTime)) {
     when = Math.max(when, lastCommittedInputTime + S8);
   }
@@ -2700,12 +7944,12 @@ function reflowQueuedInputTimes() {
   }
 }
 
-function removeQueuedSample(sample) {
+function removeQueuedSample(sample, deckId = null) {
   // 自由节奏下每次输入都必须发声，不能用吸附模式的同音节去重规则。
-  if (!performanceSettings.rhythmSnap) return;
+  if (!shouldQuantizePerformanceInput()) return;
   for (let i = inputQueue.length - 1; i >= 0; i--) {
     const entry = inputQueue[i];
-    if (entry.sample !== sample) continue;
+    if (entry.sample !== sample || entry.deckId !== deckId) continue;
 
     inputQueue.splice(i, 1);
     const state = pointers.get(entry.pointerId);
@@ -2718,14 +7962,16 @@ function removeQueuedSample(sample) {
 function enqueueActivation(zi, pointerId) {
   hideControlsUntilIdle();
   const z = zones[zi];
-  removeQueuedSample(z.sample);
+  const sfxId = isDeckPerformanceMode() ? z.sfxId : selectedSfxId;
+  removeQueuedSample(z.sample, z.deckId);
   const entry = {
     id: ++inputSerial,
     kind: 'press',
     pointerId,
     zone: zi,
+    deckId: z.deckId,
     sample: z.sample,
-    audioSample: resolveSfxSample(z.sample),
+    audioSample: resolveSfxSample(z.sample, sfxId),
     pitchTier: z.pitchTier,
     targetMidi: z.targetMidi,
     when: 0,
@@ -2739,12 +7985,13 @@ function enqueueActivation(zi, pointerId) {
 function enqueueSustainRetune(zi, pointerId, voice) {
   hideControlsUntilIdle();
   const z = zones[zi];
-  removeQueuedSample(z.sample);
+  removeQueuedSample(z.sample, z.deckId);
   const entry = {
     id: ++inputSerial,
     kind: 'sustain-retune',
     pointerId,
     zone: zi,
+    deckId: z.deckId,
     sample: z.sample,
     audioSample: voice?.name ?? resolveSfxSample(z.sample),
     pitchTier: z.pitchTier,
@@ -2759,21 +8006,28 @@ function enqueueSustainRetune(zi, pointerId, voice) {
 }
 
 function commitUnsnappedInput(entry) {
-  if (performanceSettings.rhythmSnap) return;
+  if (shouldQuantizePerformanceInput()) return;
   const queuedIndex = inputQueue.indexOf(entry);
   if (queuedIndex >= 0) inputQueue.splice(queuedIndex, 1);
   entry.when = ctx.currentTime;
   lastCommittedInputTime = entry.when;
+  if (entry.deckId) lastCommittedDjInputTimes.set(entry.deckId, entry.when);
   playQueuedInput(entry);
 }
 
-function scheduleActivationVisual(zi, when) {
+function scheduleActivationVisual(zi, when, deckId = null) {
   const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
   const timer = setTimeout(() => {
     inputVisualTimers.delete(timer);
-    openMouth(280);
-    barkPopVel = Math.min(barkPopVel + BARK_KICK, BARK_KICK_MAX);
-    spawnEffect(zi, ctx.currentTime);
+    const quietFeedback = isRhythmGameActive();
+    openMouth(quietFeedback ? 150 : 280, deckId);
+    if (quietFeedback) {
+      kickCharacter(deckId);
+      spawnRhythmGameEffect(zi, ctx.currentTime, deckId);
+      return;
+    }
+    kickCharacter(deckId);
+    spawnEffect(zi, ctx.currentTime, deckId);
   }, waitMs);
   inputVisualTimers.add(timer);
 }
@@ -2787,7 +8041,8 @@ function playQueuedInput(entry) {
   );
   if (entry.kind === 'sustain-retune') {
     if (retuneSustainVoice(entry.voice, rate, entry.when)) {
-      scheduleActivationVisual(entry.zone, entry.when);
+      recordDjRetune(entry.voice, entry.zone, entry.when);
+      scheduleActivationVisual(entry.zone, entry.when, entry.deckId);
     }
     return;
   }
@@ -2797,7 +8052,8 @@ function playQueuedInput(entry) {
     state &&
     state.zone === entry.zone &&
     state.pendingEntryId === entry.id;
-  const voice = playPressVoice(audioSample, rate, entry.when);
+  const voice = playPressVoice(audioSample, rate, entry.when, entry.deckId);
+  recordDjNoteStart(entry, voice);
 
   if (stillHeld) {
     state.pendingEntryId = null;
@@ -2806,13 +8062,14 @@ function playQueuedInput(entry) {
     // 已滑过或已松手的 jiao 只保留短音，不进入未来的长音循环。
     releaseVoice(voice, true);
   }
-  scheduleActivationVisual(entry.zone, entry.when);
+  scheduleActivationVisual(entry.zone, entry.when, entry.deckId);
 }
 
 function scheduleQueuedInputs(horizon) {
   while (inputQueue.length && inputQueue[0].when < horizon) {
     const entry = inputQueue.shift();
     lastCommittedInputTime = entry.when;
+    if (entry.deckId) lastCommittedDjInputTimes.set(entry.deckId, entry.when);
     playQueuedInput(entry);
   }
 }
@@ -2829,6 +8086,51 @@ function clearInputVisualTimers() {
   inputVisualTimers.clear();
 }
 
+function updateDjDeckCharacter(deck, now, dt, sway) {
+  const motionScale = isRhythmGameActive() ? 0.18 : 1;
+  deck.character.style.transform =
+    `translate(${(sway * 3 * motionScale).toFixed(2)}px, ${(-7 * beatP * motionScale).toFixed(2)}px)` +
+    ` rotate(${(sway * 1.8 * motionScale).toFixed(2)}deg)` +
+    ` scale(${(1 + 0.05 * beatP * motionScale).toFixed(4)}, ${(1 - 0.04 * beatP * motionScale).toFixed(4)})`;
+
+  const popTarget = deck.mouthPopped ? 1 : 0;
+  deck.barkPopVel += (popTarget - deck.barkPop) * 320 * dt;
+  deck.barkPopVel *= Math.exp(-13 * dt);
+  deck.barkPopVel = Math.max(-10, Math.min(10, deck.barkPopVel));
+  deck.barkPop += deck.barkPopVel * dt;
+  deck.inner.style.transform =
+    `scale(${(1 + 0.17 * deck.barkPop * motionScale).toFixed(4)})` +
+    ` rotate(${(-3.5 * deck.barkPop * motionScale).toFixed(2)}deg)`;
+
+  const holdTarget = deck.holding ? 1 : 0;
+  const tau = deck.holding ? 1.1 : 0.22;
+  deck.holdLevel +=
+    (holdTarget - deck.holdLevel) * (1 - Math.exp(-dt / tau));
+  const scaleTarget = 1 + 0.16 * deck.holdLevel * motionScale;
+  deck.jellyVel += (scaleTarget - deck.jellyScale) * 55 * dt;
+  deck.jellyVel *= Math.exp(-7 * dt);
+  deck.jellyScale += deck.jellyVel * dt;
+
+  const amp = 5 * deck.holdLevel * motionScale;
+  const jx =
+    (Math.sin(now * 120 + deck.slot) +
+      Math.sin(now * 197 + 1.7 + deck.slot) * 0.6) * amp * 0.55;
+  const jy =
+    (Math.cos(now * 128 + 0.6 + deck.slot) +
+      Math.sin(now * 233 + 3.1 + deck.slot) * 0.6) * amp * 0.55;
+  const jr =
+    (Math.sin(now * 108 + 2.2 + deck.slot) +
+      Math.sin(now * 181 + deck.slot) * 0.5) * 2.2 * deck.holdLevel * motionScale;
+  deck.jelly.style.transform =
+    `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
+    ` rotate(${jr.toFixed(2)}deg) scale(${deck.jellyScale.toFixed(4)})`;
+  deck.jelly.style.filter = deck.holdLevel > 0.004
+    ? `hue-rotate(${(-42 * deck.holdLevel * motionScale).toFixed(1)}deg)` +
+      ` saturate(${(1 + 0.7 * deck.holdLevel * motionScale).toFixed(3)})` +
+      ` brightness(${(1 + 0.04 * deck.holdLevel * motionScale).toFixed(3)})`
+    : '';
+}
+
 /* ============================================================
  * 节拍动画循环：大狗律动（压缩 + 晃动）+ 长按果冻动画 + 全屏特效
  * ==========================================================*/
@@ -2839,6 +8141,7 @@ function tick() {
   lastTick = now;
   const uiBeatPosition = getAudioBeatPosition();
   updateUiRhythm(uiBeatPosition);
+  if (started && ctx) updateRhythmGame(ctx.currentTime);
   if (hajimiAnimationEnabled && hajimiAnimationReady) {
     renderHajimiAnimationFrame(uiBeatPosition);
   }
@@ -2846,61 +8149,69 @@ function tick() {
   if (started && ctx) {
     const t = ctx.currentTime;
     updateSustainClaims(t);
+    updateDjTransport(t);
     const phase = (((t - startTime) / SPB) % 1 + 1) % 1;  // 当前拍内相位 0..1
     beatP = Math.pow(1 - phase, 2.4);                      // 拍头强、迅速衰减
 
     // 大狗律动：拍头向上跳 + 上下压缩（压扁拉伸），叠加两拍一周期的左右晃动
     const sway = Math.sin(((t - startTime) / (SPB * 2)) * Math.PI * 2);
-    dogEl.style.transform =
-      `translate(${(sway * 5).toFixed(2)}px, ${(-9 * beatP).toFixed(2)}px)` +
-      ` rotate(${(sway * 2.4).toFixed(2)}deg)` +
-      ` scale(${(1 + 0.06 * beatP).toFixed(4)}, ${(1 - 0.05 * beatP).toFixed(4)})`;
+    if (isDeckPerformanceMode()) {
+      for (const deck of djDecks) updateDjDeckCharacter(deck, now, dt, sway);
+    } else {
+      dogEl.style.transform =
+        `translate(${(sway * 5).toFixed(2)}px, ${(-9 * beatP).toFixed(2)}px)` +
+        ` rotate(${(sway * 2.4).toFixed(2)}deg)` +
+        ` scale(${(1 + 0.06 * beatP).toFixed(4)}, ${(1 - 0.05 * beatP).toFixed(4)})`;
+    }
   }
 
   /* ---------- 叫弹跳弹簧 ----------
    * 高刚度(320) + 低阻尼(13)：约 90ms 快速冲起、带过冲后果断定住；
    * 张嘴期间维持弹起，闭嘴快速弹回；每次队列发声时注入冲量，
    * 嘴张着也会重新弹一下。 */
-  const popTarget = mouthPopped ? 1 : 0;
-  barkPopVel += (popTarget - barkPop) * 320 * dt;
-  barkPopVel *= Math.exp(-13 * dt);
-  barkPopVel = Math.max(-10, Math.min(10, barkPopVel));
-  barkPop += barkPopVel * dt;
-  dogInner.style.transform =
-    `scale(${(1 + 0.17 * barkPop).toFixed(4)}) rotate(${(-3.5 * barkPop).toFixed(2)}deg)`;
+  if (!isDeckPerformanceMode()) {
+    const popTarget = mouthPopped ? 1 : 0;
+    barkPopVel += (popTarget - barkPop) * 320 * dt;
+    barkPopVel *= Math.exp(-13 * dt);
+    barkPopVel = Math.max(-10, Math.min(10, barkPopVel));
+    barkPop += barkPopVel * dt;
+    dogInner.style.transform =
+      `scale(${(1 + 0.17 * barkPop).toFixed(4)}) rotate(${(-3.5 * barkPop).toFixed(2)}deg)`;
 
   /* ---------- 长按果冻动画 ----------
    * holdLevel 缓慢累积（约 1.1s 时间常数），松手后快速回落；
    * 缩放走欠阻尼弹簧，起步和收尾都带 Q 弹过冲；
    * 抖动为 ~19Hz 高频，幅度随 holdLevel 增大并封顶。 */
-  const holdTarget = holding ? 1 : 0;
-  const tau = holding ? 1.1 : 0.22;
-  holdLevel += (holdTarget - holdLevel) * (1 - Math.exp(-dt / tau));
+    const holdTarget = holding ? 1 : 0;
+    const tau = holding ? 1.1 : 0.22;
+    holdLevel += (holdTarget - holdLevel) * (1 - Math.exp(-dt / tau));
 
-  const scaleTarget = 1 + 0.16 * holdLevel;                // 逐渐变大（最大 1.16，弹簧过冲略超）
-  jellyVel += (scaleTarget - jellyScale) * 55 * dt;
-  jellyVel *= Math.exp(-7 * dt);
-  jellyScale += jellyVel * dt;
+    const scaleTarget = 1 + 0.16 * holdLevel;                // 逐渐变大（最大 1.16，弹簧过冲略超）
+    jellyVel += (scaleTarget - jellyScale) * 55 * dt;
+    jellyVel *= Math.exp(-7 * dt);
+    jellyScale += jellyVel * dt;
 
-  const amp = 6 * holdLevel;                               // 抖动幅度渐大，封顶 6px
-  const jx = (Math.sin(now * 120) + Math.sin(now * 197 + 1.7) * 0.6) * amp * 0.55;
-  const jy = (Math.cos(now * 128 + 0.6) + Math.sin(now * 233 + 3.1) * 0.6) * amp * 0.55;
-  const jr = (Math.sin(now * 108 + 2.2) + Math.sin(now * 181) * 0.5) * 2.4 * holdLevel;
-  dogJelly.style.transform =
-    `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
-    ` rotate(${jr.toFixed(2)}deg) scale(${jellyScale.toFixed(4)})`;
+    const amp = 6 * holdLevel;                               // 抖动幅度渐大，封顶 6px
+    const jx = (Math.sin(now * 120) + Math.sin(now * 197 + 1.7) * 0.6) * amp * 0.55;
+    const jy = (Math.cos(now * 128 + 0.6) + Math.sin(now * 233 + 3.1) * 0.6) * amp * 0.55;
+    const jr = (Math.sin(now * 108 + 2.2) + Math.sin(now * 181) * 0.5) * 2.4 * holdLevel;
+    dogJelly.style.transform =
+      `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
+      ` rotate(${jr.toFixed(2)}deg) scale(${jellyScale.toFixed(4)})`;
 
   // 颜色逐渐变红（黄色图 hue-rotate 负角度 → 红，辅以饱和提升）
-  if (holdLevel > 0.004) {
-    dogJelly.style.filter =
-      `hue-rotate(${(-42 * holdLevel).toFixed(1)}deg)` +
-      ` saturate(${(1 + 0.7 * holdLevel).toFixed(3)})` +
-      ` brightness(${(1 + 0.04 * holdLevel).toFixed(3)})`;
-  } else {
-    dogJelly.style.filter = '';
+    if (holdLevel > 0.004) {
+      dogJelly.style.filter =
+        `hue-rotate(${(-42 * holdLevel).toFixed(1)}deg)` +
+        ` saturate(${(1 + 0.7 * holdLevel).toFixed(3)})` +
+        ` brightness(${(1 + 0.04 * holdLevel).toFixed(3)})`;
+    } else {
+      dogJelly.style.filter = '';
+    }
   }
 
   fxFrame(now);
+  drawTouchTrails(touchTrailNow());
 }
 
 /* ============================================================
@@ -2909,6 +8220,7 @@ function tick() {
 function retuneHeldJiao(pointerId, state, zi) {
   const z = zones[zi];
   if (!z || z.sample !== 'jiao' || !state.voice) return false;
+  if ((state.voice.deckId ?? null) !== (z.deckId ?? null)) return false;
   if (!isRetunableSustainVoice(state.voice)) return false;
 
   state.zone = zi;
@@ -2920,6 +8232,8 @@ function retuneHeldJiao(pointerId, state, zi) {
 
 function enterZone(pointerId, state, zi) {
   if (zi === state.zone) return;
+  handleRhythmGameHoldZoneChange(pointerId, zi);
+  pulseTouchTrail(pointerId);
   if (retuneHeldJiao(pointerId, state, zi)) return;
 
   if (state.voice) {
@@ -2958,6 +8272,9 @@ function tryActivate(pointerId, x, y, state) {
 
 stage.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (djTransport.phase === 'playing') return;
+  if (rhythmGame.autoplay && isRhythmGameActive()) return;
+  beginTouchTrail(e.pointerId, e.clientX, e.clientY);
   if (!started || !buffers.da) {
     pointers.set(e.pointerId, {
       zone: -1,
@@ -2967,9 +8284,9 @@ stage.addEventListener('pointerdown', (e) => {
       lastY: e.clientY,
     });
     hideControlsUntilIdle();
-    start();
     return;
   }
+  judgeRhythmGameInput(zoneIndex(e.clientX, e.clientY), e.pointerId);
   try { stage.setPointerCapture(e.pointerId); } catch (_) { /* 某些旧浏览器不支持 */ }
   pointers.set(
     e.pointerId,
@@ -2979,8 +8296,9 @@ stage.addEventListener('pointerdown', (e) => {
 
 stage.addEventListener('pointermove', (e) => {
   if (!pointers.has(e.pointerId)) return;
-  if (!started || !buffers.da) return;
   e.preventDefault();
+  moveTouchTrail(e.pointerId, e.clientX, e.clientY);
+  if (!started || !buffers.da) return;
   pointers.set(
     e.pointerId,
     tryActivate(
@@ -2992,15 +8310,21 @@ stage.addEventListener('pointermove', (e) => {
   );
 }, { passive: false });
 
-function endPointer(e, musical) {
-  const state = pointers.get(e.pointerId);
+function endInput(pointerId, musical) {
+  releaseTouchTrail(pointerId);
+  releaseRhythmGameHold(pointerId, !musical);
+  const state = pointers.get(pointerId);
   if (state && state.voice) {
     if (musical) releaseVoice(state.voice, true);
     else forceStopVoice(state.voice);
   }
-  if (!musical) cancelQueuedInputs(e.pointerId);
-  pointers.delete(e.pointerId);
+  if (!musical) cancelQueuedInputs(pointerId);
+  pointers.delete(pointerId);
   if (pointers.size === 0) hideControlsUntilIdle();
+}
+
+function endPointer(e, musical) {
+  endInput(e.pointerId, musical);
   try {
     if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
   } catch (_) { /* 指针捕获可能已经自动释放 */ }
@@ -3008,40 +8332,159 @@ function endPointer(e, musical) {
 
 window.addEventListener('pointerup', (e) => endPointer(e, true));
 window.addEventListener('pointercancel', (e) => endPointer(e, false));
-window.addEventListener('blur', () => {
-  inputQueue.length = 0;
-  clearInputVisualTimers();
-  pointers.clear();
-  for (const voice of [...liveVoices]) forceStopVoice(voice);
-});
+
+function routeRhythmGameKeyboardSlide(zoneIndexValue) {
+  const zone = zones[zoneIndexValue];
+  const zoneKey = getRhythmGameZoneKey(zone);
+  if (!zoneKey) return false;
+  for (const [inputId, note] of rhythmGame.activeHolds.entries()) {
+    if (!inputId.startsWith('keyboard:') || note.slideTargets.length === 0) {
+      continue;
+    }
+    if (zone.deckSlot !== note.deckSlot) continue;
+    const state = pointers.get(inputId);
+    if (!state) return false;
+    const slideTarget = note.slideTargets[note.nextSlideIndex];
+    if (slideTarget?.zoneKey === zoneKey) {
+      enterZone(inputId, state, zoneIndexValue);
+    } else {
+      releaseRhythmGameHold(inputId, true);
+    }
+    return true;
+  }
+  return false;
+}
+
+function beginKeyboardInput(code) {
+  const zi = keyboardZoneByCode.get(code);
+  if (!Number.isInteger(zi)) return;
+  if (routeRhythmGameKeyboardSlide(zi)) return;
+  const pointerId = `keyboard:${code}`;
+  if (pointers.has(pointerId)) return;
+  judgeRhythmGameInput(zi, pointerId);
+  const state = {
+    zone: -1,
+    voice: null,
+    pendingEntryId: null,
+    lastX: 0,
+    lastY: 0,
+  };
+  pointers.set(pointerId, state);
+  enterZone(pointerId, state, zi);
+}
+
+function handleKeyboardDown(event) {
+  if (
+    !isDeckPerformanceMode() ||
+    djTransport.phase === 'playing' ||
+    settingsOpen ||
+    djRecorderOpen ||
+    (rhythmGame.autoplay && isRhythmGameActive()) ||
+    !keyboardZoneByCode.has(event.code)
+  ) return;
+
+  event.preventDefault();
+  if (event.repeat || pressedKeyboardCodes.has(event.code)) return;
+  pressedKeyboardCodes.add(event.code);
+  hideControlsUntilIdle();
+  void start().then((ready) => {
+    if (ready && pressedKeyboardCodes.has(event.code)) {
+      beginKeyboardInput(event.code);
+    }
+  });
+}
+
+function handleKeyboardUp(event) {
+  const pointerId = `keyboard:${event.code}`;
+  if (!pressedKeyboardCodes.has(event.code) && !pointers.has(pointerId)) return;
+  event.preventDefault();
+  pressedKeyboardCodes.delete(event.code);
+  endInput(pointerId, true);
+}
+
+function handleWindowBlur() {
+  for (const inputId of [...rhythmGame.activeHolds.keys()]) {
+    releaseRhythmGameHold(inputId, true);
+  }
+  stopActivePerformanceInput();
+}
+
+window.addEventListener('keydown', handleKeyboardDown);
+window.addEventListener('keyup', handleKeyboardUp);
+window.addEventListener('blur', handleWindowBlur);
 
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 
 /* ============================================================
  * 启动
  * ==========================================================*/
-async function start() {
-  if (started) return;
-  started = true;
-  hideControlsUntilIdle();
-  subEl.textContent = '狗 叫 加 载 中 …';
-
-  initAudio();
-  if (ctx.state === 'suspended') await ctx.resume();
-  await loadSamples();
-
-  startTime = ctx.currentTime + 0.12;
-  nextNoteTime = startTime;
-  lastCommittedInputTime = -Infinity;
-  inputQueue.length = 0;
-  stepCount = 0;
-  setInterval(scheduler, 25);
-
-  overlay.classList.add('hide');
+async function resumeAudioContextForStart() {
+  if (ctx.state === 'running') return;
+  let timeoutId = 0;
+  try {
+    await Promise.race([
+      Promise.resolve(ctx.resume()),
+      new Promise((_, reject) => {
+        timeoutId = window.setTimeout(() => {
+          reject(new Error('AudioContext resume timed out'));
+        }, AUDIO_CONTEXT_RESUME_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+  if (ctx.state !== 'running') {
+    throw new Error(`AudioContext remained ${ctx.state}`);
+  }
 }
+
+async function start() {
+  if (startPromise) return startPromise;
+  started = true;
+  startPromise = (async () => {
+    try {
+      hideControlsUntilIdle();
+      subEl.textContent = LOADING_MESSAGES[
+        Math.floor(Math.random() * LOADING_MESSAGES.length)
+      ];
+
+      if (!ctx) initAudio();
+      await resumeAudioContextForStart();
+      await loadSamples();
+
+      startTime = ctx.currentTime + 0.12;
+      nextNoteTime = startTime;
+      lastCommittedInputTime = -Infinity;
+      lastCommittedDjInputTimes.clear();
+      inputQueue.length = 0;
+      stepCount = 0;
+      setInterval(scheduler, 25);
+
+      overlay.classList.add('hide');
+      return true;
+    } catch (error) {
+      started = false;
+      startPromise = null;
+      overlay.classList.remove('hide');
+      subEl.textContent = '音频未启动 · 再点一次重试';
+      console.error('[大狗Tap] 音频启动失败。', error);
+      return false;
+    }
+  })();
+  return startPromise;
+}
+
+// 触摸设备在 pointerup/click 才获得媒体播放所需的用户激活。
+overlay.addEventListener('pointerup', (event) => {
+  event.preventDefault();
+  void start().then((ready) => {
+    if (ready) void playPendingDjShareLink();
+  });
+});
 
 let resizeTimer = 0;
 function handleLayoutResize() {
+  renderLandscapePerformancePreference();
   fxResize();
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(buildGrid, 150);
@@ -3052,8 +8495,11 @@ if (window.ResizeObserver) {
   stageResizeObserver.observe(stage);
 }
 
+loadDjLibrary();
+prepareDjShareLinkPlayback();
 buildGrid();
 fxResize();
+renderLandscapePerformancePreference();
 updateMuteButton(musicToggle, bgmMuted, '音乐');
 updateMuteButton(sfxToggle, sfxMuted, '音效');
 showControls();

@@ -97,7 +97,18 @@ vm.runInNewContext(
   let rows = 3;
   let zones = [];
   let selectedSfxId = 'dagou';
-  const performanceSettings = { pianoMode: false };
+  let djLandscape = true;
+  const keyboardZoneByCode = new Map();
+  const pointers = new Map();
+  function stopActivePerformanceInput() { pointers.clear(); }
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    pianoMode: false,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   let stageMetrics = { width: 1200, height: 800 };
   function getStageMetrics() { return stageMetrics; }
   ${declarations}

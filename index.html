@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#fff2dc" />
-<title>大狗Tap</title>
+<title>大狗Tap DJ版</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐶</text></svg>" />
 <script src="//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js"></script>
 <style>
@@ -45,19 +45,39 @@
     inset: 0;
     z-index: 3;
     pointer-events: none;
+    transition: opacity .16s linear;
   }
 
-  /* 常驻作者署名：始终位于页面最前层。
-     两行严格等宽；Created by 整体跟拍，MarkCup 每拍依次放大一个字母。 */
-  #author-link {
+  /* 多指跟手层：位于角色和网格之上，每个触点独立绘制圆环与短尾迹。 */
+  #touch-fx {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    transition: opacity .16s linear;
+  }
+  #stage.is-rhythm-game #fx { opacity: .9; }
+  #stage.is-rhythm-game #touch-fx { opacity: .76; }
+
+  /* 常驻创作署名：保留原作者入口，并补充 DJ 版改编者。 */
+  #author-credits {
     position: absolute;
     right: max(18px, env(safe-area-inset-right));
     bottom: max(16px, env(safe-area-inset-bottom));
     z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+    pointer-events: none;
+  }
+  #author-link {
+    position: relative;
     padding: 10px 12px 11px;
     display: block;
     text-decoration: none;
     cursor: pointer;
+    pointer-events: auto;
     touch-action: manipulation;
     transition: transform .22s ease;
   }
@@ -102,12 +122,42 @@
     transform-origin: 50% 72%;
     will-change: transform;
   }
+  #dj-author-link {
+    width: 148px;
+    margin-top: -8px;
+    padding: 4px 12px 7px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    color: rgba(135, 131, 126, .82);
+    font: 700 8px/1 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    letter-spacing: .04em;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: manipulation;
+    transition: color .22s ease, transform .22s ease;
+  }
+  .dj-author-name {
+    color: var(--amber);
+    font-size: 10px;
+    letter-spacing: .02em;
+    text-transform: none;
+  }
   @media (hover: hover) {
     #author-link:hover { transform: translateY(-2px); }
     #author-link:hover .author-label,
     #author-link:hover .author-name { color: #d88f00; }
+    #dj-author-link:hover {
+      color: #d88f00;
+      transform: translateY(-1px);
+    }
+    #dj-author-link:hover .dj-author-name { color: #d88f00; }
   }
-  #author-link:focus-visible {
+  #author-link:focus-visible,
+  #dj-author-link:focus-visible {
     outline: 2px solid rgba(62, 123, 250, .35);
     outline-offset: 2px;
   }
@@ -116,14 +166,14 @@
   #zoneflash {
     position: absolute;
     inset: 0;
-    z-index: 5;
+    z-index: 8;
     pointer-events: none;
   }
   /* 可选的按键网格：默认透明，开启后只显示边界，不改变原有白色触发闪光。 */
   #key-grid {
     position: absolute;
     inset: 0;
-    z-index: 4;
+    z-index: 7;
     display: grid;
     grid-template-columns: repeat(var(--key-grid-cols, 4), minmax(0, 1fr));
     grid-template-rows: repeat(var(--key-grid-rows, 3), minmax(0, 1fr));
@@ -133,8 +183,37 @@
   }
   #key-grid.is-visible { opacity: 1; }
   .key-grid-cell {
+    position: relative;
     box-shadow: inset 0 0 0 1px rgba(135, 131, 126, .24);
     background: rgba(255, 255, 255, .025);
+  }
+  #key-grid.is-dj-grid .key-grid-cell {
+    box-shadow: inset 0 0 0 1px rgba(135, 131, 126, .28);
+    background: rgba(255, 255, 255, .045);
+  }
+  #key-grid.is-dj-grid .key-grid-cell.is-deck-start-landscape {
+    border-left: 3px solid rgba(255, 180, 0, .72);
+  }
+  #key-grid.is-dj-grid .key-grid-cell.is-deck-start-portrait {
+    border-top: 3px solid rgba(255, 180, 0, .72);
+  }
+  .key-grid-key {
+    position: absolute;
+    top: 7px;
+    left: 8px;
+    min-width: 22px;
+    padding: 3px 5px;
+    color: rgba(111, 106, 99, .78);
+    background: rgba(255, 250, 240, .8);
+    border: 1px solid rgba(135, 131, 126, .28);
+    border-radius: 5px;
+    font: 700 10px/1 system-ui, sans-serif;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(135, 131, 126, .14);
+    opacity: 0;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    #key-grid.is-dj-grid .key-grid-key { opacity: 1; }
   }
   .zone-flash {
     position: absolute;
@@ -146,6 +225,384 @@
   @keyframes zoneFade {
     0%   { opacity: .45; }
     100% { opacity: 0; }
+  }
+  #stage.is-rhythm-game .zone-flash {
+    --rhythm-zone-fill: rgba(255, 180, 0, .42);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: var(--rhythm-zone-fill);
+    border-radius: 8px;
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 255, 255, .68),
+      inset 0 0 26px rgba(255, 255, 255, .28);
+    animation: rhythmZoneFade .38s ease-out forwards;
+  }
+  #stage.is-rhythm-game .zone-flash[data-sfx="hajimi"] {
+    --rhythm-zone-fill: rgba(22, 194, 163, .38);
+  }
+  #stage.is-rhythm-game .zone-flash[data-sfx="dingdong"] {
+    --rhythm-zone-fill: rgba(62, 123, 250, .36);
+  }
+  .rhythm-zone-image {
+    width: min(72%, 110px);
+    height: 76%;
+    object-fit: contain;
+    opacity: .9;
+    filter: drop-shadow(0 6px 10px rgba(111, 106, 99, .24));
+    animation: rhythmZoneImagePop .38s ease-out forwards;
+  }
+  @keyframes rhythmZoneFade {
+    0%   { opacity: .96; }
+    28%  { opacity: .82; }
+    100% { opacity: 0; }
+  }
+  @keyframes rhythmZoneImagePop {
+    0%   { transform: scale(.72); }
+    32%  { transform: scale(1); }
+    100% { transform: translateY(-4px) scale(.92); }
+  }
+
+  /* 音游提示层沿用当前全局网格，收缩的八边形在拍点落到目标区域。 */
+  #rhythm-game-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 35;
+    display: none;
+    pointer-events: none;
+  }
+  #rhythm-game-layer.is-visible { display: block; }
+  #rhythm-game-cues {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(var(--rhythm-game-cols, 12), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--rhythm-game-rows, 3), minmax(0, 1fr));
+    pointer-events: none;
+  }
+  .rhythm-game-note {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    opacity: var(--rhythm-note-opacity, 0);
+  }
+  .rhythm-game-note-target {
+    position: relative;
+    width: clamp(42px, 7.2vmin, 74px);
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    color: #765300;
+    background: var(--amber);
+    clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+    filter: drop-shadow(0 3px 7px rgba(135, 94, 0, .18));
+    transform: scale(var(--rhythm-note-scale, 1));
+    will-change: transform, opacity;
+  }
+  .rhythm-game-note-target::before {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    background: rgba(255, 250, 240, .9);
+    clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+  }
+  .rhythm-game-note.is-slide .rhythm-game-note-target::after {
+    content: "↝";
+    position: absolute;
+    z-index: 2;
+    left: 5px;
+    top: 4px;
+    color: #087d6b;
+    font: 950 11px/1 system-ui, sans-serif;
+  }
+  .rhythm-game-note-emoji {
+    position: relative;
+    z-index: 1;
+    font-size: clamp(18px, 3vmin, 30px);
+    line-height: 1;
+  }
+  .rhythm-game-note-key {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    z-index: 2;
+    min-width: 17px;
+    padding: 2px 3px;
+    border-radius: 4px;
+    color: rgba(111, 106, 99, .82);
+    background: rgba(255, 255, 255, .82);
+    font: 800 8px/1 system-ui, sans-serif;
+    text-align: center;
+  }
+  .rhythm-game-note-kind {
+    position: absolute;
+    left: 50%;
+    bottom: -17px;
+    z-index: 3;
+    min-width: 34px;
+    padding: 3px 5px;
+    border-radius: 999px;
+    color: #765300;
+    background: rgba(255, 250, 240, .94);
+    border: 1px solid rgba(255, 180, 0, .62);
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+  .rhythm-game-note:not(.is-hold) .rhythm-game-note-kind { display: none; }
+  .rhythm-game-note.is-holding .rhythm-game-note-target {
+    background: conic-gradient(
+      var(--teal) var(--rhythm-hold-progress, 100%),
+      rgba(135, 131, 126, .28) 0
+    );
+    filter: drop-shadow(0 0 12px rgba(22, 194, 163, .42));
+  }
+  .rhythm-game-note.is-holding .rhythm-game-note-kind {
+    color: #087d6b;
+    border-color: rgba(22, 194, 163, .62);
+  }
+  .rhythm-game-note.is-release-due .rhythm-game-note-target {
+    filter: drop-shadow(0 0 16px rgba(255, 90, 95, .72));
+  }
+  .rhythm-game-note.is-release-due .rhythm-game-note-kind {
+    color: #a43a3e;
+    border-color: rgba(255, 90, 95, .68);
+  }
+  .rhythm-game-note.is-slide-due .rhythm-game-note-target {
+    filter: drop-shadow(0 0 17px rgba(22, 194, 163, .82));
+  }
+  .rhythm-game-note.is-slide-due .rhythm-game-note-kind {
+    color: #087d6b;
+    border-color: rgba(22, 194, 163, .78);
+    background: rgba(231, 255, 248, .96);
+  }
+  .rhythm-game-note.is-due .rhythm-game-note-target {
+    filter: drop-shadow(0 0 12px rgba(255, 180, 0, .88));
+  }
+  .rhythm-game-note.is-perfect .rhythm-game-note-target { background: var(--amber); }
+  .rhythm-game-note.is-good .rhythm-game-note-target { background: var(--teal); }
+  .rhythm-game-note.is-miss .rhythm-game-note-target { background: var(--coral); }
+  .rhythm-game-note.is-judged .rhythm-game-note-target {
+    animation: rhythmNoteJudged .18s ease-out forwards;
+  }
+  @keyframes rhythmNoteJudged {
+    0% { opacity: 1; transform: scale(1); }
+    45% { opacity: .88; transform: scale(1.06); }
+    100% { opacity: 0; transform: scale(.88); }
+  }
+
+  #rhythm-game-hud {
+    position: absolute;
+    z-index: 1;
+    top: max(14px, env(safe-area-inset-top));
+    left: 50%;
+    width: min(430px, calc(100% - 380px));
+    min-width: 320px;
+    min-height: 46px;
+    padding: 7px 9px 7px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .93);
+    border: 2px solid rgba(255, 180, 0, .6);
+    border-radius: 12px;
+    box-shadow: 0 7px 20px rgba(135, 131, 126, .2);
+    transform: translateX(-50%);
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  #rhythm-game-auto-badge {
+    flex: none;
+    padding: 5px 7px;
+    border-radius: 7px;
+    color: #fffaf0;
+    background: #0c967f;
+    font: 950 9px/1 system-ui, sans-serif;
+    letter-spacing: .08em;
+    box-shadow: 0 3px 8px rgba(12, 150, 127, .24);
+  }
+  .rhythm-game-hud-item {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  .rhythm-game-hud-item span {
+    color: rgba(135, 131, 126, .76);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+  .rhythm-game-hud-item strong {
+    color: #b57e00;
+    font: 900 14px/1 system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  #rhythm-game-end {
+    min-width: 46px;
+    min-height: 30px;
+    padding: 5px 9px;
+    border: 1px solid rgba(135, 131, 126, .34);
+    border-radius: 8px;
+    color: #77716b;
+    background: rgba(255, 255, 255, .76);
+    font: 750 10px/1 system-ui, sans-serif;
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: manipulation;
+  }
+  #rhythm-game-countdown,
+  #rhythm-game-judgement {
+    position: absolute;
+    z-index: 3;
+    left: 50%;
+    top: 50%;
+    color: #b57e00;
+    font-weight: 950;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 5px 18px rgba(255, 180, 0, .26);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  #rhythm-game-countdown {
+    font-size: clamp(72px, 18vmin, 160px);
+  }
+  #rhythm-game-judgement {
+    top: max(66px, calc(env(safe-area-inset-top) + 56px));
+    min-width: 0;
+    padding: 5px 9px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: rgba(255, 250, 240, .86);
+    font-size: 11px;
+    letter-spacing: .04em;
+    text-shadow: none;
+    opacity: 0;
+  }
+  #rhythm-game-judgement.is-visible {
+    animation: rhythmJudgement .26s linear forwards;
+  }
+  #rhythm-game-judgement.is-good { color: #0c967f; }
+  #rhythm-game-judgement.is-miss,
+  #rhythm-game-judgement.is-wrong { color: #c9474c; }
+  @keyframes rhythmJudgement {
+    0% { opacity: 0; transform: translate(-50%, -50%); }
+    20% { opacity: .92; transform: translate(-50%, -50%); }
+    100% { opacity: 0; transform: translate(-50%, -56%); }
+  }
+
+  #rhythm-game-results {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    display: none;
+    place-items: center;
+    padding: 24px;
+    background: rgba(255, 242, 220, .78);
+    pointer-events: auto;
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+  }
+  #rhythm-game-layer.is-results #rhythm-game-results { display: grid; }
+  .rhythm-game-result-card {
+    width: min(360px, 100%);
+    padding: 22px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .98);
+    border: 2px solid rgba(255, 180, 0, .68);
+    border-radius: 18px;
+    box-shadow: 0 16px 42px rgba(135, 131, 126, .28);
+    text-align: center;
+  }
+  #rhythm-game-result-grade {
+    color: var(--amber);
+    font: 950 clamp(64px, 13vmin, 104px)/.9 system-ui, sans-serif;
+  }
+  .rhythm-game-result-title {
+    margin-top: 7px;
+    color: #765300;
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: .12em;
+  }
+  #rhythm-game-result-score {
+    margin-top: 7px;
+    color: #b57e00;
+    font: 900 26px/1.2 system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .rhythm-game-result-stats {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .rhythm-game-result-stat {
+    padding: 8px;
+    border-radius: 9px;
+    background: rgba(255, 244, 224, .72);
+    font-size: 10px;
+  }
+  .rhythm-game-result-stat strong {
+    display: block;
+    margin-top: 3px;
+    color: #6f6a63;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rhythm-game-result-actions {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .rhythm-game-result-actions button {
+    min-height: 42px;
+    border: 1px solid rgba(135, 131, 126, .34);
+    border-radius: 10px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .82);
+    font: 800 12px/1 system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #rhythm-game-retry {
+    color: #765300;
+    border-color: rgba(255, 180, 0, .72);
+    background: rgba(255, 190, 35, .2);
+  }
+  #stage.is-rhythm-game #author-credits {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #stage.is-rhythm-game #top-controls {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+  #stage.is-rhythm-game #top-controls .control-button {
+    pointer-events: none !important;
+  }
+  @media (max-width: 900px) {
+    #rhythm-game-hud {
+      width: min(410px, calc(100% - 28px));
+      min-width: 0;
+      gap: 10px;
+    }
+    .rhythm-game-note-key { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rhythm-game-note.is-judged .rhythm-game-note-target,
+    #rhythm-game-judgement.is-visible { animation-duration: .12s; }
   }
 
   /* 大狗 */
@@ -217,6 +674,111 @@
     visibility: visible;
   }
 
+  /* DJ 舞台：横屏并排、竖屏堆叠；每台 Deck 保留完整 4 × 3 网格。 */
+  #dj-stage {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: none;
+    pointer-events: none;
+  }
+  #stage.is-dj-mode #dog {
+    opacity: 0;
+    visibility: hidden;
+  }
+  #stage.is-dj-mode #dj-stage { display: grid; }
+  #dj-stage.is-landscape {
+    grid-template-columns: repeat(var(--dj-deck-count, 2), minmax(0, 1fr));
+  }
+  #dj-stage.is-portrait {
+    grid-template-rows: repeat(var(--dj-deck-count, 2), minmax(0, 1fr));
+  }
+  #dj-stage.is-landscape .dj-deck + .dj-deck {
+    border-left: 3px solid rgba(255, 180, 0, .42);
+  }
+  #dj-stage.is-portrait .dj-deck + .dj-deck {
+    border-top: 3px solid rgba(255, 180, 0, .42);
+  }
+  .dj-deck {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    background: linear-gradient(145deg, rgba(255, 255, 255, .06), rgba(255, 180, 0, .035));
+  }
+  .dj-deck-label {
+    position: absolute;
+    left: 50%;
+    bottom: max(11px, env(safe-area-inset-bottom));
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 9px;
+    color: rgba(111, 106, 99, .78);
+    background: rgba(255, 250, 240, .78);
+    border: 1px solid rgba(255, 180, 0, .34);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translateX(-50%);
+  }
+  .dj-deck-label strong {
+    color: #c48800;
+    font-size: 9px;
+    letter-spacing: .1em;
+  }
+  .dj-character {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: 50% 62%;
+    will-change: transform;
+  }
+  .dj-character-inner {
+    position: relative;
+    width: min(58%, 190px);
+    max-height: 72%;
+    will-change: transform;
+  }
+  .dj-character-jelly {
+    position: relative;
+    will-change: transform, filter;
+  }
+  .dj-character img {
+    width: 100%;
+    max-height: 100%;
+    display: block;
+    object-fit: contain;
+    filter: drop-shadow(0 12px 25px rgba(135, 131, 126, .32));
+  }
+  .dj-character-open {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    transition: opacity .08s linear;
+  }
+  .dj-character-inner.bark-image .dj-character-open { opacity: 1; }
+  .dj-character-inner.is-hajimi .dj-character-open {
+    visibility: hidden;
+    transition: none;
+  }
+  .dj-character-inner.is-hajimi.bark-image .dj-character-close { visibility: hidden; }
+  .dj-character-inner.is-hajimi.bark-image .dj-character-open {
+    visibility: visible;
+    opacity: 1;
+  }
+  @media (max-height: 620px), (max-width: 620px) {
+    .dj-character-inner { width: min(52%, 150px); }
+    .dj-deck-label { bottom: 7px; }
+  }
+
   /* 顶部控制：互动时隐藏，闲置 2 秒后由 JS 淡入 */
   #top-controls {
     position: absolute;
@@ -262,6 +824,22 @@
   .control-group {
     display: flex;
     gap: 8px;
+  }
+  #shortcut-toggle {
+    display: none;
+    min-width: 126px;
+  }
+  #shortcut-toggle[aria-pressed="true"] {
+    --btn-edge: rgba(255, 180, 0, .88);
+    --btn-fill: rgba(255, 250, 240, .97);
+    color: #b57e00;
+  }
+  #shortcut-toggle:disabled {
+    opacity: .52;
+    cursor: default;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    #shortcut-toggle { display: inline-flex; }
   }
   /* 几何化切角按钮：八边形轮廓呼应全屏几何特效（hexagon / diamond 粒子）。
      按钮本体背景充当“描边色”，::before 用缩小一号的同款切角多边形铺底色，
@@ -319,6 +897,26 @@
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+  .control-button .control-glyph {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    font: 900 9px/1 system-ui, sans-serif;
+    letter-spacing: -.04em;
+  }
+  #stereo-audio-toggle[aria-checked="true"] {
+    --btn-edge: rgba(255, 180, 0, .88);
+    --btn-fill: rgba(255, 250, 240, .97);
+    color: #b57e00;
+  }
+  #stereo-audio-toggle:disabled {
+    opacity: .58;
+    cursor: wait;
   }
   .control-button .mute-slash {
     opacity: 0;
@@ -403,11 +1001,13 @@
       padding-inline: 10px;
     }
     .control-button span { display: none; }
-    #author-link {
+    #author-credits {
       right: max(10px, env(safe-area-inset-right));
       bottom: max(10px, env(safe-area-inset-bottom));
-      min-width: 0;
       max-width: calc(100% - 20px);
+    }
+    #author-link {
+      min-width: 0;
       padding: 8px 9px 7px 12px;
     }
     .author-copy { width: 106px; }
@@ -416,6 +1016,13 @@
       margin-left: -2px;
       font-size: 15px;
     }
+    #dj-author-link {
+      width: 127px;
+      margin-top: -5px;
+      padding: 4px 9px 6px 12px;
+      font-size: 7px;
+    }
+    .dj-author-name { font-size: 9px; }
   }
 
   /* 开始遮罩（首次点击解锁音频） */
@@ -440,6 +1047,14 @@
     color: var(--amber);
   }
   #overlay .title em { font-style: normal; color: var(--gray); }
+  #overlay .title-edition {
+    display: inline-block;
+    margin-left: .22em;
+    color: var(--amber);
+    font-size: .42em;
+    letter-spacing: .12em;
+    vertical-align: .3em;
+  }
   #overlay .sub {
     font-size: clamp(13px, 2.4vmin, 18px);
     letter-spacing: .5em;
@@ -447,6 +1062,112 @@
     animation: pulse 1.6s ease-in-out infinite;
   }
   @keyframes pulse { 50% { opacity: .35; } }
+
+  /* 横屏演奏门：位于舞台之外，竖屏时保留重试与退出入口。 */
+  #landscape-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(24px, env(safe-area-inset-top))
+             max(24px, env(safe-area-inset-right))
+             max(24px, env(safe-area-inset-bottom))
+             max(24px, env(safe-area-inset-left));
+    color: #6f6a63;
+    background: rgba(255, 242, 220, .97);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity .24s ease, visibility 0s linear .24s;
+  }
+  #landscape-gate.is-visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition-delay: 0s;
+  }
+  .landscape-gate-card {
+    width: min(330px, 100%);
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+  .landscape-turn-device {
+    position: relative;
+    width: 48px;
+    height: 82px;
+    border: 4px solid var(--amber);
+    border-radius: 11px;
+    box-shadow: inset 0 0 0 3px rgba(255, 180, 0, .12),
+                0 9px 22px rgba(135, 131, 126, .2);
+    animation: turnDeviceLandscape 1.8s cubic-bezier(.2, .8, .2, 1) infinite;
+  }
+  .landscape-turn-device::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 5px;
+    width: 14px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--amber);
+    transform: translateX(-50%);
+  }
+  .landscape-gate-title {
+    color: #b57e00;
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: .12em;
+  }
+  .landscape-gate-copy {
+    max-width: 280px;
+    color: rgba(111, 106, 99, .84);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .landscape-gate-actions {
+    width: min(240px, 100%);
+    display: grid;
+    gap: 8px;
+  }
+  #landscape-gate-retry,
+  #landscape-gate-disable {
+    min-height: 40px;
+    padding: 8px 18px;
+    border: 1px solid rgba(135, 131, 126, .34);
+    border-radius: 10px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .88);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #landscape-gate-retry {
+    border-color: rgba(255, 180, 0, .72);
+    color: #765300;
+    background: rgba(255, 190, 35, .2);
+  }
+  #landscape-gate-retry:disabled {
+    opacity: .58;
+    cursor: wait;
+  }
+  #landscape-gate-retry:focus-visible,
+  #landscape-gate-disable:focus-visible {
+    outline: 3px solid rgba(62, 123, 250, .34);
+    outline-offset: 3px;
+  }
+  @keyframes turnDeviceLandscape {
+    0%, 22% { transform: rotate(0deg); }
+    64%, 100% { transform: rotate(90deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landscape-turn-device { animation: none; transform: rotate(90deg); }
+  }
 
   /* 设置菜单：与开始遮罩同款的半透明米白背景，盖在所有常驻元素之上 */
   #settings-overlay {
@@ -526,6 +1247,7 @@
   }
   .settings-section { margin-top: 10px; }
   .settings-section:first-of-type { margin-top: 0; }
+  #mobile-display-settings-section[hidden] { display: none; }
   .settings-label {
     margin-bottom: 6px;
     font-size: 10px;
@@ -660,11 +1382,703 @@
   }
   #performance-settings-status.is-error { color: #9e4145; }
 
+  /* DJ 配置：选择 Deck 数量，并为左/中/右 Deck 绑定独立音色。 */
+  .dj-settings,
+  .rhythm-game-settings {
+    display: none;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 9px;
+    background: rgba(255, 244, 224, .54);
+    border: 1px solid rgba(255, 180, 0, .28);
+    border-radius: 10px;
+  }
+  .dj-settings.is-visible,
+  .rhythm-game-settings.is-visible { display: grid; }
+  .dj-count,
+  .rhythm-game-lane-count {
+    display: grid;
+    gap: 6px;
+  }
+  .dj-count { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rhythm-game-lane-count {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .dj-count-button,
+  .rhythm-game-lane-button,
+  .dj-sfx-choice,
+  .dj-trail-choice {
+    border: 1px solid rgba(135, 131, 126, .32);
+    color: #77716b;
+    background: rgba(255, 255, 255, .66);
+    font: 700 11px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: color .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .dj-count-button {
+    min-height: 34px;
+    border-radius: 8px;
+  }
+  .rhythm-game-lane-button {
+    min-height: 34px;
+    border-radius: 8px;
+  }
+  .dj-count-button.is-active,
+  .rhythm-game-lane-button.is-active,
+  .dj-sfx-choice.is-active,
+  .dj-trail-choice.is-active {
+    color: #b57e00;
+    border-color: rgba(255, 180, 0, .78);
+    background: rgba(255, 250, 240, .96);
+  }
+  .dj-count-button:disabled,
+  .rhythm-game-lane-button:disabled,
+  .dj-sfx-choice:disabled,
+  .dj-trail-choice:disabled {
+    opacity: .52;
+    cursor: wait;
+  }
+  .dj-trail-setting {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+  .dj-trail-label {
+    color: rgba(111, 106, 99, .8);
+    font-size: 10px;
+    font-weight: 800;
+  }
+  .dj-trail-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .dj-trail-choice {
+    min-height: 34px;
+    border-radius: 8px;
+  }
+  .dj-trail-choice[data-dj-trail-style="emoji"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dj-trail-image-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+  }
+  .dj-trail-image-preview img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 2px rgba(111, 106, 99, .16));
+  }
+  .rhythm-game-launches {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 88px;
+    gap: 6px;
+  }
+  .rhythm-game-launch {
+    width: 100%;
+    min-height: 48px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 180, 0, .58);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .92);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .rhythm-game-launch-copy {
+    flex: 1;
+    min-width: 0;
+  }
+  .rhythm-game-launch-name {
+    display: block;
+    color: #b57e00;
+    font-size: 12px;
+    font-weight: 850;
+  }
+  .rhythm-game-launch-description {
+    display: block;
+    margin-top: 2px;
+    color: rgba(135, 131, 126, .82);
+    font-size: 10px;
+    line-height: 1.4;
+  }
+  .rhythm-game-launch-action {
+    flex: none;
+    padding: 7px 9px;
+    border-radius: 8px;
+    color: #765300;
+    background: rgba(255, 180, 0, .2);
+    font-size: 10px;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+  .rhythm-game-launch:disabled {
+    opacity: .55;
+    cursor: wait;
+  }
+  .rhythm-game-autoplay-launch {
+    min-width: 0;
+    min-height: 48px;
+    padding: 7px 6px;
+    border: 1px solid rgba(22, 194, 163, .52);
+    border-radius: 10px;
+    display: grid;
+    place-content: center;
+    gap: 3px;
+    color: #087d6b;
+    background: rgba(231, 255, 248, .82);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .rhythm-game-autoplay-launch strong {
+    font-size: 11px;
+    font-weight: 950;
+    letter-spacing: .08em;
+  }
+  .rhythm-game-autoplay-launch span {
+    font-size: 9px;
+    font-weight: 800;
+  }
+  .rhythm-game-autoplay-launch.is-active {
+    color: #fffaf0;
+    border-color: #0c967f;
+    background: #0c967f;
+    box-shadow: 0 4px 12px rgba(12, 150, 127, .26);
+  }
+  .rhythm-game-autoplay-launch:disabled {
+    opacity: .55;
+    cursor: wait;
+  }
+  .dj-deck-assignment {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+  .dj-deck-assignment.is-hidden { display: none; }
+  .dj-deck-name {
+    color: rgba(111, 106, 99, .8);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+  }
+  .dj-sfx-choices {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .dj-sfx-choice {
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 3px;
+    border-radius: 7px;
+    white-space: nowrap;
+  }
+  .dj-keyboard-hint {
+    color: rgba(135, 131, 126, .8);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+  }
+  #dj-recorder-dock {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    transform: translateX(-50%);
+  }
+  #dj-recorder-dock.is-visible { display: flex; }
+  #dj-recorder-open {
+    min-width: 104px;
+    min-height: 44px;
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 180, 0, .64);
+    border-radius: 10px;
+    color: #8d6200;
+    background: rgba(255, 250, 240, .94);
+    box-shadow: 0 5px 14px rgba(135, 131, 126, .16);
+    font: 850 11px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #dj-recorder-open:active { transform: scale(.95); }
+  #dj-recorder-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(255, 242, 220, .9);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .24s ease;
+  }
+  #dj-recorder-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #dj-recorder-panel {
+    position: relative;
+    width: min(430px, 100%);
+    max-height: min(620px, calc(100vh - 36px));
+    overflow-y: auto;
+    padding: 16px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .98);
+    border: 2px solid rgba(255, 180, 0, .56);
+    border-radius: 18px;
+    box-shadow: 0 16px 38px rgba(110, 102, 94, .28);
+    transform: translateY(9px) scale(.98);
+    transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 180, 0, .45) transparent;
+  }
+  #dj-recorder-overlay.is-open #dj-recorder-panel {
+    transform: translateY(0) scale(1);
+  }
+  .dj-recorder-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .dj-recorder-dialog-title {
+    color: #765300;
+    font-size: 18px;
+    font-weight: 950;
+    letter-spacing: .08em;
+  }
+  #dj-recorder-close {
+    min-width: 38px;
+    min-height: 34px;
+    padding: 5px;
+  }
+  .dj-recorder-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+    padding: 4px;
+    border-radius: 12px;
+    background: rgba(135, 131, 126, .1);
+  }
+  .dj-recorder-tab {
+    min-height: 38px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: rgba(111, 106, 99, .8);
+    background: transparent;
+    font: 850 12px/1 system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-recorder-tab.is-active {
+    color: #9a6b00;
+    border-color: rgba(255, 180, 0, .48);
+    background: rgba(255, 250, 240, .98);
+    box-shadow: 0 3px 10px rgba(135, 131, 126, .13);
+  }
+  .dj-recorder-view {
+    display: none;
+    gap: 12px;
+    padding-top: 14px;
+  }
+  .dj-recorder-view.is-active { display: grid; }
+  .dj-recorder-hint {
+    color: rgba(111, 106, 99, .74);
+    font-size: 10px;
+    line-height: 1.55;
+  }
+  .dj-recorder-field-label {
+    color: #765300;
+    font-size: 11px;
+    font-weight: 850;
+  }
+  .dj-recording-duration-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+  .dj-recording-duration-option,
+  .dj-recorder-button {
+    min-height: 40px;
+    border: 1px solid rgba(135, 131, 126, .3);
+    border-radius: 10px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .8);
+    font: 850 11px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-recording-duration-option.is-active {
+    color: #9a6b00;
+    border-color: rgba(255, 180, 0, .72);
+    background: rgba(255, 190, 35, .16);
+  }
+  .dj-recorder-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #dj-recording-toggle {
+    color: #a53c42;
+    border-color: rgba(255, 90, 95, .5);
+    background: rgba(255, 241, 239, .92);
+  }
+  #dj-recording-play,
+  #dj-recording-import-play {
+    color: #087d6b;
+    border-color: rgba(22, 194, 163, .46);
+    background: rgba(231, 255, 248, .84);
+  }
+  #dj-recording-import,
+  #dj-recording-share,
+  #dj-recording-share-link,
+  #dj-recording-save,
+  #dj-library-export,
+  #dj-library-share-link,
+  #dj-library-rename {
+    color: #8d6200;
+    border-color: rgba(255, 180, 0, .52);
+    background: rgba(255, 250, 240, .94);
+  }
+  .dj-recorder-button:disabled,
+  .dj-recording-duration-option:disabled,
+  #dj-recording-loop:disabled {
+    opacity: .44;
+    cursor: not-allowed;
+  }
+  .dj-share-result {
+    display: none;
+    gap: 7px;
+    padding: 10px;
+    border: 1px solid rgba(255, 180, 0, .36);
+    border-radius: 12px;
+    background: rgba(255, 244, 224, .55);
+  }
+  .dj-share-result.is-visible { display: grid; }
+  .dj-share-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #dj-recording-share-link { grid-column: 1 / -1; }
+  .dj-track-name-input {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid rgba(135, 131, 126, .3);
+    border-radius: 9px;
+    color: #625e59;
+    background: rgba(255, 255, 255, .86);
+    font: 750 11px/1.3 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  #dj-recording-code,
+  #dj-recording-share-code,
+  #dj-recording-share-url,
+  #dj-library-detail-code,
+  #dj-library-detail-url {
+    width: 100%;
+    min-height: 74px;
+    max-height: 132px;
+    resize: vertical;
+    padding: 8px 9px;
+    border: 1px solid rgba(135, 131, 126, .3);
+    border-radius: 8px;
+    color: #625e59;
+    background: rgba(255, 255, 255, .8);
+    font: 600 9px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+    user-select: text;
+    -webkit-user-select: text;
+    touch-action: pan-y;
+  }
+  #dj-recording-code:focus,
+  #dj-recording-share-code:focus,
+  #dj-recording-share-url:focus,
+  #dj-library-detail-code:focus,
+  #dj-library-detail-url:focus,
+  .dj-track-name-input:focus {
+    outline: 2px solid rgba(255, 180, 0, .42);
+    outline-offset: 1px;
+  }
+  #dj-recording-share-code,
+  #dj-recording-share-url,
+  #dj-library-detail-url { background: rgba(255, 255, 255, .94); }
+  .dj-library-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .dj-library-header-copy {
+    display: grid;
+    gap: 3px;
+  }
+  #dj-library-summary {
+    color: #765300;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .dj-library-device-note {
+    color: rgba(111, 106, 99, .68);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+  #dj-library-empty {
+    padding: 24px 12px;
+    border: 1px dashed rgba(135, 131, 126, .32);
+    border-radius: 12px;
+    color: rgba(111, 106, 99, .64);
+    background: rgba(255, 255, 255, .5);
+    font-size: 11px;
+    text-align: center;
+  }
+  #dj-library-list {
+    display: grid;
+    gap: 8px;
+  }
+  .dj-library-card {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(135, 131, 126, .24);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .68);
+  }
+  .dj-library-card.is-selected {
+    border-color: rgba(255, 180, 0, .62);
+    background: rgba(255, 248, 232, .9);
+  }
+  .dj-library-card-copy {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+  }
+  .dj-library-card-title {
+    overflow: hidden;
+    color: #6a5521;
+    font-size: 12px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dj-library-card-meta,
+  #dj-library-detail-meta {
+    color: rgba(111, 106, 99, .68);
+    font: 650 9px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .dj-library-card-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .dj-library-detail-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .dj-library-card-button {
+    min-height: 36px;
+    padding: 6px;
+    border: 1px solid rgba(135, 131, 126, .26);
+    border-radius: 8px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .78);
+    font: 800 10px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-library-card-button:disabled { opacity: .44; cursor: not-allowed; }
+  #dj-library-detail {
+    display: none;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(255, 180, 0, .4);
+    border-radius: 12px;
+    background: rgba(255, 244, 224, .58);
+  }
+  #dj-library-detail.is-visible { display: grid; }
+  .dj-library-name-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 88px;
+    gap: 7px;
+  }
+  #dj-library-detail-code,
+  #dj-library-detail-url {
+    min-height: 68px;
+    max-height: 110px;
+  }
+  #dj-library-delete {
+    color: #9d3940;
+    border-color: rgba(255, 90, 95, .44);
+    background: rgba(255, 241, 239, .9);
+  }
+  #dj-recording-loop {
+    min-height: 48px;
+    padding: 8px 10px;
+    border: 1px solid rgba(135, 131, 126, .28);
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .72);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-recording-loop-copy {
+    display: grid;
+    gap: 3px;
+    text-align: left;
+  }
+  .dj-recording-loop-copy strong { font-size: 11px; }
+  .dj-recording-loop-copy small {
+    color: rgba(111, 106, 99, .68);
+    font-size: 9px;
+  }
+  .dj-recording-loop-switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(135, 131, 126, .28);
+    transition: background .18s ease;
+  }
+  .dj-recording-loop-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(90, 84, 77, .2);
+    transition: transform .18s ease;
+  }
+  #dj-recording-loop[aria-checked="true"] .dj-recording-loop-switch {
+    background: rgba(255, 180, 0, .78);
+  }
+  #dj-recording-loop[aria-checked="true"] .dj-recording-loop-switch::after {
+    transform: translateX(16px);
+  }
+  #dj-recorder-status {
+    min-height: 16px;
+    color: rgba(111, 106, 99, .76);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+  }
+  #dj-transport-stop {
+    min-height: 28px;
+    padding: 5px 9px;
+    border: 1px solid rgba(135, 131, 126, .32);
+    border-radius: 8px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .78);
+    font: 800 10px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #dj-transport-hud {
+    position: absolute;
+    top: max(70px, calc(env(safe-area-inset-top) + 58px));
+    left: 50%;
+    z-index: 46;
+    min-width: 178px;
+    padding: 7px 8px 7px 11px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .95);
+    border: 2px solid rgba(255, 180, 0, .7);
+    border-radius: 11px;
+    box-shadow: 0 8px 22px rgba(90, 84, 77, .22);
+    transform: translateX(-50%);
+    pointer-events: auto;
+  }
+  #dj-transport-hud.is-visible { display: flex; }
+  #dj-transport-hud.is-recording { border-color: rgba(255, 90, 95, .82); }
+  #dj-transport-hud.is-ending {
+    color: #8f3036;
+    background: rgba(255, 241, 239, .98);
+    border-color: rgba(255, 70, 78, .96);
+    animation: djRecordingEndingPulse .72s ease-in-out infinite;
+  }
+  #dj-transport-hud.is-ending #dj-transport-state { color: #a52e35; }
+  @keyframes djRecordingEndingPulse {
+    50% {
+      border-color: rgba(255, 35, 45, 1);
+      box-shadow: 0 8px 28px rgba(255, 70, 78, .42);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #dj-transport-hud.is-ending { animation: none; }
+  }
+  #dj-transport-state {
+    color: #a53c42;
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: .08em;
+  }
+  #dj-transport-hud.is-playing #dj-transport-state { color: #087d6b; }
+  #dj-transport-time {
+    flex: 1;
+    font: 800 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    text-align: center;
+    white-space: nowrap;
+  }
+  @media (max-width: 430px) {
+    #dj-recorder-open {
+      min-width: 60px;
+      padding-inline: 5px;
+      font-size: 9px;
+    }
+    #dj-recorder-overlay { padding: 12px; }
+    #dj-recorder-panel { padding: 13px; }
+  }
+  @media (max-width: 360px) {
+    #dj-recorder-open { min-width: 56px; padding-inline: 4px; font-size: 8px; }
+  }
+
   /* 作者卡：八边形头像 + 主页按钮 */
+  .author-list {
+    display: grid;
+    gap: 12px;
+  }
   .author-card {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+  .author-card + .author-card {
+    padding-top: 12px;
+    border-top: 1px solid rgba(135, 131, 126, .18);
   }
   .author-avatar {
     flex: none;
@@ -683,6 +2097,11 @@
     object-fit: cover;
     clip-path: polygon(12px 0, calc(100% - 12px) 0, 100% 12px, 100% calc(100% - 12px),
                        calc(100% - 12px) 100%, 12px 100%, 0 calc(100% - 12px), 0 12px);
+  }
+  .author-avatar--dj {
+    color: #fffaf0;
+    font: 900 16px/1 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    letter-spacing: .08em;
   }
   .author-info {
     flex: 1;
@@ -704,12 +2123,14 @@
     color: rgba(135, 131, 126, .78);
     text-transform: uppercase;
   }
-  #author-home-button {
+  #author-home-button,
+  #dj-author-home-button {
     min-width: 64px;
     min-height: 38px;
     padding: 6px 10px;
     font-size: 12px;
   }
+  #dj-author-home-button { text-decoration: none; }
 
   /* 开发视频卡：16:9 封面 + 播放角标 + 标题 */
   .video-card {
@@ -937,14 +2358,56 @@
 <body>
   <div id="stage">
     <canvas id="fx"></canvas>
-    <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开作者哔哩哔哩主页">
-      <span class="author-copy" aria-hidden="true">
-        <span class="author-label">Created by</span>
-        <span class="author-name">MarkCup</span>
-      </span>
-    </a>
+    <canvas id="touch-fx" aria-hidden="true"></canvas>
+    <div id="dj-transport-hud" role="status" aria-live="polite" aria-hidden="true">
+      <span id="dj-transport-state">REC</span>
+      <strong id="dj-transport-time">待机 · 0:30</strong>
+      <button id="dj-transport-stop" type="button">停止</button>
+    </div>
+    <div id="author-credits" aria-label="创作信息">
+      <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开原作者马克杯 MarkCup 的哔哩哔哩主页">
+        <span class="author-copy" aria-hidden="true">
+          <span class="author-label">Original by</span>
+          <span class="author-name">MarkCup</span>
+        </span>
+      </a>
+      <a id="dj-author-link" href="https://github.com/jzlikewei" target="_blank" rel="noopener noreferrer" aria-label="打开 DJ 版改编者 jzlikewei 的 GitHub 主页">
+        <span>DJ edition by</span>
+        <span class="dj-author-name">jzlikewei</span>
+      </a>
+    </div>
     <div id="key-grid" aria-hidden="true"></div>
     <div id="zoneflash"></div>
+    <div id="dj-stage" aria-hidden="true"></div>
+    <div id="rhythm-game-layer" aria-hidden="true" inert>
+      <div id="rhythm-game-cues" aria-hidden="true"></div>
+      <div id="rhythm-game-hud" hidden>
+        <span id="rhythm-game-auto-badge" hidden>AUTO</span>
+        <div class="rhythm-game-hud-item"><span>分数</span><strong id="rhythm-game-score">000000</strong></div>
+        <div class="rhythm-game-hud-item"><span>连击</span><strong id="rhythm-game-combo">0</strong></div>
+        <div class="rhythm-game-hud-item"><span>剩余</span><strong id="rhythm-game-time">0:00</strong></div>
+        <button id="rhythm-game-end" type="button" aria-label="退出当前音游谱面">退出</button>
+      </div>
+      <div id="rhythm-game-countdown" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div id="rhythm-game-judgement" role="status" aria-live="polite" aria-atomic="true"></div>
+      <div id="rhythm-game-results" role="dialog" aria-modal="true" aria-label="音游结算">
+        <div class="rhythm-game-result-card">
+          <div id="rhythm-game-result-grade">S</div>
+          <div id="rhythm-game-result-title" class="rhythm-game-result-title">谱面完成</div>
+          <div id="rhythm-game-result-score">0</div>
+          <div class="rhythm-game-result-stats">
+            <div class="rhythm-game-result-stat">命中率<strong id="rhythm-game-result-accuracy">0%</strong></div>
+            <div class="rhythm-game-result-stat">最高连击<strong id="rhythm-game-result-combo">0</strong></div>
+            <div class="rhythm-game-result-stat">完美 / 良好<strong id="rhythm-game-result-hits">0 / 0</strong></div>
+            <div class="rhythm-game-result-stat">漏拍<strong id="rhythm-game-result-misses">0</strong></div>
+          </div>
+          <div class="rhythm-game-result-actions">
+            <button id="rhythm-game-back" type="button">返回演奏</button>
+            <button id="rhythm-game-retry" type="button">再来一局</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="dog">
       <div id="dog-inner">
@@ -957,8 +2420,15 @@
     </div>
     <img id="dog-animation-atlas" alt="" hidden decoding="async" fetchpriority="low" />
 
-    <div id="top-controls" class="is-visible has-update-dot" aria-label="声音与导航控制">
+    <div id="top-controls" class="is-visible has-update-dot" aria-label="声音、DJ 录制、立体声与导航控制">
       <div id="audio-controls" class="control-group">
+        <button id="shortcut-toggle" class="control-button" type="button" aria-label="展示快捷键" aria-pressed="false" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2.5" y="5" width="19" height="14" rx="2" />
+            <path d="M6 9h1M10 9h1M14 9h1M18 9h.1M6 13h1M10 13h1M14 13h4M6 16h8" />
+          </svg>
+          <span id="shortcut-toggle-label">展示快捷键</span>
+        </button>
         <button id="music-toggle" class="control-button" type="button" aria-label="关闭音乐" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9 18V5l10-2v13" />
@@ -976,6 +2446,13 @@
           </svg>
           <span>音效</span>
         </button>
+        <button id="stereo-audio-toggle" class="control-button" type="button" role="switch" aria-label="开启双声道立体声" aria-checked="false" data-setting="spatialAudio" disabled>
+          <span class="control-glyph" aria-hidden="true">LR</span>
+          <span>立体声</span>
+        </button>
+      </div>
+      <div id="dj-recorder-dock" aria-hidden="true">
+        <button id="dj-recorder-open" type="button" aria-haspopup="dialog" aria-expanded="false">录制&amp;分享</button>
       </div>
       <div id="settings-wrap">
         <button id="settings-button" class="control-button" type="button" aria-label="打开设置菜单" aria-haspopup="dialog">
@@ -986,6 +2463,98 @@
           <span>设置</span>
         </button>
         <i id="update-dot" aria-hidden="true"></i>
+      </div>
+    </div>
+
+    <div id="dj-recorder-overlay" aria-hidden="true" inert>
+      <div id="dj-recorder-panel" role="dialog" aria-modal="true" aria-label="DJ 录制与分享">
+        <div class="dj-recorder-dialog-head">
+          <div class="dj-recorder-dialog-title">录制 &amp; 分享</div>
+          <button id="dj-recorder-close" class="control-button" type="button" aria-label="关闭录制与分享">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div class="dj-recorder-tabs" role="tablist" aria-label="录制、导入或曲库">
+          <button id="dj-recorder-record-tab" class="dj-recorder-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="dj-recorder-record-view" data-dj-recorder-tab="record">录制</button>
+          <button id="dj-recorder-import-tab" class="dj-recorder-tab" type="button" role="tab" aria-selected="false" aria-controls="dj-recorder-import-view" data-dj-recorder-tab="import">导入</button>
+          <button id="dj-recorder-library-tab" class="dj-recorder-tab" type="button" role="tab" aria-selected="false" aria-controls="dj-recorder-library-view" data-dj-recorder-tab="library">曲库</button>
+        </div>
+
+        <section id="dj-recorder-record-view" class="dj-recorder-view is-active" role="tabpanel" aria-labelledby="dj-recorder-record-tab" aria-hidden="false">
+          <div class="dj-recorder-hint">第一次演奏开始计时，结束后会直接展示分享码。</div>
+          <div class="dj-recorder-field-label">录制时长</div>
+          <div class="dj-recording-duration-options" role="radiogroup" aria-label="录制时长">
+            <button class="dj-recording-duration-option is-active" type="button" role="radio" aria-checked="true" data-dj-recording-seconds="30">30 秒</button>
+            <button class="dj-recording-duration-option" type="button" role="radio" aria-checked="false" data-dj-recording-seconds="60">60 秒</button>
+          </div>
+          <div class="dj-recorder-actions">
+            <button id="dj-recording-toggle" class="dj-recorder-button" type="button">开始录制</button>
+            <button id="dj-recording-play" class="dj-recorder-button" type="button" disabled>播放录制</button>
+          </div>
+          <div id="dj-share-result" class="dj-share-result" aria-hidden="true">
+            <label class="dj-recorder-field-label" for="dj-recording-name">曲目名称（最多 8 字节）</label>
+            <input id="dj-recording-name" class="dj-track-name-input" type="text" maxlength="8" autocomplete="off" placeholder="给这段演奏起个名字">
+            <label class="dj-recorder-field-label" for="dj-recording-share-code">分享码</label>
+            <textarea id="dj-recording-share-code" maxlength="32800" readonly spellcheck="false" aria-label="录制生成的 DJ 分享码"></textarea>
+            <div class="dj-share-actions">
+              <button id="dj-recording-save" class="dj-recorder-button" type="button" disabled>存入曲库</button>
+              <button id="dj-recording-share" class="dj-recorder-button" type="button" disabled>复制分享码</button>
+              <button id="dj-recording-share-link" class="dj-recorder-button" type="button" disabled>生成分享链接</button>
+            </div>
+            <label class="dj-recorder-field-label" for="dj-recording-share-url">分享链接</label>
+            <textarea id="dj-recording-share-url" maxlength="65535" readonly spellcheck="false" aria-label="录制生成的 DJ 分享链接" placeholder="点击“生成分享链接”后显示"></textarea>
+          </div>
+        </section>
+
+        <section id="dj-recorder-import-view" class="dj-recorder-view" role="tabpanel" aria-labelledby="dj-recorder-import-tab" aria-hidden="true">
+          <label class="dj-recorder-field-label" for="dj-import-name">曲目名称（最多 8 字节）</label>
+          <input id="dj-import-name" class="dj-track-name-input" type="text" maxlength="8" autocomplete="off" placeholder="导入后使用的名称">
+          <label class="dj-recorder-field-label" for="dj-recording-code">粘贴分享码</label>
+          <textarea id="dj-recording-code" maxlength="32800" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" aria-label="待导入的 DJ 分享码" placeholder="粘贴 DGL1 / DGT1 / DGT2 分享码"></textarea>
+          <button id="dj-recording-loop" type="button" role="switch" aria-checked="false">
+            <span class="dj-recording-loop-copy">
+              <strong>循环播放</strong>
+              <small>播放结束后从头继续</small>
+            </span>
+            <span class="dj-recording-loop-switch" aria-hidden="true"></span>
+          </button>
+          <div class="dj-recorder-actions">
+            <button id="dj-recording-import" class="dj-recorder-button" type="button">导入并保存</button>
+            <button id="dj-recording-import-play" class="dj-recorder-button" type="button" disabled>播放导入</button>
+          </div>
+        </section>
+
+        <section id="dj-recorder-library-view" class="dj-recorder-view" role="tabpanel" aria-labelledby="dj-recorder-library-tab" aria-hidden="true">
+          <div class="dj-library-header">
+            <div class="dj-library-header-copy">
+              <span id="dj-library-summary">本机曲库 · 0 / 50</span>
+              <span class="dj-library-device-note">保存在当前浏览器，清理网站数据时会一并清除。</span>
+            </div>
+          </div>
+          <div id="dj-library-empty">曲库还是空的，先录一段或导入分享码。</div>
+          <div id="dj-library-detail" aria-hidden="true">
+            <div id="dj-library-detail-meta"></div>
+            <label class="dj-recorder-field-label" for="dj-library-detail-name">曲目名称（最多 8 字节）</label>
+            <div class="dj-library-name-row">
+              <input id="dj-library-detail-name" class="dj-track-name-input" type="text" maxlength="8" autocomplete="off">
+              <button id="dj-library-rename" class="dj-recorder-button" type="button">保存名称</button>
+            </div>
+            <label class="dj-recorder-field-label" for="dj-library-detail-code">分享码</label>
+            <textarea id="dj-library-detail-code" maxlength="32800" readonly spellcheck="false" aria-label="曲目分享码"></textarea>
+            <div class="dj-library-detail-actions">
+              <button id="dj-library-play" class="dj-recorder-button" type="button">播放</button>
+              <button id="dj-library-export" class="dj-recorder-button" type="button">导出分享码</button>
+              <button id="dj-library-share-link" class="dj-recorder-button" type="button">生成分享链接</button>
+              <button id="dj-library-delete" class="dj-recorder-button" type="button">删除</button>
+            </div>
+            <label class="dj-recorder-field-label" for="dj-library-detail-url">分享链接</label>
+            <textarea id="dj-library-detail-url" maxlength="65535" readonly spellcheck="false" aria-label="曲目分享链接" placeholder="点击“生成分享链接”后显示"></textarea>
+          </div>
+          <div id="dj-library-list" aria-label="本机曲目列表"></div>
+        </section>
+        <div id="dj-recorder-status" role="status" aria-live="polite">准备录制</div>
       </div>
     </div>
 
@@ -1001,21 +2570,38 @@
             </button>
           </div>
 
-          <section class="settings-section" aria-label="作者">
-            <div class="settings-label">作者 · Creator</div>
-            <div class="author-card">
-              <span class="author-avatar"><img src="Image/creator-avatar.jpg" alt="马克杯MarkCup 的头像" draggable="false" /></span>
-              <div class="author-info">
-                <div class="author-id">马克杯MarkCup</div>
-                <div class="author-sub">bilibili 创作者</div>
+          <section class="settings-section" aria-label="创作信息">
+            <div class="settings-label">创作信息 · Credits</div>
+            <div class="author-list">
+              <div class="author-card">
+                <span class="author-avatar"><img src="Image/creator-avatar.jpg" alt="马克杯MarkCup 的头像" draggable="false" /></span>
+                <div class="author-info">
+                  <div class="author-id">马克杯MarkCup</div>
+                  <div class="author-sub">原作者 · bilibili 创作者</div>
+                </div>
+                <button id="author-home-button" class="control-button" type="button" aria-label="前往原作者哔哩哔哩主页">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 11.5L12 4l8 7.5" />
+                    <path d="M6.5 10v9.5h11V10" />
+                  </svg>
+                  主页
+                </button>
               </div>
-              <button id="author-home-button" class="control-button" type="button" aria-label="前往作者哔哩哔哩主页">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 11.5L12 4l8 7.5" />
-                  <path d="M6.5 10v9.5h11V10" />
-                </svg>
-                主页
-              </button>
+              <div class="author-card">
+                <span class="author-avatar author-avatar--dj" aria-hidden="true">DJ</span>
+                <div class="author-info">
+                  <div class="author-id">jzlikewei</div>
+                  <div class="author-sub">DJ 版改编 · 功能开发</div>
+                </div>
+                <a id="dj-author-home-button" class="control-button" href="https://github.com/jzlikewei" target="_blank" rel="noopener noreferrer" aria-label="前往 jzlikewei 的 GitHub 主页">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 15l6-6" />
+                    <path d="M8 8h-2a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h7a3 3 0 0 0 3-3v-2" />
+                    <path d="M13 3h8v8M21 3l-8 8" />
+                  </svg>
+                  GitHub
+                </a>
+              </div>
             </div>
           </section>
 
@@ -1065,6 +2651,84 @@
           <section class="settings-section" aria-label="演奏设置">
             <div class="settings-label">演奏 · Performance</div>
             <div class="performance-settings">
+              <button class="setting-row" id="dj-mode-setting" type="button" role="switch" aria-checked="true" data-setting="djMode" disabled>
+                <span class="setting-copy">
+                  <span class="setting-name">DJ 模式</span>
+                  <span class="setting-description">2–3 台独立 Deck，多指与键盘演奏</span>
+                </span>
+                <span class="setting-switch" aria-hidden="true"></span>
+              </button>
+              <div id="dj-settings" class="dj-settings is-visible" aria-hidden="false">
+                <div class="dj-count" role="radiogroup" aria-label="Deck 数量">
+                  <button class="dj-count-button" type="button" role="radio" aria-checked="false" data-dj-count="2">2 Deck</button>
+                  <button class="dj-count-button is-active" type="button" role="radio" aria-checked="true" data-dj-count="3">3 Deck</button>
+                </div>
+                <div class="dj-trail-setting">
+                  <span class="dj-trail-label">跟手特效</span>
+                  <div class="dj-trail-choices" role="radiogroup" aria-label="跟手特效">
+                    <button class="dj-trail-choice is-active" type="button" role="radio" aria-checked="true" data-dj-trail-style="normal">普通</button>
+                    <button class="dj-trail-choice" type="button" role="radio" aria-checked="false" aria-label="大狗、猫、鸡图片" data-dj-trail-style="emoji">
+                      <span class="dj-trail-image-preview" aria-hidden="true">
+                        <img src="Image/dagou_open_mouth.png" alt="" draggable="false" />
+                        <img src="Image/maodie_open_mouth.png" alt="" draggable="false" />
+                        <img src="Image/dingdongji_open_mouth.png" alt="" draggable="false" />
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <div class="dj-deck-assignment" data-dj-slot="0">
+                  <span class="dj-deck-name">LEFT</span>
+                  <div class="dj-sfx-choices" role="radiogroup" aria-label="左侧 Deck 音效">
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dingdong">叮咚鸡</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
+                  </div>
+                </div>
+                <div class="dj-deck-assignment" data-dj-slot="1">
+                  <span class="dj-deck-name">CENTER</span>
+                  <div class="dj-sfx-choices" role="radiogroup" aria-label="中间 Deck 音效">
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dingdong">叮咚鸡</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
+                  </div>
+                </div>
+                <div class="dj-deck-assignment" data-dj-slot="2">
+                  <span class="dj-deck-name">RIGHT</span>
+                  <div class="dj-sfx-choices" role="radiogroup" aria-label="右侧 Deck 音效">
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dagou">大狗</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="dingdong">叮咚鸡</button>
+                    <button class="dj-sfx-choice" type="button" role="radio" data-dj-sfx="hajimi">哈基米</button>
+                  </div>
+                </div>
+                <div class="dj-keyboard-hint">键盘按区分为 LEFT / CENTER / RIGHT，按住第三行可延音</div>
+              </div>
+              <button class="setting-row" id="rhythm-game-mode-setting" type="button" role="switch" aria-checked="false" data-setting="rhythmGameMode" disabled>
+                <span class="setting-copy">
+                  <span class="setting-name">音游模式（不好玩）</span>
+                  <span class="setting-description">随机生成固定 1 分钟谱面</span>
+                </span>
+                <span class="setting-switch" aria-hidden="true"></span>
+              </button>
+              <div id="rhythm-game-settings" class="rhythm-game-settings" aria-hidden="true">
+                <div class="rhythm-game-lane-count" role="radiogroup" aria-label="音游栏数">
+                  <button class="rhythm-game-lane-button" type="button" role="radio" aria-checked="false" data-rhythm-lane-count="1">1 栏</button>
+                  <button class="rhythm-game-lane-button" type="button" role="radio" aria-checked="false" data-rhythm-lane-count="2">2 栏</button>
+                  <button class="rhythm-game-lane-button is-active" type="button" role="radio" aria-checked="true" data-rhythm-lane-count="3">3 栏</button>
+                </div>
+                <div class="rhythm-game-launches" role="group" aria-label="音游启动方式">
+                  <button id="rhythm-game-launch" class="rhythm-game-launch" type="button" aria-pressed="false">
+                    <span class="rhythm-game-launch-copy">
+                      <span class="rhythm-game-launch-name">开始游戏</span>
+                      <span id="rhythm-game-launch-description" class="rhythm-game-launch-description">当前难度：3 栏 · 36 区域 · 固定 1:00</span>
+                    </span>
+                    <span id="rhythm-game-launch-action" class="rhythm-game-launch-action">手动开始</span>
+                  </button>
+                  <button id="rhythm-game-autoplay-launch" class="rhythm-game-autoplay-launch" type="button" aria-pressed="false">
+                    <strong>AUTO</strong>
+                    <span id="rhythm-game-autoplay-action">自动演奏</span>
+                  </button>
+                </div>
+              </div>
               <button class="setting-row" id="piano-mode-setting" type="button" role="switch" aria-checked="false" data-setting="pianoMode" disabled>
                 <span class="setting-copy">
                   <span class="setting-name">钢琴模式</span>
@@ -1086,8 +2750,26 @@
                 </span>
                 <span class="setting-switch" aria-hidden="true"></span>
               </button>
+              <button class="setting-row" id="stereo-audio-setting" type="button" role="switch" aria-checked="false" data-setting="spatialAudio" disabled>
+                <span class="setting-copy">
+                  <span class="setting-name">双声道立体声</span>
+                  <span class="setting-description">各栏固定分布在左、中、右</span>
+                </span>
+                <span class="setting-switch" aria-hidden="true"></span>
+              </button>
             </div>
             <div id="performance-settings-status" role="status">正在读取哔哩哔哩云端设置…</div>
+          </section>
+
+          <section id="mobile-display-settings-section" class="settings-section" aria-label="移动设备显示" hidden>
+            <div class="settings-label">手机 / 平板 · Display</div>
+            <button class="setting-row" id="landscape-performance-setting" type="button" role="switch" aria-checked="false">
+              <span class="setting-copy">
+                <span class="setting-name">横屏演奏</span>
+                <span class="setting-description">自动请求全屏和横屏，失败时提示旋转</span>
+              </span>
+              <span class="setting-switch" aria-hidden="true"></span>
+            </button>
           </section>
         </div>
       </div>
@@ -1096,12 +2778,24 @@
     <div id="toy-notice" role="status" aria-live="assertive" aria-atomic="true" aria-hidden="true"></div>
 
     <div id="overlay">
-      <div class="title">大狗<em>Tap</em></div>
+      <div class="title" aria-label="大狗Tap DJ版">大狗<em>Tap</em><span class="title-edition">DJ版</span></div>
       <div class="sub">点 击 任 意 位 置 开 始</div>
     </div>
   </div>
 
+  <div id="landscape-gate" role="dialog" aria-modal="true" aria-label="请横过设备" aria-hidden="true" inert>
+    <div class="landscape-gate-card">
+      <span class="landscape-turn-device" aria-hidden="true"></span>
+      <div class="landscape-gate-title">请横过设备</div>
+      <div class="landscape-gate-copy">正在请求全屏与横屏锁定。画面仍为竖屏时，请手动旋转设备。</div>
+      <div class="landscape-gate-actions">
+        <button id="landscape-gate-retry" type="button">尝试自动横屏</button>
+        <button id="landscape-gate-disable" type="button">关闭横屏演奏</button>
+      </div>
+    </div>
+  </div>
+
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260721-hajimi-beat-synced-raised"></script>
+  <script src="main.js?v=20260722-library-share-link"></script>
 </body>
 </html>

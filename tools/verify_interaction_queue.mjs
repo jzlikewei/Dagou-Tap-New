@@ -66,8 +66,8 @@ assert.match(
 for (const name of ['enqueueActivation', 'enqueueSustainRetune']) {
   assert.match(
     extractFunction(name),
-    /removeQueuedSample\(z\.sample\)/,
-    `${name} must replace an older queued item of the same sample`,
+    /removeQueuedSample\(z\.sample, z\.deckId\)/,
+    `${name} must replace an older queued item of the same sample and deck`,
   );
   assert.match(
     extractFunction(name),
@@ -89,6 +89,8 @@ vm.runInNewContext(
   let enqueuedZones = [];
   let swipeEntrySerial = 0;
   function retuneHeldJiao() { return false; }
+  function handleRhythmGameHoldZoneChange() {}
+  function pulseTouchTrail() {}
   function releaseVoice() {}
   function commitUnsnappedInput() {}
   function enqueueActivation(zi) {
@@ -100,8 +102,18 @@ vm.runInNewContext(
 
   const S8 = 0.25;
   const inputQueue = [];
-  const performanceSettings = { rhythmSnap: true };
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    rhythmSnap: true,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
   let lastCommittedInputTime = -Infinity;
+  const lastCommittedDjInputTimes = new Map();
   let quantizedTime = 1;
   function quantize() { return quantizedTime; }
   ${extractFunction('reflowQueuedInputTimes')}
@@ -129,9 +141,12 @@ vm.runInNewContext(
     },
     reflowQueue(length, nextBeat, committed = -Infinity) {
       inputQueue.length = 0;
-      for (let i = 0; i < length; i++) inputQueue.push({ when: 0 });
+      for (let i = 0; i < length; i++) {
+        inputQueue.push({ id: i + 1, deckId: null, when: 0 });
+      }
       quantizedTime = nextBeat;
       lastCommittedInputTime = committed;
+      lastCommittedDjInputTimes.clear();
       reflowQueuedInputTimes();
       return inputQueue.map(entry => entry.when);
     },
@@ -153,16 +168,27 @@ vm.runInNewContext(
   `
   const S8 = 0.25;
   let lastCommittedInputTime = -Infinity;
+  const lastCommittedDjInputTimes = new Map();
   let inputSerial = 0;
   const inputQueue = [];
-  const performanceSettings = { rhythmSnap: true };
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    rhythmSnap: true,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
+  const selectedSfxId = 'hajimi';
   const pointers = new Map();
   const zones = [
-    { sample: 'da', pitchTier: 0 },
-    { sample: 'gou', pitchTier: 0 },
-    { sample: 'jiao', pitchTier: 0 },
-    { sample: 'jiao', pitchTier: 1 },
-    { sample: 'da', pitchTier: 1 },
+    { sample: 'da', pitchTier: 0, deckId: null, sfxId: 'hajimi' },
+    { sample: 'gou', pitchTier: 0, deckId: null, sfxId: 'hajimi' },
+    { sample: 'jiao', pitchTier: 0, deckId: null, sfxId: 'hajimi' },
+    { sample: 'jiao', pitchTier: 1, deckId: null, sfxId: 'hajimi' },
+    { sample: 'da', pitchTier: 1, deckId: null, sfxId: 'hajimi' },
   ];
   function quantize() { return 1; }
   function hideControlsUntilIdle() {}
@@ -194,6 +220,7 @@ vm.runInNewContext(
   lastCommittedInputTime = -Infinity;
   const voice = {
     name: 'dingdongji_ji',
+    deckId: null,
     mode: 'sustain',
     held: true,
     released: false,
@@ -220,17 +247,27 @@ vm.runInNewContext(
 const freeRhythmSandbox = {};
 vm.runInNewContext(
   `
-  const performanceSettings = { rhythmSnap: false };
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    rhythmSnap: false,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
   const inputQueue = [];
   let lastCommittedInputTime = -Infinity;
+  const lastCommittedDjInputTimes = new Map();
   const ctx = { currentTime: 4.2 };
   const played = [];
   function playQueuedInput(entry) { played.push({ ...entry }); }
   ${extractFunction('removeQueuedSample')}
   ${extractFunction('commitUnsnappedInput')}
 
-  const first = { id: 1, sample: 'da', when: 0 };
-  const second = { id: 2, sample: 'da', when: 0 };
+  const first = { id: 1, deckId: null, sample: 'da', when: 0 };
+  const second = { id: 2, deckId: null, sample: 'da', when: 0 };
   inputQueue.push(first, second);
   removeQueuedSample('da');
   commitUnsnappedInput(first);
@@ -249,12 +286,118 @@ assert.deepEqual(
   {
     queueLength: 0,
     played: [
-      { id: 1, sample: 'da', when: 4.2 },
-      { id: 2, sample: 'da', when: 4.2 },
+      { id: 1, deckId: null, sample: 'da', when: 4.2 },
+      { id: 2, deckId: null, sample: 'da', when: 4.2 },
     ],
     committedAt: 4.2,
   },
   'free rhythm must keep repeated samples and play every input immediately',
+);
+
+const djQueueSandbox = {};
+vm.runInNewContext(
+  `
+  const S8 = 0.25;
+  let lastCommittedInputTime = -Infinity;
+  const lastCommittedDjInputTimes = new Map();
+  let inputSerial = 0;
+  const inputQueue = [];
+  const performanceSettings = {
+    djMode: true,
+    rhythmGameMode: false,
+    rhythmSnap: true,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
+  const selectedSfxId = 'dagou';
+  const pointers = new Map();
+  const zones = [
+    { sample: 'da', pitchTier: 0, deckId: 'dj-0', sfxId: 'dagou' },
+    { sample: 'da', pitchTier: 1, deckId: 'dj-2', sfxId: 'hajimi' },
+    { sample: 'da', pitchTier: 2, deckId: 'dj-0', sfxId: 'dagou' },
+    { sample: 'jiao', pitchTier: 0, deckId: 'dj-0', sfxId: 'dagou' },
+    { sample: 'jiao', pitchTier: 1, deckId: 'dj-2', sfxId: 'hajimi' },
+  ];
+  function quantize() { return 1; }
+  function hideControlsUntilIdle() {}
+  function flashZone() {}
+  function commitUnsnappedInput() {}
+  function resolveSfxSample(sample, sfxId) {
+    const sets = {
+      dagou: { da: 'da', gou: 'gou', jiao: 'jiao' },
+      hajimi: { da: 'ha', gou: 'ji', jiao: 'mi' },
+    };
+    return sets[sfxId]?.[sample] ?? sample;
+  }
+  ${extractFunction('reflowQueuedInputTimes')}
+  ${extractFunction('removeQueuedSample')}
+  ${extractFunction('enqueueActivation')}
+  ${extractFunction('enqueueSustainRetune')}
+  ${extractFunction('isRetunableSustainVoice')}
+  ${extractFunction('retuneHeldJiao')}
+
+  enqueueActivation(0, 1);
+  enqueueActivation(1, 2);
+  const parallel = inputQueue.map(entry => ({
+    id: entry.id,
+    deckId: entry.deckId,
+    audioSample: entry.audioSample,
+    pitchTier: entry.pitchTier,
+    when: entry.when,
+  }));
+
+  enqueueActivation(2, 3);
+  const replaced = inputQueue.map(entry => ({
+    id: entry.id,
+    deckId: entry.deckId,
+    audioSample: entry.audioSample,
+    pitchTier: entry.pitchTier,
+    when: entry.when,
+  }));
+
+  inputQueue.length = 0;
+  const voice = {
+    name: 'jiao',
+    deckId: 'dj-0',
+    mode: 'sustain',
+    held: true,
+    released: false,
+    stopped: false,
+    cleaned: false,
+  };
+  const state = { zone: 3, voice, pendingEntryId: null };
+  const crossDeckRetune = retuneHeldJiao(1, state, 4);
+
+  globalThis.djQueueResult = {
+    parallel,
+    replaced,
+    crossDeckRetune,
+    retainedZone: state.zone,
+    queueLengthAfterCrossDeckRetune: inputQueue.length,
+  };
+  `,
+  djQueueSandbox,
+);
+
+assert.deepEqual(
+  JSON.parse(JSON.stringify(djQueueSandbox.djQueueResult)),
+  {
+    parallel: [
+      { id: 1, deckId: 'dj-0', audioSample: 'da', pitchTier: 0, when: 1 },
+      { id: 2, deckId: 'dj-2', audioSample: 'ha', pitchTier: 1, when: 1 },
+    ],
+    replaced: [
+      { id: 2, deckId: 'dj-2', audioSample: 'ha', pitchTier: 1, when: 1 },
+      { id: 3, deckId: 'dj-0', audioSample: 'da', pitchTier: 2, when: 1 },
+    ],
+    crossDeckRetune: false,
+    retainedZone: 3,
+    queueLengthAfterCrossDeckRetune: 0,
+  },
+  'DJ queues must deduplicate per deck, share beat heads, and isolate sustain retunes',
 );
 
 assert.deepEqual(
@@ -274,6 +417,7 @@ assert.deepEqual(
       kind: 'sustain-retune',
       pointerId: 7,
       zone: 2,
+      deckId: null,
       sample: 'jiao',
       audioSample: 'dingdongji_ji',
       pitchTier: 0,
@@ -388,5 +532,7 @@ console.log('Interaction queue verification passed:');
 console.log('- landscape and portrait fast swipes include every crossed zone');
 console.log('- queued hits occupy consecutive eighth-note slots');
 console.log('- da, gou, and jiao each keep only their newest queued item');
+console.log('- DJ decks deduplicate independently and can share one quantized beat');
+console.log('- held DJ voices cannot retune directly across deck boundaries');
 console.log('- held third-syllable voices retune in place and keep release-frame tracking');
 console.log('- free rhythm bypasses quantization and same-sample queue replacement');
