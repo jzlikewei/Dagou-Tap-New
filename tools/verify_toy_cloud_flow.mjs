@@ -363,6 +363,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       spatialAudio: false,
     },
     performanceSettingsSaving: false,
+    shortcutOverlayVisible: false,
     djSettings: {
       deckCount: 3,
       deckSfxIds: ['dagou', 'hajimi', 'dingdong'],

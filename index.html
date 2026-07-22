@@ -893,6 +893,22 @@
     display: flex;
     gap: 8px;
   }
+  #shortcut-toggle {
+    display: none;
+    min-width: 126px;
+  }
+  #shortcut-toggle[aria-pressed="true"] {
+    --btn-edge: rgba(255, 180, 0, .88);
+    --btn-fill: rgba(255, 250, 240, .97);
+    color: #b57e00;
+  }
+  #shortcut-toggle:disabled {
+    opacity: .52;
+    cursor: default;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    #shortcut-toggle { display: inline-flex; }
+  }
   /* 几何化切角按钮：八边形轮廓呼应全屏几何特效（hexagon / diamond 粒子）。
      按钮本体背景充当“描边色”，::before 用缩小一号的同款切角多边形铺底色，
      描边因此能严格贴合切角（普通 border 做不到），颜色用变量一键切换 */
@@ -2041,6 +2057,13 @@
 
     <div id="top-controls" class="is-visible has-update-dot" aria-label="声音、3D 音场与导航控制">
       <div id="audio-controls" class="control-group">
+        <button id="shortcut-toggle" class="control-button" type="button" aria-label="展示快捷键" aria-pressed="false" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="2.5" y="5" width="19" height="14" rx="2" />
+            <path d="M6 9h1M10 9h1M14 9h1M18 9h.1M6 13h1M10 13h1M14 13h4M6 16h8" />
+          </svg>
+          <span id="shortcut-toggle-label">展示快捷键</span>
+        </button>
         <button id="music-toggle" class="control-button" type="button" aria-label="关闭音乐" aria-pressed="false">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M9 18V5l10-2v13" />
@@ -2318,6 +2341,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260722-rhythm-mode-lanes"></script>
+  <script src="main.js?v=20260722-shortcut-toggle"></script>
 </body>
 </html>

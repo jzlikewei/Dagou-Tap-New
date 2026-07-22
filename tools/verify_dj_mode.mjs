@@ -8,6 +8,23 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+const htmlSource = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+
+assert.match(
+  htmlSource,
+  /id="shortcut-toggle"[\s\S]*?>[\s\S]*?id="shortcut-toggle-label">展示快捷键</,
+  'desktop controls must expose a shortcut overlay button',
+);
+assert.match(
+  htmlSource,
+  /@media \(hover: hover\) and \(pointer: fine\) \{[\s\S]*?#shortcut-toggle \{ display: inline-flex; \}/,
+  'the shortcut overlay button must stay exclusive to fine-pointer devices',
+);
+assert.match(
+  mainSource,
+  /shortcutToggle\.addEventListener\('click', toggleShortcutOverlay\)/,
+  'the shortcut overlay button must be wired to its toggle',
+);
 
 function extractFunction(name) {
   const candidates = [`async function ${name}`, `function ${name}`];
@@ -270,10 +287,12 @@ vm.runInNewContext(
     rhythmGameMode: false,
     showGrid: false,
   };
+  let shortcutOverlayVisible = false;
   function isRhythmGameActive() { return false; }
   function isDeckPerformanceMode() {
     return performanceSettings.djMode || performanceSettings.rhythmGameMode;
   }
+  function renderShortcutToggle() {}
   const classState = new Map();
   const keyGrid = {
     style: { setProperty() {} },
@@ -296,10 +315,14 @@ vm.runInNewContext(
   ${extractFunction('renderKeyGrid')}
 
   globalThis.gridVisibilityApi = {
-    render(showGrid) {
+    render(showGrid, showShortcuts = false) {
       performanceSettings.showGrid = showGrid;
+      shortcutOverlayVisible = showShortcuts;
       renderKeyGrid();
-      return Object.fromEntries(classState);
+      return {
+        classes: Object.fromEntries(classState),
+        showGrid: performanceSettings.showGrid,
+      };
     },
   };
   `,
@@ -308,13 +331,27 @@ vm.runInNewContext(
 
 assert.deepEqual(
   clone(gridVisibilitySandbox.gridVisibilityApi.render(false)),
-  { 'is-visible': false, 'is-dj-grid': true },
+  {
+    classes: { 'is-visible': false, 'is-dj-grid': true },
+    showGrid: false,
+  },
   'DJ mode must let the grid setting hide fine cell boundaries',
 );
 assert.deepEqual(
   clone(gridVisibilitySandbox.gridVisibilityApi.render(true)),
-  { 'is-visible': true, 'is-dj-grid': true },
+  {
+    classes: { 'is-visible': true, 'is-dj-grid': true },
+    showGrid: true,
+  },
   'DJ mode must let the grid setting show fine cell boundaries',
+);
+assert.deepEqual(
+  clone(gridVisibilitySandbox.gridVisibilityApi.render(false, true)),
+  {
+    classes: { 'is-visible': true, 'is-dj-grid': true },
+    showGrid: false,
+  },
+  'the shortcut overlay must reveal keys without changing the saved grid setting',
 );
 
 const touchTrailSandbox = {};

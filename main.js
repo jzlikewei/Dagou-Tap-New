@@ -189,6 +189,7 @@ let bgmMuted = false;
 let sfxMuted = false;
 const performanceSettings = { ...DEFAULT_PERFORMANCE_SETTINGS };
 let performanceSettingsSaving = false;
+let shortcutOverlayVisible = false;
 
 let startTime = 0;        // 第 0 步对应的 audio 时间
 let nextNoteTime = 0;     // 调度器下一个音符时间
@@ -509,6 +510,8 @@ const subEl     = overlay.querySelector('.sub');
 const fx2d      = fxCanvas.getContext('2d');
 const touchFx2d = touchFxCanvas.getContext('2d');
 const topControls = document.getElementById('top-controls');
+const shortcutToggle = document.getElementById('shortcut-toggle');
+const shortcutToggleLabel = document.getElementById('shortcut-toggle-label');
 const musicToggle = document.getElementById('music-toggle');
 const sfxToggle = document.getElementById('sfx-toggle');
 const spatialAudioToggle = document.getElementById('spatial-audio-toggle');
@@ -1027,6 +1030,7 @@ for (const button of topControls.querySelectorAll('button')) {
 }
 musicToggle.addEventListener('click', toggleMusic);
 sfxToggle.addEventListener('click', toggleSoundEffects);
+shortcutToggle.addEventListener('click', toggleShortcutOverlay);
 
 /* ---------- 设置菜单与 Toy 云状态 ---------- */
 let settingsOpen = false;
@@ -1329,6 +1333,22 @@ function getActiveDjSlots() {
 
 function isDeckPerformanceMode() {
   return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+}
+
+function renderShortcutToggle() {
+  const enabled = isDeckPerformanceMode();
+  const expanded = enabled && shortcutOverlayVisible;
+  const label = expanded ? '隐藏快捷键' : '展示快捷键';
+  shortcutToggle.disabled = !enabled;
+  shortcutToggle.setAttribute('aria-pressed', String(expanded));
+  shortcutToggle.setAttribute('aria-label', label);
+  shortcutToggleLabel.textContent = label;
+}
+
+function toggleShortcutOverlay() {
+  if (!isDeckPerformanceMode()) return;
+  shortcutOverlayVisible = !shortcutOverlayVisible;
+  renderKeyGrid();
 }
 
 function getActiveDeckSlots() {
@@ -2695,7 +2715,7 @@ function renderKeyGrid() {
   keyGrid.style.setProperty('--key-grid-rows', String(rows));
   keyGrid.classList.toggle(
     'is-visible',
-    performanceSettings.showGrid || isRhythmGameActive()
+    performanceSettings.showGrid || shortcutOverlayVisible || isRhythmGameActive()
   );
   keyGrid.classList.toggle('is-dj-grid', isDeckPerformanceMode());
 
@@ -2721,6 +2741,7 @@ function renderKeyGrid() {
     fragment.appendChild(cell);
   }
   keyGrid.replaceChildren(fragment);
+  renderShortcutToggle();
 }
 
 function applyPerformanceSettings(previousSettings) {
@@ -2738,6 +2759,7 @@ function applyPerformanceSettings(previousSettings) {
   }
 
   if (modeChanged) {
+    shortcutOverlayVisible = false;
     if (isRhythmGameVisible()) resetRhythmGame();
     stopActivePerformanceInput();
   }

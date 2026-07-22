@@ -226,7 +226,7 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /main\.js\?v=20260722-rhythm-mode-lanes/,
+  /main\.js\?v=20260722-shortcut-toggle/,
   'the fixed startup script must use a fresh cache key',
 );
 assert.match(
