@@ -102,7 +102,14 @@ vm.runInNewContext(
 
   const S8 = 0.25;
   const inputQueue = [];
-  const performanceSettings = { djMode: false, rhythmSnap: true };
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    rhythmSnap: true,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   function isRhythmGameActive() { return false; }
   ${extractFunction('shouldQuantizePerformanceInput')}
   let lastCommittedInputTime = -Infinity;
@@ -164,7 +171,14 @@ vm.runInNewContext(
   const lastCommittedDjInputTimes = new Map();
   let inputSerial = 0;
   const inputQueue = [];
-  const performanceSettings = { djMode: false, rhythmSnap: true };
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    rhythmSnap: true,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   function isRhythmGameActive() { return false; }
   ${extractFunction('shouldQuantizePerformanceInput')}
   const selectedSfxId = 'hajimi';
@@ -233,7 +247,14 @@ vm.runInNewContext(
 const freeRhythmSandbox = {};
 vm.runInNewContext(
   `
-  const performanceSettings = { djMode: false, rhythmSnap: false };
+  const performanceSettings = {
+    djMode: false,
+    rhythmGameMode: false,
+    rhythmSnap: false,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   function isRhythmGameActive() { return false; }
   ${extractFunction('shouldQuantizePerformanceInput')}
   const inputQueue = [];
@@ -281,7 +302,14 @@ vm.runInNewContext(
   const lastCommittedDjInputTimes = new Map();
   let inputSerial = 0;
   const inputQueue = [];
-  const performanceSettings = { djMode: true, rhythmSnap: true };
+  const performanceSettings = {
+    djMode: true,
+    rhythmGameMode: false,
+    rhythmSnap: true,
+  };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   function isRhythmGameActive() { return false; }
   ${extractFunction('shouldQuantizePerformanceInput')}
   const selectedSfxId = 'dagou';

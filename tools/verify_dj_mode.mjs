@@ -42,6 +42,7 @@ vm.runInNewContext(
   `
   ${extractConst('DEFAULT_DJ_SETTINGS')}
   ${extractConst('DJ_ACTIVE_SLOTS')}
+  ${extractConst('RHYTHM_GAME_ACTIVE_SLOTS')}
   ${extractConst('DJ_KEY_GROUPS')}
   let cols = 4;
   let rows = 3;
@@ -50,11 +51,16 @@ vm.runInNewContext(
   const keyboardZoneByCode = new Map();
   const pointers = new Map();
   const rhythmGame = { activeHolds: new Map() };
-  const performanceSettings = { djMode: true, pianoMode: true };
+  const performanceSettings = {
+    djMode: true,
+    rhythmGameMode: false,
+    pianoMode: true,
+  };
   const djSettings = {
     deckCount: DEFAULT_DJ_SETTINGS.deckCount,
     deckSfxIds: [...DEFAULT_DJ_SETTINGS.deckSfxIds],
   };
+  const rhythmGameSettings = { laneCount: 3 };
   let stageMetrics = { width: 1200, height: 800 };
   let stopCalls = 0;
   function getStageMetrics() { return stageMetrics; }
@@ -66,6 +72,8 @@ vm.runInNewContext(
   function renderKeyGrid() {}
   function releaseRhythmGameHold() {}
   ${extractFunction('getActiveDjSlots')}
+  ${extractFunction('isDeckPerformanceMode')}
+  ${extractFunction('getActiveDeckSlots')}
   ${extractFunction('buildGrid')}
 
   function snapshot() {
@@ -73,16 +81,21 @@ vm.runInNewContext(
       cols,
       rows,
       landscape: djLandscape,
-      activeSlots: [...getActiveDjSlots()],
+      activeSlots: [...getActiveDeckSlots()],
       zones: zones.map(zone => ({ ...zone })),
       keyboardEntries: [...keyboardZoneByCode.entries()],
     };
   }
 
   globalThis.gridApi = {
-    build(width, height, deckCount) {
+    build(width, height, deckCount, rhythmLaneCount = null) {
       stageMetrics = { width, height };
       djSettings.deckCount = deckCount;
+      performanceSettings.djMode = rhythmLaneCount === null;
+      performanceSettings.rhythmGameMode = rhythmLaneCount !== null;
+      if (rhythmLaneCount !== null) {
+        rhythmGameSettings.laneCount = rhythmLaneCount;
+      }
       buildGrid();
       return snapshot();
     },
@@ -215,6 +228,27 @@ assertDeckLayout(portraitThree, {
   slots: [0, 1, 2],
 });
 
+for (const [laneCount, slots] of [
+  [1, [0]],
+  [2, [0, 2]],
+  [3, [0, 1, 2]],
+]) {
+  const landscapeRhythm = gridApi.build(1200, 800, 3, laneCount);
+  assertDeckLayout(landscapeRhythm, {
+    cols: laneCount * 4,
+    rows: 3,
+    landscape: true,
+    slots,
+  });
+  const portraitRhythm = gridApi.build(800, 1200, 3, laneCount);
+  assertDeckLayout(portraitRhythm, {
+    cols: 4,
+    rows: laneCount * 3,
+    landscape: false,
+    slots,
+  });
+}
+
 gridApi.build(1200, 800, 3);
 const stopsBeforeRotation = gridApi.stopCalls();
 gridApi.addPointer();
@@ -231,8 +265,15 @@ vm.runInNewContext(
   let cols = 8;
   let rows = 3;
   const zones = [];
-  const performanceSettings = { djMode: true, showGrid: false };
+  const performanceSettings = {
+    djMode: true,
+    rhythmGameMode: false,
+    showGrid: false,
+  };
   function isRhythmGameActive() { return false; }
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   const classState = new Map();
   const keyGrid = {
     style: { setProperty() {} },
@@ -394,8 +435,8 @@ assert.deepEqual(
 );
 assert.match(
   extractFunction('drawTouchTrails'),
-  /performanceSettings\.djMode\s*&&\s*djSettings\.trailStyle === 'emoji'/,
-  'emoji trails must stay scoped to DJ mode',
+  /isDeckPerformanceMode\(\)\s*&&\s*djSettings\.trailStyle === 'emoji'/,
+  'emoji trails must stay scoped to deck-based modes',
 );
 assert.match(
   extractFunction('drawTouchEmoji'),
@@ -411,7 +452,10 @@ assert.match(
 const keyboardSandbox = {};
 vm.runInNewContext(
   `
-  const performanceSettings = { djMode: true };
+  const performanceSettings = { djMode: true, rhythmGameMode: false };
+  function isDeckPerformanceMode() {
+    return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+  }
   let settingsOpen = false;
   const keyboardZoneByCode = new Map([
     ['Digit1', 0],
@@ -612,6 +656,7 @@ assert.deepEqual(clone(sustainSandbox.sustainResult), {
 
 console.log('DJ mode verification passed:');
 console.log('- two and three decks keep complete 4 × 3 grids in both orientations');
+console.log('- rhythm mode independently builds one, two, or three complete lanes');
 console.log('- all 36 physical keys map to the intended deck, syllable, and pitch tier');
 console.log('- keyboard press, repeat suppression, release, settings guard, and blur cleanup work');
 console.log('- layout rotation releases input tied to the previous grid');

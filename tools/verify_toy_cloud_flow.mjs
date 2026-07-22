@@ -93,11 +93,14 @@ const functionNames = [
   'getToggledPerformanceSettings',
   'getChangedPerformanceCloudItems',
   'replaceDjSettings',
+  'replaceRhythmGameSettings',
   'resetPerformanceSettingsToDefaults',
   'markToyCloudUnavailable',
   'readCloudPerformanceSettings',
   'readCloudDjSettings',
+  'readCloudRhythmGameSettings',
   'renderDjSettings',
+  'renderRhythmGameSettings',
   'renderPerformanceSettings',
   'renderToyCloudState',
   'detectToyEnvironment',
@@ -122,6 +125,7 @@ const functionNames = [
   'handleSfxOptionClick',
   'handlePerformanceSettingClick',
   'persistDjSettings',
+  'persistRhythmGameSettings',
 ];
 const extractedFunctions = functionNames.map(extractFunction).join('\n');
 
@@ -187,6 +191,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
   const notices = [];
   const performanceButtons = [
     new FakeElement({ dataset: { setting: 'djMode' } }),
+    new FakeElement({ dataset: { setting: 'rhythmGameMode' } }),
     new FakeElement({ dataset: { setting: 'pianoMode' } }),
     new FakeElement({ dataset: { setting: 'rhythmSnap' } }),
     new FakeElement({ dataset: { setting: 'showGrid' } }),
@@ -195,6 +200,10 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
   ];
   const pianoModeDescription = new FakeElement();
   const djSettingsPanel = new FakeElement();
+  const rhythmGameSettingsPanel = new FakeElement();
+  const rhythmGameLaneButtons = [1, 2, 3].map((count) =>
+    new FakeElement({ dataset: { rhythmLaneCount: String(count) } })
+  );
   const djCountButtons = [2, 3].map((count) =>
     new FakeElement({ dataset: { djCount: String(count) } })
   );
@@ -237,6 +246,8 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       showGrid: 'dagou_show_grid_v1',
       spatialAudio: 'dagou_spatial_audio_v1',
       djMode: 'dagou_dj_mode_v1',
+      rhythmGameMode: 'dagou_rhythm_game_mode_v1',
+      rhythmGameLaneCount: 'dagou_rhythm_game_lane_count_v1',
       djDeckCount: 'dagou_dj_deck_count_v1',
       djDeckLeft: 'dagou_dj_deck_left_v1',
       djDeckCenter: 'dagou_dj_deck_center_v1',
@@ -253,6 +264,8 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       'dagou_show_grid_v1',
       'dagou_spatial_audio_v1',
       'dagou_dj_mode_v1',
+      'dagou_rhythm_game_mode_v1',
+      'dagou_rhythm_game_lane_count_v1',
       'dagou_dj_deck_count_v1',
       'dagou_dj_deck_left_v1',
       'dagou_dj_deck_center_v1',
@@ -316,6 +329,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     DEBUG_UNLOCK_SFX: debugUnlock,
     DEFAULT_PERFORMANCE_SETTINGS: Object.freeze({
       djMode: true,
+      rhythmGameMode: false,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -323,6 +337,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     }),
     PERFORMANCE_SETTING_KEYS: Object.freeze({
       djMode: 'dagou_dj_mode_v1',
+      rhythmGameMode: 'dagou_rhythm_game_mode_v1',
       pianoMode: 'dagou_piano_mode_v1',
       rhythmSnap: 'dagou_rhythm_snap_v1',
       showGrid: 'dagou_show_grid_v1',
@@ -333,6 +348,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       deckSfxIds: Object.freeze(['dagou', 'hajimi', 'dingdong']),
       trailStyle: 'normal',
     }),
+    DEFAULT_RHYTHM_GAME_SETTINGS: Object.freeze({ laneCount: 3 }),
     DJ_DECK_CLOUD_KEYS: Object.freeze([
       'dagou_dj_deck_left_v1',
       'dagou_dj_deck_center_v1',
@@ -340,6 +356,7 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     ]),
     performanceSettings: {
       djMode: true,
+      rhythmGameMode: false,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -352,9 +369,13 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
       trailStyle: 'normal',
     },
     djSettingsSaving: false,
+    rhythmGameSettings: { laneCount: 3 },
+    rhythmGameSettingsSaving: false,
     performanceSettingButtons: performanceButtons,
     pianoModeDescription,
     djSettingsPanel,
+    rhythmGameSettingsPanel,
+    rhythmGameLaneButtons,
     djCountButtons,
     djTrailStyleButtons,
     djDeckAssignmentRows,
@@ -428,6 +449,8 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     performanceButtons,
     pianoModeDescription,
     djSettingsPanel,
+    rhythmGameSettingsPanel,
+    rhythmGameLaneButtons,
     djCountButtons,
     djTrailStyleButtons,
     djDeckAssignmentRows,
@@ -470,6 +493,8 @@ for (const key of [
   'dagou_show_grid_v1',
   'dagou_spatial_audio_v1',
   'dagou_dj_mode_v1',
+  'dagou_rhythm_game_mode_v1',
+  'dagou_rhythm_game_lane_count_v1',
   'dagou_dj_deck_count_v1',
   'dagou_dj_deck_left_v1',
   'dagou_dj_deck_center_v1',
@@ -612,6 +637,7 @@ assert.match(htmlSource, /content:\s*"换成帝皇"/, 'static Hajimi toggle labe
 assert.match(htmlSource, /content:\s*"换回哈基米"/, 'animated Hajimi toggle label');
 for (const [settingName, defaultChecked] of [
   ['djMode', 'true'],
+  ['rhythmGameMode', 'false'],
   ['pianoMode', 'false'],
   ['rhythmSnap', 'true'],
   ['showGrid', 'false'],
@@ -632,6 +658,11 @@ assert.match(
   htmlSource,
   /class="dj-count-button is-active"[^>]*aria-checked="true"[^>]*data-dj-count="3"/,
   'three decks must be selected in the initial markup',
+);
+assert.match(
+  htmlSource,
+  /class="rhythm-game-lane-button is-active"[^>]*aria-checked="true"[^>]*data-rhythm-lane-count="3"/,
+  'three rhythm lanes must be selected in the initial markup',
 );
 assert.doesNotMatch(
   htmlSource,
@@ -685,6 +716,7 @@ assert.doesNotMatch(
     { ...harness.context.performanceSettings },
     {
       djMode: false,
+      rhythmGameMode: false,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -724,6 +756,7 @@ assert.doesNotMatch(
     { ...harness.context.performanceSettings },
     {
       djMode: true,
+      rhythmGameMode: false,
       pianoMode: false,
       rhythmSnap: false,
       showGrid: true,
@@ -744,8 +777,43 @@ assert.doesNotMatch(
   );
   assert.equal(setup.storage.dagou_piano_mode_v1, '0');
   assert.equal(performanceButton(harness, 'pianoMode').disabled, false);
-  assert.equal(harness.pianoModeDescription.textContent, '开启后退出 DJ，开放一个八度音阶');
+  assert.equal(harness.pianoModeDescription.textContent, '开启后退出DJ模式，开放一个八度音阶');
   assert.equal(harness.djSettingsPanel.classList.contains('is-visible'), true);
+}
+
+{
+  const setup = makeToy({
+    cloud: {
+      dagou_sfx_unlocked_v1: '1',
+      dagou_dj_mode_v1: '1',
+      dagou_rhythm_game_mode_v1: '1',
+      dagou_rhythm_game_lane_count_v1: '2',
+      dagou_piano_mode_v1: '1',
+    },
+  });
+  const harness = makeHarness(setup.toy);
+  await initialize(harness);
+  assert.equal(harness.context.performanceSettings.djMode, false);
+  assert.equal(harness.context.performanceSettings.rhythmGameMode, true);
+  assert.equal(harness.context.performanceSettings.pianoMode, false);
+  assert.equal(harness.context.rhythmGameSettings.laneCount, 2);
+  assert.equal(setup.storage.dagou_dj_mode_v1, '0');
+  assert.equal(setup.storage.dagou_piano_mode_v1, '0');
+  assert.equal(
+    harness.rhythmGameSettingsPanel.classList.contains('is-visible'),
+    true,
+  );
+  assert.equal(harness.djSettingsPanel.classList.contains('is-visible'), false);
+
+  setup.log.length = 0;
+  await harness.context.persistRhythmGameSettings({ laneCount: 1 });
+  assert.deepEqual(setup.log, ['set:dagou_rhythm_game_lane_count_v1']);
+  assert.equal(setup.storage.dagou_rhythm_game_lane_count_v1, '1');
+  assert.equal(harness.context.rhythmGameSettings.laneCount, 1);
+  assert.equal(
+    harness.rhythmGameLaneButtons[0].attributes.get('aria-checked'),
+    'true',
+  );
 }
 
 {
@@ -764,6 +832,7 @@ assert.doesNotMatch(
     { ...harness.context.performanceSettings },
     {
       djMode: false,
+      rhythmGameMode: false,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -861,6 +930,30 @@ assert.doesNotMatch(
   assert.equal(setup.storage.dagou_piano_mode_v1, '1');
   assert.equal(harness.context.performanceSettings.djMode, false);
   assert.equal(harness.context.performanceSettings.pianoMode, true);
+}
+
+{
+  const setup = makeToy({
+    cloud: {
+      dagou_sfx_unlocked_v1: '1',
+      dagou_dj_mode_v1: '1',
+      dagou_rhythm_game_mode_v1: '0',
+    },
+  });
+  const harness = makeHarness(setup.toy);
+  await initialize(harness);
+  setup.log.length = 0;
+  await harness.context.handlePerformanceSettingClick(
+    performanceButton(harness, 'rhythmGameMode')
+  );
+  assert.deepEqual(setup.log, [
+    'set:dagou_dj_mode_v1,dagou_rhythm_game_mode_v1',
+  ]);
+  assert.equal(setup.storage.dagou_dj_mode_v1, '0');
+  assert.equal(setup.storage.dagou_rhythm_game_mode_v1, '1');
+  assert.equal(harness.context.performanceSettings.djMode, false);
+  assert.equal(harness.context.performanceSettings.rhythmGameMode, true);
+  assert.equal(harness.context.performanceSettings.pianoMode, false);
 }
 
 {
@@ -1015,6 +1108,7 @@ assert.doesNotMatch(
     { ...harness.context.performanceSettings },
     {
       djMode: false,
+      rhythmGameMode: false,
       pianoMode: false,
       rhythmSnap: true,
       showGrid: false,
@@ -1087,6 +1181,7 @@ assert.doesNotMatch(
     { ...harness.context.performanceSettings },
     {
       djMode: false,
+      rhythmGameMode: false,
       pianoMode: true,
       rhythmSnap: false,
       showGrid: false,
@@ -1219,7 +1314,8 @@ console.log('- settings red dot and per-option NEW states persist independently'
 console.log('- a visible red dot pins only the settings button while audio controls hide');
 console.log('- the temporary debug switch unlocks both options without Toy capabilities');
 console.log('- performance defaults, cloud restore/write, and local-only fallback switching');
-console.log('- DJ and piano modes stay mutually exclusive across clicks and cloud restore');
+console.log('- DJ, rhythm, and piano modes stay mutually exclusive across clicks and cloud restore');
+console.log('- rhythm lane count restores and persists independently from DJ deck count');
 console.log('- DJ deck count and three deck assignments persist to their cloud keys');
 console.log('- DJ touch trails switch between normal and per-sound emoji styles');
 console.log('- 3D audio defaults, cloud restore, and cloud writes stay consistent');

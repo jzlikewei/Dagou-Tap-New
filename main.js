@@ -15,8 +15,7 @@ const SPB = 60 / BPM;     // 每拍秒数
 const S16 = SPB / 4;      // 16 分音符（调度步长）
 const S8  = SPB / 2;      // 8 分音符（点击量化的最小节奏点）
 const MASTER_GAIN = 0.85;
-const RHYTHM_GAME_MIN_BARS = 32;       // 32 小节正好 1 分钟
-const RHYTHM_GAME_MAX_BARS = 96;       // 96 小节正好 3 分钟
+const RHYTHM_GAME_BAR_COUNT = 32;      // 128 BPM 下 32 小节正好 1 分钟
 const RHYTHM_GAME_CUE_LEAD = 1.2;
 const RHYTHM_GAME_PERFECT_WINDOW = 0.11;
 const RHYTHM_GAME_GOOD_WINDOW = 0.24;
@@ -25,8 +24,11 @@ const RHYTHM_GAME_PHRASE_BARS = 4;
 const RHYTHM_GAME_SLIDE_CUE_LEAD = 0.32;
 const RHYTHM_GAME_SLIDE_GOOD_WINDOW = 0.32;
 const RHYTHM_GAME_AUTOPLAY_LOOKAHEAD = 0.025;
-const RHYTHM_GAME_AUTOPLAY_TAP_DURATION = 0.08;
+const RHYTHM_GAME_AUTOPLAY_TAP_DURATION = 0.12;
+const RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION = 0.2;
 const RHYTHM_GAME_AUTOPLAY_INPUT_PREFIX = 'rhythm-autoplay:';
+const RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS = 2;
+const RHYTHM_GAME_PHRASE_TAIL_MAX_STEPS = 6;
 const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
   dagou: Object.freeze([
     Object.freeze({
@@ -160,6 +162,7 @@ const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
 });
 const DEFAULT_PERFORMANCE_SETTINGS = Object.freeze({
   djMode: true,
+  rhythmGameMode: false,
   pianoMode: false,
   rhythmSnap: true,
   showGrid: false,
@@ -169,6 +172,9 @@ const DEFAULT_DJ_SETTINGS = Object.freeze({
   deckCount: 3,
   deckSfxIds: Object.freeze(['dagou', 'hajimi', 'dingdong']),
   trailStyle: 'normal',
+});
+const DEFAULT_RHYTHM_GAME_SETTINGS = Object.freeze({
+  laneCount: 3,
 });
 
 /* ---------- 全局状态 ---------- */
@@ -230,6 +236,11 @@ const DJ_ACTIVE_SLOTS = Object.freeze({
   2: Object.freeze([0, 2]),
   3: Object.freeze([0, 1, 2]),
 });
+const RHYTHM_GAME_ACTIVE_SLOTS = Object.freeze({
+  1: Object.freeze([0]),
+  2: Object.freeze([0, 2]),
+  3: Object.freeze([0, 1, 2]),
+});
 const DJ_KEY_GROUPS = Object.freeze([
   Object.freeze([
     Object.freeze([{ code: 'Digit1', label: '1' }, { code: 'Digit2', label: '2' }, { code: 'Digit3', label: '3' }, { code: 'Digit4', label: '4' }]),
@@ -269,6 +280,9 @@ const djSettings = {
   deckSfxIds: [...DEFAULT_DJ_SETTINGS.deckSfxIds],
   trailStyle: DEFAULT_DJ_SETTINGS.trailStyle,
 };
+const rhythmGameSettings = {
+  laneCount: DEFAULT_RHYTHM_GAME_SETTINGS.laneCount,
+};
 const rhythmGame = {
   phase: 'idle',
   notes: [],
@@ -292,6 +306,7 @@ const rhythmGame = {
   countdownText: '',
 };
 let djSettingsSaving = false;
+let rhythmGameSettingsSaving = false;
 let djLandscape = true;
 let djDecks = [];
 const keyboardZoneByCode = new Map();
@@ -415,6 +430,8 @@ const TOY_CLOUD_KEYS = Object.freeze({
   showGrid: 'dagou_show_grid_v1',
   spatialAudio: 'dagou_spatial_audio_v1',
   djMode: 'dagou_dj_mode_v1',
+  rhythmGameMode: 'dagou_rhythm_game_mode_v1',
+  rhythmGameLaneCount: 'dagou_rhythm_game_lane_count_v1',
   djDeckCount: 'dagou_dj_deck_count_v1',
   djDeckLeft: 'dagou_dj_deck_left_v1',
   djDeckCenter: 'dagou_dj_deck_center_v1',
@@ -519,6 +536,12 @@ const djDeckAssignmentRows = [
   ...document.querySelectorAll('.dj-deck-assignment[data-dj-slot]'),
 ];
 const djSfxChoiceButtons = [...document.querySelectorAll('[data-dj-sfx]')];
+const rhythmGameSettingsPanel = document.getElementById(
+  'rhythm-game-settings'
+);
+const rhythmGameLaneButtons = [
+  ...document.querySelectorAll('[data-rhythm-lane-count]'),
+];
 const rhythmGameLaunch = document.getElementById('rhythm-game-launch');
 const rhythmGameLaunchDescription = document.getElementById(
   'rhythm-game-launch-description'
@@ -1027,6 +1050,7 @@ const toyCloudState = {
 };
 const PERFORMANCE_SETTING_KEYS = Object.freeze({
   djMode: TOY_CLOUD_KEYS.djMode,
+  rhythmGameMode: TOY_CLOUD_KEYS.rhythmGameMode,
   pianoMode: TOY_CLOUD_KEYS.pianoMode,
   rhythmSnap: TOY_CLOUD_KEYS.rhythmSnap,
   showGrid: TOY_CLOUD_KEYS.showGrid,
@@ -1303,7 +1327,25 @@ function getActiveDjSlots() {
   return DJ_ACTIVE_SLOTS[djSettings.deckCount] ?? DJ_ACTIVE_SLOTS[2];
 }
 
-function createDjDeckVisual(slot) {
+function isDeckPerformanceMode() {
+  return performanceSettings.djMode || performanceSettings.rhythmGameMode;
+}
+
+function getActiveDeckSlots() {
+  if (performanceSettings.rhythmGameMode) {
+    return RHYTHM_GAME_ACTIVE_SLOTS[rhythmGameSettings.laneCount] ??
+      RHYTHM_GAME_ACTIVE_SLOTS[3];
+  }
+  return getActiveDjSlots();
+}
+
+function getDeckDisplayLabel(slot) {
+  if (!performanceSettings.rhythmGameMode) return DJ_DECK_LABELS[slot];
+  const laneIndex = getActiveDeckSlots().indexOf(slot);
+  return `LANE ${laneIndex + 1}`;
+}
+
+function createDjDeckVisual(slot, displayLabel = getDeckDisplayLabel(slot)) {
   const sfxId = djSettings.deckSfxIds[slot];
   const images = CHARACTER_IMAGE_SETS[sfxId];
   const element = document.createElement('section');
@@ -1313,7 +1355,7 @@ function createDjDeckVisual(slot) {
   const label = document.createElement('div');
   label.className = 'dj-deck-label';
   const deckName = document.createElement('strong');
-  deckName.textContent = DJ_DECK_LABELS[slot];
+  deckName.textContent = displayLabel;
   const sfxName = document.createElement('span');
   sfxName.textContent = SFX_LABELS[sfxId];
   label.append(deckName, sfxName);
@@ -1344,6 +1386,7 @@ function createDjDeckVisual(slot) {
     id: `dj-${slot}`,
     slot,
     sfxId,
+    displayLabel,
     element,
     character,
     inner,
@@ -1361,7 +1404,7 @@ function createDjDeckVisual(slot) {
 }
 
 function renderDjStage() {
-  const enabled = performanceSettings.djMode;
+  const enabled = isDeckPerformanceMode();
   stage.classList.toggle('is-dj-mode', enabled);
   djStage.setAttribute('aria-hidden', String(!enabled));
   if (!enabled) {
@@ -1372,11 +1415,13 @@ function renderDjStage() {
   }
 
   const previousDecks = new Map(djDecks.map(deck => [deck.slot, deck]));
-  const nextDecks = getActiveDjSlots().map((slot) => {
+  const nextDecks = getActiveDeckSlots().map((slot) => {
     const previous = previousDecks.get(slot);
-    return previous?.sfxId === djSettings.deckSfxIds[slot]
+    const displayLabel = getDeckDisplayLabel(slot);
+    return previous?.sfxId === djSettings.deckSfxIds[slot] &&
+      previous.displayLabel === displayLabel
       ? previous
-      : createDjDeckVisual(slot);
+      : createDjDeckVisual(slot, displayLabel);
   });
   const retainedDecks = new Set(nextDecks);
   for (const deck of previousDecks.values()) {
@@ -1419,16 +1464,8 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
     return { barCount: 0, duration: 0, totalJudgements: 0, notes: [] };
   }
 
-  const minimumPhraseGroups = Math.ceil(
-    RHYTHM_GAME_MIN_BARS / RHYTHM_GAME_PHRASE_BARS
-  );
-  const maximumPhraseGroups = Math.floor(
-    RHYTHM_GAME_MAX_BARS / RHYTHM_GAME_PHRASE_BARS
-  );
-  const phraseGroupCount = minimumPhraseGroups + Math.floor(
-    nextRandom() * (maximumPhraseGroups - minimumPhraseGroups + 1)
-  );
-  const barCount = phraseGroupCount * RHYTHM_GAME_PHRASE_BARS;
+  const barCount = RHYTHM_GAME_BAR_COUNT;
+  const phraseGroupCount = barCount / RHYTHM_GAME_PHRASE_BARS;
   const barDuration = SPB * 4;
   const chartDuration = barCount * barDuration;
   const deckSlots = [...new Set(playableZones.map(zone => zone.deckSlot))];
@@ -1503,11 +1540,26 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
         holdTickTimes.push(tickTime);
       }
     }
+    const articulation = kind === 'hold'
+      ? (slideTargets.length > 0 ? 'legato' : 'sustain')
+      : (options.articulation === 'connected' ? 'connected' : 'short');
+    const autoplayDuration = kind === 'hold'
+      ? duration
+      : Math.max(
+        RHYTHM_GAME_AUTOPLAY_TAP_DURATION,
+        Number.isFinite(options.autoplayDuration)
+          ? options.autoplayDuration
+          : articulation === 'connected'
+            ? RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION
+            : RHYTHM_GAME_AUTOPLAY_TAP_DURATION
+      );
     const note = {
       id: 0,
       eventId: ++eventSerial,
       chordId: options.chordId ?? null,
       kind,
+      articulation,
+      autoplayDuration,
       time,
       duration,
       endTime: time + duration,
@@ -1545,18 +1597,41 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
     deckSlot,
     startStep,
     template,
-    { role = 'lead', variation = false } = {}
+    {
+      role = 'lead',
+      variation = false,
+      sustainUntilStep = null,
+    } = {}
   ) => {
     const state = deckStates.get(deckSlot);
     if (!state) return [];
     if (variation) state.direction *= -1;
     const grooves = [template.steps, ...(template.variations ?? [])];
-    let grooveIndex = Math.floor(nextRandom() * grooves.length);
+    const sustainTailRequested =
+      Number.isFinite(sustainUntilStep) &&
+      template.rows.at(-1) === 2;
+    const eligibleGrooveIndexes = grooves
+      .map((groove, index) => ({ groove, index }))
+      .filter(({ groove }) => (
+        !sustainTailRequested ||
+        sustainUntilStep - (startStep + groove.at(-1)) >=
+          RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS
+      ))
+      .map(({ index }) => index);
+    const selectableGrooveIndexes = eligibleGrooveIndexes.length > 0
+      ? eligibleGrooveIndexes
+      : grooves.map((_, index) => index);
+    let grooveIndex = selectableGrooveIndexes[
+      Math.floor(nextRandom() * selectableGrooveIndexes.length)
+    ];
     const lastGroove = lastGrooveByDeck.get(deckSlot);
-    if (grooves.length > 1 && grooveIndex === lastGroove) {
-      grooveIndex = (grooveIndex + 1 + Math.floor(
-        nextRandom() * (grooves.length - 1)
-      )) % grooves.length;
+    const alternateGrooveIndexes = selectableGrooveIndexes.filter(
+      index => index !== lastGroove
+    );
+    if (grooveIndex === lastGroove && alternateGrooveIndexes.length > 0) {
+      grooveIndex = alternateGrooveIndexes[
+        Math.floor(nextRandom() * alternateGrooveIndexes.length)
+      ];
     }
     lastGrooveByDeck.set(deckSlot, grooveIndex);
     const phraseSteps = grooves[grooveIndex];
@@ -1568,10 +1643,36 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
         advanceDeckColumn(deckSlot, repeatedSyllable);
       }
       const target = getZone(deckSlot, template.rows[index], state.column);
+      const noteStep = startStep + phraseSteps[index];
+      const tailDurationSteps = sustainTailRequested &&
+        index === template.rows.length - 1
+        ? Math.min(
+          RHYTHM_GAME_PHRASE_TAIL_MAX_STEPS,
+          sustainUntilStep - noteStep
+        )
+        : 0;
+      const isSustainTail =
+        template.rows[index] === 2 &&
+        tailDurationSteps >= RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS;
+      const previousStep = index > 0 ? phraseSteps[index - 1] : null;
+      const nextStep = index + 1 < phraseSteps.length
+        ? phraseSteps[index + 1]
+        : null;
+      const isConnected = !isSustainTail && (
+        template.rows[index] === 2 ||
+        (previousStep !== null && phraseSteps[index] - previousStep <= 2) ||
+        (nextStep !== null && nextStep - phraseSteps[index] <= 2)
+      );
       const note = appendNote(
         target,
-        (startStep + phraseSteps[index]) * S8,
+        noteStep * S8,
         {
+          kind: isSustainTail ? 'hold' : 'tap',
+          duration: isSustainTail ? tailDurationSteps * S8 : 0,
+          articulation: isConnected ? 'connected' : 'short',
+          autoplayDuration: isConnected
+            ? RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION
+            : RHYTHM_GAME_AUTOPLAY_TAP_DURATION,
           phraseId,
           phraseText: template.text,
           phraseRole: role,
@@ -1606,7 +1707,11 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       options
     );
     const firstNote = phraseNotes[0];
-    if (!firstNote || phraseDeck === accentDeck) return phraseNotes;
+    if (
+      !firstNote ||
+      phraseDeck === accentDeck ||
+      !deckStates.has(accentDeck)
+    ) return phraseNotes;
     const chordId = `chord-${++chordSerial}`;
     firstNote.chordId = chordId;
     appendAccent(
@@ -1663,6 +1768,7 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
     offsets,
     phraseRole
   ) => {
+    if (deckSlots.length < 2) return [];
     const state = deckStates.get(deckSlot);
     if (!state) return [];
     const counterNotes = [];
@@ -1719,7 +1825,10 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
         getAccentDeck(responseDeck, relayDeck),
         groupStartStep + 16,
         responseTemplate,
-        { role: 'theme-answer' }
+        {
+          role: 'theme-answer',
+          sustainUntilStep: groupStartStep + 24,
+        }
       );
       appendCadenceHold(
         leadDeck,
@@ -1730,7 +1839,7 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       appendCounterLine(
         responseDeck,
         groupStartStep + 24,
-        arrangementVariant === 0 ? [2, 4] : [1, 4, 6],
+        arrangementVariant === 0 ? [3] : [2, 5],
         'theme-counter'
       );
       continue;
@@ -1745,20 +1854,32 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
         arrangementVariant === 0 ? responseDeck : relayDeck,
         groupStartStep + 8,
         arrangementVariant === 0 ? responseTemplate : relayTemplate,
-        { role: 'dialogue-answer', variation: true }
+        {
+          role: 'dialogue-answer',
+          variation: true,
+          sustainUntilStep: groupStartStep + 16,
+        }
       );
       appendPhrase(
         arrangementVariant === 0 ? relayDeck : responseDeck,
         groupStartStep + 16,
         arrangementVariant === 0 ? relayTemplate : responseTemplate,
-        { role: 'dialogue-relay' }
+        {
+          role: 'dialogue-relay',
+          sustainUntilStep: groupStartStep + 24,
+        }
       );
-      appendChordedPhrase(
+      appendCadenceHold(
         leadDeck,
-        getAccentDeck(leadDeck, responseDeck),
         groupStartStep + 24,
-        leadVariationTemplate,
-        { role: 'dialogue-cadence', variation: true }
+        phraseGroup,
+        2 + arrangementVariant
+      );
+      appendCounterLine(
+        responseDeck,
+        groupStartStep + 24,
+        arrangementVariant === 0 ? [3] : [2, 5],
+        'dialogue-counter'
       );
       continue;
     }
@@ -1774,10 +1895,12 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       );
       appendPhrase(responseDeck, groupStartStep + 8, responseTemplate, {
         role: 'lift-answer',
+        sustainUntilStep: groupStartStep + 16,
       });
       appendPhrase(relayDeck, groupStartStep + 16, relayTemplate, {
         role: 'lift-relay',
         variation: true,
+        sustainUntilStep: groupStartStep + 24,
       });
       appendCadenceHold(
         responseDeck,
@@ -1788,7 +1911,7 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       appendCounterLine(
         leadDeck,
         groupStartStep + 24,
-        arrangementVariant === 0 ? [1, 3, 5] : [2, 5],
+        arrangementVariant === 0 ? [3] : [2, 5],
         'lift-counter'
       );
       continue;
@@ -1804,11 +1927,12 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
     appendCounterLine(
       responseDeck,
       groupStartStep,
-      arrangementVariant === 0 ? [2, 4] : [1, 4, 6],
+      arrangementVariant === 0 ? [3] : [2, 5],
       'resolve-opening'
     );
     appendPhrase(responseDeck, groupStartStep + 8, responseTemplate, {
       role: 'resolve-answer',
+      sustainUntilStep: groupStartStep + 16,
     });
     appendPhrase(relayDeck, groupStartStep + 16, relayTemplate, {
       role: 'resolve-relay',
@@ -1819,7 +1943,11 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       getAccentDeck(leadDeck, responseDeck),
       groupStartStep + 24,
       leadVariationTemplate,
-      { role: 'resolve-cadence', variation: true }
+      {
+        role: 'resolve-cadence',
+        variation: true,
+        sustainUntilStep: groupStartStep + 32,
+      }
     );
   }
 
@@ -1892,7 +2020,11 @@ function shouldQuantizePerformanceInput() {
 
 function renderRhythmGameLaunch() {
   const active = isRhythmGameVisible();
-  const disabled = !performanceSettings.djMode || djSettingsSaving || active;
+  const disabled =
+    !performanceSettings.rhythmGameMode ||
+    performanceSettingsSaving ||
+    rhythmGameSettingsSaving ||
+    active;
   rhythmGameLaunch.setAttribute(
     'aria-pressed',
     String(active && !rhythmGame.autoplay)
@@ -1914,8 +2046,8 @@ function renderRhythmGameLaunch() {
     ? '演奏中'
     : '自动演奏';
   rhythmGameLaunchDescription.textContent =
-    `当前难度：${djSettings.deckCount} Deck · ` +
-    `${djSettings.deckCount * 12} 区域 · 四小节乐句 · 1–3 分钟`;
+    `当前难度：${rhythmGameSettings.laneCount} 栏 · ` +
+    `${rhythmGameSettings.laneCount * 12} 区域 · 固定 1:00`;
 }
 
 function clearRhythmGameCues() {
@@ -2249,7 +2381,9 @@ function startRhythmGameAutoplayNote(note) {
   if (note.kind === 'tap') {
     rhythmGame.autoplayTapReleases.push({
       inputId,
-      time: note.time + RHYTHM_GAME_AUTOPLAY_TAP_DURATION,
+      time: note.time + (
+        note.autoplayDuration ?? RHYTHM_GAME_AUTOPLAY_TAP_DURATION
+      ),
     });
   }
   return true;
@@ -2371,10 +2505,10 @@ function finishRhythmGame() {
 }
 
 async function startRhythmGame({ autoplay = false } = {}) {
-  if (!performanceSettings.djMode || isRhythmGameActive()) return false;
+  if (!performanceSettings.rhythmGameMode || isRhythmGameActive()) return false;
   if (rhythmGame.phase === 'results') resetRhythmGame();
   const ready = await start();
-  if (!ready || !performanceSettings.djMode || !ctx) return false;
+  if (!ready || !performanceSettings.rhythmGameMode || !ctx) return false;
 
   stopActivePerformanceInput();
   const chart = createRhythmGameChart(zones);
@@ -2563,7 +2697,7 @@ function renderKeyGrid() {
     'is-visible',
     performanceSettings.showGrid || isRhythmGameActive()
   );
-  keyGrid.classList.toggle('is-dj-grid', performanceSettings.djMode);
+  keyGrid.classList.toggle('is-dj-grid', isDeckPerformanceMode());
 
   const fragment = document.createDocumentFragment();
   for (const zone of zones) {
@@ -2571,7 +2705,7 @@ function renderKeyGrid() {
     cell.className = 'key-grid-cell';
     cell.dataset.sample = zone.sample;
     if (zone.note) cell.dataset.note = zone.note;
-    if (performanceSettings.djMode) {
+    if (isDeckPerformanceMode()) {
       cell.dataset.deckId = zone.deckId;
       if (zone.deckIndex > 0 && zone.localColumn === 0 && djLandscape) {
         cell.classList.add('is-deck-start-landscape');
@@ -2590,6 +2724,11 @@ function renderKeyGrid() {
 }
 
 function applyPerformanceSettings(previousSettings) {
+  const modeSettingNames = ['djMode', 'rhythmGameMode', 'pianoMode'];
+  const modeChanged = previousSettings && modeSettingNames.some(
+    settingName =>
+      previousSettings[settingName] !== performanceSettings[settingName]
+  );
   if (
     previousSettings &&
     previousSettings.rhythmSnap !== performanceSettings.rhythmSnap
@@ -2598,10 +2737,7 @@ function applyPerformanceSettings(previousSettings) {
     clearQueuedPerformanceInput();
   }
 
-  if (
-    previousSettings &&
-    previousSettings.djMode !== performanceSettings.djMode
-  ) {
+  if (modeChanged) {
     if (isRhythmGameVisible()) resetRhythmGame();
     stopActivePerformanceInput();
   }
@@ -2617,8 +2753,7 @@ function applyPerformanceSettings(previousSettings) {
   if (
     zones.length === 0 ||
     !previousSettings ||
-    previousSettings.pianoMode !== performanceSettings.pianoMode ||
-    previousSettings.djMode !== performanceSettings.djMode
+    modeChanged
   ) {
     buildGrid();
   } else {
@@ -2631,9 +2766,17 @@ function normalizePerformanceSettings(nextSettings, preferredMode = 'djMode') {
   for (const key of Object.keys(DEFAULT_PERFORMANCE_SETTINGS)) {
     normalized[key] = nextSettings?.[key] === true;
   }
-  if (normalized.djMode && normalized.pianoMode) {
-    if (preferredMode === 'pianoMode') normalized.djMode = false;
-    else normalized.pianoMode = false;
+  const modeSettingNames = ['djMode', 'rhythmGameMode', 'pianoMode'];
+  const activeModes = modeSettingNames.filter(
+    settingName => normalized[settingName]
+  );
+  if (activeModes.length > 1) {
+    const retainedMode = activeModes.includes(preferredMode)
+      ? preferredMode
+      : activeModes[0];
+    for (const settingName of modeSettingNames) {
+      normalized[settingName] = settingName === retainedMode;
+    }
   }
   return normalized;
 }
@@ -2671,12 +2814,27 @@ function getChangedPerformanceCloudItems(nextSettings) {
 
 function resetPerformanceSettingsToDefaults() {
   replaceDjSettings(DEFAULT_DJ_SETTINGS, false);
+  replaceRhythmGameSettings(DEFAULT_RHYTHM_GAME_SETTINGS, false);
   replacePerformanceSettings({
     ...DEFAULT_PERFORMANCE_SETTINGS,
     djMode:
       DEFAULT_PERFORMANCE_SETTINGS.djMode &&
       (DEBUG_UNLOCK_SFX || toyCloudState.sfxUnlocked),
   });
+}
+
+function replaceRhythmGameSettings(nextSettings, rebuild = true) {
+  const laneCount = [1, 2, 3].includes(nextSettings?.laneCount)
+    ? nextSettings.laneCount
+    : DEFAULT_RHYTHM_GAME_SETTINGS.laneCount;
+  const layoutChanged = laneCount !== rhythmGameSettings.laneCount;
+  rhythmGameSettings.laneCount = laneCount;
+  if (layoutChanged && rebuild && performanceSettings.rhythmGameMode) {
+    if (isRhythmGameVisible()) resetRhythmGame();
+    stopActivePerformanceInput();
+    buildGrid();
+  }
+  renderRhythmGameSettings();
 }
 
 function replaceDjSettings(nextSettings, rebuild = true) {
@@ -2735,6 +2893,15 @@ function readCloudDjSettings(cloud) {
   };
 }
 
+function readCloudRhythmGameSettings(cloud) {
+  const laneCount = Number(cloud[TOY_CLOUD_KEYS.rhythmGameLaneCount]);
+  return {
+    laneCount: [1, 2, 3].includes(laneCount)
+      ? laneCount
+      : DEFAULT_RHYTHM_GAME_SETTINGS.laneCount,
+  };
+}
+
 function renderDjSettings() {
   const visible = performanceSettings.djMode;
   djSettingsPanel.classList.toggle('is-visible', visible);
@@ -2764,6 +2931,19 @@ function renderDjSettings() {
       button.disabled = djSettingsSaving;
     }
   }
+}
+
+function renderRhythmGameSettings() {
+  const visible = performanceSettings.rhythmGameMode;
+  rhythmGameSettingsPanel.classList.toggle('is-visible', visible);
+  rhythmGameSettingsPanel.setAttribute('aria-hidden', String(!visible));
+  for (const button of rhythmGameLaneButtons) {
+    const selected =
+      Number(button.dataset.rhythmLaneCount) === rhythmGameSettings.laneCount;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = rhythmGameSettingsSaving || isRhythmGameVisible();
+  }
   renderRhythmGameLaunch();
 }
 
@@ -2782,19 +2962,30 @@ function renderPerformanceSettings() {
     button.disabled =
       !toyCloudState.initialized ||
       performanceSettingsSaving ||
-      djSettingsSaving;
+      djSettingsSaving ||
+      rhythmGameSettingsSaving;
   }
-  pianoModeDescription.textContent = performanceSettings.djMode
-    ? '开启后退出 DJ，开放一个八度音阶'
+  const activeDeckModeName = performanceSettings.djMode
+    ? 'DJ'
+    : performanceSettings.rhythmGameMode
+      ? '音游'
+      : '';
+  pianoModeDescription.textContent = activeDeckModeName
+    ? `开启后退出${activeDeckModeName}模式，开放一个八度音阶`
     : '开放一个八度的音阶';
   renderDjSettings();
+  renderRhythmGameSettings();
   renderSpatialAudioControls();
 
   performanceSettingsStatus.classList.toggle(
     'is-error',
     toyCloudState.initialized && !cloudAvailable
   );
-  if (performanceSettingsSaving || djSettingsSaving) {
+  if (
+    performanceSettingsSaving ||
+    djSettingsSaving ||
+    rhythmGameSettingsSaving
+  ) {
     performanceSettingsStatus.textContent = '正在保存到哔哩哔哩云端…';
   } else if (!toyCloudState.initialized) {
     performanceSettingsStatus.textContent = '正在读取哔哩哔哩云端设置…';
@@ -2882,20 +3073,34 @@ async function initializeToyCloudState() {
     toyCloudState.sfxUnlocked =
       DEBUG_UNLOCK_SFX || cloud[TOY_CLOUD_KEYS.sfxUnlocked] === '1';
     replaceDjSettings(readCloudDjSettings(cloud), false);
+    replaceRhythmGameSettings(readCloudRhythmGameSettings(cloud), false);
     const cloudPerformanceSettings = readCloudPerformanceSettings(cloud);
-    if (!toyCloudState.sfxUnlocked) cloudPerformanceSettings.djMode = false;
-    let modeCorrection = null;
-    if (cloudPerformanceSettings.djMode && cloudPerformanceSettings.pianoMode) {
-      if (cloud[TOY_CLOUD_KEYS.djMode] === '1') {
-        cloudPerformanceSettings.pianoMode = false;
-        modeCorrection = { [TOY_CLOUD_KEYS.pianoMode]: '0' };
-      } else {
-        cloudPerformanceSettings.djMode = false;
-        modeCorrection = { [TOY_CLOUD_KEYS.djMode]: '0' };
-      }
+    if (!toyCloudState.sfxUnlocked) {
+      cloudPerformanceSettings.djMode = false;
+      cloudPerformanceSettings.rhythmGameMode = false;
     }
-    replacePerformanceSettings(cloudPerformanceSettings);
-    if (modeCorrection) {
+    const preferredCloudMode = cloud[TOY_CLOUD_KEYS.rhythmGameMode] === '1'
+      ? 'rhythmGameMode'
+      : cloud[TOY_CLOUD_KEYS.djMode] === '1'
+        ? 'djMode'
+        : cloud[TOY_CLOUD_KEYS.pianoMode] === '1'
+          ? 'pianoMode'
+          : 'djMode';
+    const normalizedCloudSettings = normalizePerformanceSettings(
+      cloudPerformanceSettings,
+      preferredCloudMode
+    );
+    const modeCorrection = {};
+    for (const settingName of ['djMode', 'rhythmGameMode', 'pianoMode']) {
+      if (
+        normalizedCloudSettings[settingName] ===
+        cloudPerformanceSettings[settingName]
+      ) continue;
+      modeCorrection[PERFORMANCE_SETTING_KEYS[settingName]] =
+        normalizedCloudSettings[settingName] ? '1' : '0';
+    }
+    replacePerformanceSettings(normalizedCloudSettings, preferredCloudMode);
+    if (Object.keys(modeCorrection).length > 0) {
       try {
         await toy.setCloudStorage(modeCorrection);
       } catch (error) {
@@ -3166,13 +3371,16 @@ async function handlePerformanceSettingClick(button) {
   const state = await toyStateReady;
   const nextSettings = getToggledPerformanceSettings(settingName);
   const nextValue = nextSettings[settingName];
-  if (settingName === 'djMode' && nextValue && !state.sfxUnlocked) {
+  const lockedDeckMode =
+    settingName === 'djMode' || settingName === 'rhythmGameMode';
+  if (lockedDeckMode && nextValue && !state.sfxUnlocked) {
+    const modeName = settingName === 'rhythmGameMode' ? '音游模式' : 'DJ 模式';
     if (!state.environmentAvailable || !state.toy) {
-      showToyNotice('请在哔哩哔哩内打开并解锁音效后使用 DJ 模式', true);
+      showToyNotice(`请在哔哩哔哩内打开并解锁音效后使用${modeName}`, true);
     } else if (!state.cloudReadable) {
       showToyNotice('云端状态读取失败，请刷新后重试。', true);
     } else {
-      showToyNotice('DJ 模式需要多套音效，请先点击开发视频完成解锁。');
+      showToyNotice(`${modeName}需要多套音效，请先点击开发视频完成解锁。`);
     }
     return;
   }
@@ -3284,6 +3492,43 @@ async function persistDjSettings(nextSettings, cloudItems) {
     djSettingsSaving = false;
     renderToyCloudState();
   }
+}
+
+async function persistRhythmGameSettings(nextSettings) {
+  if (rhythmGameSettingsSaving) return;
+  const state = await toyStateReady;
+  if (!state.environmentAvailable || !state.cloudReadable || !state.toy) {
+    replaceRhythmGameSettings(nextSettings);
+    renderToyCloudState();
+    showToyNotice('云存储不可用，本次音游设置仅在当前页面有效。');
+    return;
+  }
+
+  rhythmGameSettingsSaving = true;
+  renderToyCloudState();
+  try {
+    await state.toy.setCloudStorage({
+      [TOY_CLOUD_KEYS.rhythmGameLaneCount]: String(nextSettings.laneCount),
+    });
+    replaceRhythmGameSettings(nextSettings);
+  } catch (error) {
+    markToyCloudUnavailable(state);
+    replaceRhythmGameSettings(nextSettings);
+    console.warn('[大狗Tap] 音游设置写入失败。', error);
+    showToyNotice('云存储不可用，本次音游设置仅在当前页面有效。');
+  } finally {
+    rhythmGameSettingsSaving = false;
+    renderToyCloudState();
+  }
+}
+
+for (const button of rhythmGameLaneButtons) {
+  button.addEventListener('click', () => {
+    const laneCount = Number(button.dataset.rhythmLaneCount);
+    if (![1, 2, 3].includes(laneCount)) return;
+    if (laneCount === rhythmGameSettings.laneCount) return;
+    void persistRhythmGameSettings({ laneCount });
+  });
 }
 
 for (const button of djCountButtons) {
@@ -4400,8 +4645,8 @@ function buildGrid() {
   zones = [];
   keyboardZoneByCode.clear();
 
-  if (performanceSettings.djMode) {
-    const activeSlots = getActiveDjSlots();
+  if (isDeckPerformanceMode()) {
+    const activeSlots = getActiveDeckSlots();
     cols = landscape ? activeSlots.length * 4 : 4;
     rows = landscape ? 3 : activeSlots.length * 3;
     const rowMap = [
@@ -4690,7 +4935,7 @@ function drawRhythmGameTouchFeedback(now, emojiMode) {
 function drawTouchTrails(now) {
   touchFx2d.clearRect(0, 0, fxW, fxH);
   const emojiMode =
-    performanceSettings.djMode && djSettings.trailStyle === 'emoji';
+    isDeckPerformanceMode() && djSettings.trailStyle === 'emoji';
   if (isRhythmGameActive()) {
     drawRhythmGameTouchFeedback(now, emojiMode);
     return;
@@ -5642,7 +5887,7 @@ function reflowQueuedInputTimes() {
   }
 
   const quantizedWhen = quantize(S8);
-  if (performanceSettings.djMode) {
+  if (isDeckPerformanceMode()) {
     const nextTimes = new Map();
     for (const entry of inputQueue) {
       const scopeId = entry.deckId ?? 'solo';
@@ -5684,7 +5929,7 @@ function removeQueuedSample(sample, deckId = null) {
 function enqueueActivation(zi, pointerId) {
   hideControlsUntilIdle();
   const z = zones[zi];
-  const sfxId = performanceSettings.djMode ? z.sfxId : selectedSfxId;
+  const sfxId = isDeckPerformanceMode() ? z.sfxId : selectedSfxId;
   removeQueuedSample(z.sample, z.deckId);
   const entry = {
     id: ++inputSerial,
@@ -5874,7 +6119,7 @@ function tick() {
 
     // 大狗律动：拍头向上跳 + 上下压缩（压扁拉伸），叠加两拍一周期的左右晃动
     const sway = Math.sin(((t - startTime) / (SPB * 2)) * Math.PI * 2);
-    if (performanceSettings.djMode) {
+    if (isDeckPerformanceMode()) {
       for (const deck of djDecks) updateDjDeckCharacter(deck, now, dt, sway);
     } else {
       dogEl.style.transform =
@@ -5888,7 +6133,7 @@ function tick() {
    * 高刚度(320) + 低阻尼(13)：约 90ms 快速冲起、带过冲后果断定住；
    * 张嘴期间维持弹起，闭嘴快速弹回；每次队列发声时注入冲量，
    * 嘴张着也会重新弹一下。 */
-  if (!performanceSettings.djMode) {
+  if (!isDeckPerformanceMode()) {
     const popTarget = mouthPopped ? 1 : 0;
     barkPopVel += (popTarget - barkPop) * 320 * dt;
     barkPopVel *= Math.exp(-13 * dt);
@@ -6094,7 +6339,7 @@ function beginKeyboardInput(code) {
 function handleKeyboardDown(event) {
   if (handleSoundFieldKeyboard(event)) return;
   if (
-    !performanceSettings.djMode ||
+    !isDeckPerformanceMode() ||
     settingsOpen ||
     (rhythmGame.autoplay && isRhythmGameActive()) ||
     !keyboardZoneByCode.has(event.code)

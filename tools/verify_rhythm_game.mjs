@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Executes the production phrase generator and timing helpers so the
-// 1–3 minute duration, vocal motifs, doubles, and legato chains stay stable.
+// Fixed one-minute duration, 1–3 lanes, vocal motifs, doubles, and legato chains.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,7 +11,7 @@ const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8
 const htmlSource = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 function extractFunction(name) {
-  const candidates = [`async function ${name}`, `function ${name}`];
+  const candidates = [`async function ${name}(`, `function ${name}(`];
   const start = candidates
     .map(candidate => mainSource.indexOf(candidate))
     .filter(index => index >= 0)
@@ -43,12 +43,15 @@ vm.runInNewContext(
   const BPM = 128;
   const SPB = 60 / BPM;
   const S8 = SPB / 2;
-  ${extractConst('RHYTHM_GAME_MIN_BARS')}
-  ${extractConst('RHYTHM_GAME_MAX_BARS')}
+  ${extractConst('RHYTHM_GAME_BAR_COUNT')}
   ${extractConst('RHYTHM_GAME_PHRASE_BARS')}
   ${extractConst('RHYTHM_GAME_PERFECT_WINDOW')}
   ${extractConst('RHYTHM_GAME_GOOD_WINDOW')}
   ${extractConst('RHYTHM_GAME_SLIDE_GOOD_WINDOW')}
+  ${extractConst('RHYTHM_GAME_AUTOPLAY_TAP_DURATION')}
+  ${extractConst('RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION')}
+  ${extractConst('RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS')}
+  ${extractConst('RHYTHM_GAME_PHRASE_TAIL_MAX_STEPS')}
   ${extractConst('RHYTHM_GAME_PHRASE_TEMPLATES')}
   ${extractFunction('getRhythmGameZoneKey')}
   ${extractFunction('createRhythmGameChart')}
@@ -60,6 +63,9 @@ vm.runInNewContext(
   globalThis.rhythmGameApi = {
     SPB,
     S8,
+    RHYTHM_GAME_BAR_COUNT,
+    RHYTHM_GAME_AUTOPLAY_TAP_DURATION,
+    RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION,
     createRhythmGameChart,
     classifyRhythmGameTiming,
     classifyRhythmGameSlideTiming,
@@ -103,13 +109,16 @@ function makeZones(deckSlots) {
 function verifyChart(deckSlots, seed) {
   const zones = makeZones(deckSlots);
   const chart = plain(api.createRhythmGameChart(zones, seededRandom(seed)));
-  assert.ok(chart.duration >= 60 && chart.duration <= 180);
+  assert.equal(chart.duration, 60);
+  assert.equal(chart.barCount, api.RHYTHM_GAME_BAR_COUNT);
   assert.equal(chart.duration, chart.barCount * api.SPB * 4);
   assert.equal(chart.barCount % 4, 0);
   assert.equal(chart.phraseGroupCount, chart.barCount / 4);
   assert.ok(chart.notes.length > 0);
   assert.ok(chart.notes.some(note => note.kind === 'hold'));
-  assert.ok(chart.notes.some(note => note.chordId));
+  if (deckSlots.length > 1) {
+    assert.ok(chart.notes.some(note => note.chordId));
+  }
 
   const zoneKeys = new Set(zones.map(zone =>
     `${zone.deckSlot}:${zone.localRow}:${zone.localColumn}`
@@ -122,13 +131,20 @@ function verifyChart(deckSlots, seed) {
     assert.ok(note.localColumn >= 0 && note.localColumn < 4);
     assert.ok(note.time >= previousTime);
     assert.ok(Math.abs(note.time / api.S8 - Math.round(note.time / api.S8)) < 1e-8);
+    assert.ok(['short', 'connected', 'sustain', 'legato'].includes(
+      note.articulation
+    ));
     previousTime = note.time;
     if (note.kind === 'hold') {
       assert.equal(note.localRow, 2);
       assert.ok(note.duration >= api.S8 * 2);
-      assert.ok(note.endTime <= chart.duration - api.S8 + 1e-8);
+      assert.ok(note.endTime <= chart.duration + 1e-8);
       assert.ok([0, 2].includes(note.slideTargets.length));
-      if (note.slideTargets.length === 0) {
+      assert.ok(['sustain', 'legato'].includes(note.articulation));
+      if (
+        note.slideTargets.length === 0 &&
+        note.duration > api.SPB + 0.01
+      ) {
         assert.ok(note.holdTickTimes.length > 0);
       }
       let previousColumn = note.localColumn;
@@ -139,6 +155,14 @@ function verifyChart(deckSlots, seed) {
         assert.ok(slideTarget.time > note.time);
         assert.ok(slideTarget.time < note.endTime);
         previousColumn = slideTarget.localColumn;
+      }
+    } else {
+      assert.ok(note.autoplayDuration >= api.RHYTHM_GAME_AUTOPLAY_TAP_DURATION);
+      if (note.articulation === 'connected') {
+        assert.equal(
+          note.autoplayDuration,
+          api.RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION
+        );
       }
     }
   }
@@ -192,13 +216,20 @@ function verifyChart(deckSlots, seed) {
   }
 
   const holds = chart.notes.filter(note => note.kind === 'hold');
+  assert.ok(holds.length >= chart.phraseGroupCount * 2);
+  assert.ok(holds.length <= chart.phraseGroupCount * 3);
+  assert.ok(
+    holds.reduce((total, note) => total + note.duration, 0) >=
+      chart.duration * 0.24
+  );
+  assert.ok(chart.notes.some(note => note.articulation === 'connected'));
   assert.ok(holds.some(note => note.slideTargets.length === 2));
   assert.ok(holds.some(note => note.slideTargets.length === 0));
   for (const hold of holds) {
     const overlapping = chart.notes.filter(note =>
       note.id !== hold.id &&
       note.time > hold.time &&
-      note.time <= hold.endTime + 1e-8
+      note.time < hold.endTime - 1e-8
     );
     assert.ok(overlapping.every(note => note.deckSlot !== hold.deckSlot));
     assert.ok(overlapping.every(note => !note.chordId));
@@ -207,7 +238,7 @@ function verifyChart(deckSlots, seed) {
   const eventTimes = [...new Set(chart.notes.map(note => note.time))];
   for (const time of eventTimes) {
     const heldContacts = holds.filter(
-      hold => hold.time <= time && hold.endTime >= time
+      hold => hold.time <= time && hold.endTime > time
     ).length;
     const tapContacts = chart.notes.filter(
       note => note.kind === 'tap' && note.time === time
@@ -233,27 +264,30 @@ function verifyChart(deckSlots, seed) {
   return chart;
 }
 
-const twoDeckChart = verifyChart([0, 2], 0x2d2d2d2d);
-const threeDeckChart = verifyChart([0, 1, 2], 0x3d3d3d3d);
-for (const chart of [twoDeckChart, threeDeckChart]) {
+const oneLaneChart = verifyChart([0], 0x1d1d1d1d);
+const twoLaneChart = verifyChart([0, 2], 0x2d2d2d2d);
+const threeLaneChart = verifyChart([0, 1, 2], 0x3d3d3d3d);
+for (const chart of [twoLaneChart, threeLaneChart]) {
   const phraseTexts = new Set(chart.notes.map(note => note.phraseText));
   assert.ok(phraseTexts.has('大狗叫'));
   assert.ok(phraseTexts.has('大狗大狗叫叫叫'));
   assert.ok(phraseTexts.has('叮咚叮咚鸡'));
 }
 for (let seed = 1; seed <= 12; seed++) {
+  verifyChart([0], seed * 0x10101);
   verifyChart([0, 2], seed * 0x10203);
   verifyChart([0, 1, 2], seed * 0x30405);
 }
-assert.ok(new Set(twoDeckChart.notes.map(note => note.zoneKey)).size <= 24);
-assert.ok(new Set(threeDeckChart.notes.map(note => note.zoneKey)).size <= 36);
+assert.ok(new Set(oneLaneChart.notes.map(note => note.zoneKey)).size <= 12);
+assert.ok(new Set(twoLaneChart.notes.map(note => note.zoneKey)).size <= 24);
+assert.ok(new Set(threeLaneChart.notes.map(note => note.zoneKey)).size <= 36);
 assert.equal(
-  plain(api.createRhythmGameChart(makeZones([0, 2]), () => 0)).duration,
+  plain(api.createRhythmGameChart(makeZones([0]), () => 0)).duration,
   60,
 );
 assert.equal(
   plain(api.createRhythmGameChart(makeZones([0, 1, 2]), () => 0.999999)).duration,
-  180,
+  60,
 );
 
 assert.equal(api.classifyRhythmGameTiming(0), 'perfect');
@@ -269,7 +303,7 @@ assert.equal(api.getRhythmGameGrade(0.78), 'B');
 assert.equal(api.getRhythmGameGrade(0.65), 'C');
 assert.equal(api.getRhythmGameGrade(0.64), 'D');
 assert.equal(api.formatRhythmGameTime(60), '1:00');
-assert.equal(api.formatRhythmGameTime(179.2), '3:00');
+assert.equal(api.formatRhythmGameTime(59.2), '1:00');
 
 const holdSandbox = {};
 vm.runInNewContext(
@@ -447,6 +481,8 @@ assert.deepEqual(plain(slideSandbox.slideResult), {
 });
 
 for (const id of [
+  'rhythm-game-mode-setting',
+  'rhythm-game-settings',
   'rhythm-game-launch',
   'rhythm-game-autoplay-launch',
   'rhythm-game-auto-badge',
@@ -456,6 +492,20 @@ for (const id of [
 ]) {
   assert.match(htmlSource, new RegExp(`id="${id}"`));
 }
+for (const laneCount of [1, 2, 3]) {
+  assert.match(
+    htmlSource,
+    new RegExp(`data-rhythm-lane-count="${laneCount}"`),
+  );
+}
+assert.match(
+  mainSource,
+  /async function startRhythmGame\(\{ autoplay = false \} = \{\}\) \{[\s\S]*?performanceSettings\.rhythmGameMode/,
+);
+assert.match(
+  extractFunction('renderRhythmGameLaunch'),
+  /fixed|固定 1:00|rhythmGameSettings\.laneCount/,
+);
 assert.match(
   htmlSource,
   /#stage\.is-rhythm-game #fx \{ opacity: \.9; \}/,
@@ -624,15 +674,21 @@ assert.match(
   extractFunction('startRhythmGameAutoplayNote'),
   /enterZone\(inputId, state, zoneIndexValue\)/,
 );
+assert.match(
+  extractFunction('startRhythmGameAutoplayNote'),
+  /note\.autoplayDuration \?\? RHYTHM_GAME_AUTOPLAY_TAP_DURATION/,
+);
 
-console.log('DJ rhythm game verification passed:');
-console.log('- four-bar sections stay between one and three minutes on the 128 BPM grid');
+console.log('Rhythm game verification passed:');
+console.log('- every generated chart stays fixed at one minute on the 128 BPM grid');
 console.log('- 大狗叫、大狗大狗叫叫叫、叮咚叮咚鸡 keep their exact syllable order');
 console.log('- theme, dialogue, lift, and resolve sections rotate phrase roles and grooves');
 console.log('- phrase pitches move only to the same or an adjacent column');
-console.log('- two and three Deck layouts target the complete 4 × 3 cell set');
-console.log('- double notes use two different Decks at one timestamp');
-console.log('- sustained holds and legato chains alternate on the sustain row');
+console.log('- one, two, and three lane layouts target complete 4 × 3 cell sets');
+console.log('- double notes use two different lanes at one timestamp');
+console.log('- each four-bar section carries two or three sustained phrase endings');
+console.log('- connected taps use longer AUTO gates while true holds retain release judgement');
+console.log('- sustained holds and legato chains stay on the sustain row');
 console.log('- generated charts never require more than two simultaneous contacts');
 console.log('- rhythm mode randomizes four short-range effects and colors the full hit cell with its character');
 console.log('- press, slide checkpoints, release timing, pointer, and keyboard hooks are present');
