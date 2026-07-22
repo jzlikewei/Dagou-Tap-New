@@ -4,7 +4,7 @@
 
 ## 在线体验
 
-- [飞书妙搭](https://vrfi1sk8a0.feishuapp.com/app/app_17ajzqck2cj/)
+- [飞书妙搭](https://t9lqe93khi.feishuapp.com/app/app_17ammbtgvq8/)
 - [GitHub Pages](https://jzlikewei.github.io/Dagou-Tap-New/)
 
 首次进入时点一下开始遮罩，用于解锁浏览器音频。iPad Safari 的音频启动发生在抬手阶段；启动超时后可以再次点击。
