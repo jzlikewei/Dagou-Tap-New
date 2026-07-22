@@ -226,7 +226,7 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /main\.js\?v=20260722-rhythm-phrases/,
+  /main\.js\?v=20260722-rhythm-random-cell-fx/,
   'the fixed startup script must use a fresh cache key',
 );
 assert.match(

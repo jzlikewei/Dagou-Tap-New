@@ -45,6 +45,7 @@
     inset: 0;
     z-index: 3;
     pointer-events: none;
+    transition: opacity .16s linear;
   }
 
   /* 多指跟手层：位于角色和网格之上，每个触点独立绘制圆环与短尾迹。 */
@@ -53,7 +54,10 @@
     inset: 0;
     z-index: 9;
     pointer-events: none;
+    transition: opacity .16s linear;
   }
+  #stage.is-rhythm-game #fx { opacity: .9; }
+  #stage.is-rhythm-game #touch-fx { opacity: .76; }
 
   /* 3D 音场控制：手动模式可拖动，重力模式作为实时倾斜指示器。 */
   #sound-field-control {
@@ -287,6 +291,42 @@
     0%   { opacity: .45; }
     100% { opacity: 0; }
   }
+  #stage.is-rhythm-game .zone-flash {
+    --rhythm-zone-fill: rgba(255, 180, 0, .42);
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: var(--rhythm-zone-fill);
+    border-radius: 8px;
+    box-shadow:
+      inset 0 0 0 3px rgba(255, 255, 255, .68),
+      inset 0 0 26px rgba(255, 255, 255, .28);
+    animation: rhythmZoneFade .38s ease-out forwards;
+  }
+  #stage.is-rhythm-game .zone-flash[data-sfx="hajimi"] {
+    --rhythm-zone-fill: rgba(22, 194, 163, .38);
+  }
+  #stage.is-rhythm-game .zone-flash[data-sfx="dingdong"] {
+    --rhythm-zone-fill: rgba(62, 123, 250, .36);
+  }
+  .rhythm-zone-image {
+    width: min(72%, 110px);
+    height: 76%;
+    object-fit: contain;
+    opacity: .9;
+    filter: drop-shadow(0 6px 10px rgba(111, 106, 99, .24));
+    animation: rhythmZoneImagePop .38s ease-out forwards;
+  }
+  @keyframes rhythmZoneFade {
+    0%   { opacity: .96; }
+    28%  { opacity: .82; }
+    100% { opacity: 0; }
+  }
+  @keyframes rhythmZoneImagePop {
+    0%   { transform: scale(.72); }
+    32%  { transform: scale(1); }
+    100% { transform: translateY(-4px) scale(.92); }
+  }
 
   /* DJ 音游：提示层沿用当前全局网格，收缩的八边形在拍点落到目标区域。 */
   #rhythm-game-layer {
@@ -323,7 +363,7 @@
     color: #765300;
     background: var(--amber);
     clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
-    filter: drop-shadow(0 5px 12px rgba(135, 94, 0, .24));
+    filter: drop-shadow(0 3px 7px rgba(135, 94, 0, .18));
     transform: scale(var(--rhythm-note-scale, 1));
     will-change: transform, opacity;
   }
@@ -414,12 +454,12 @@
   .rhythm-game-note.is-good .rhythm-game-note-target { background: var(--teal); }
   .rhythm-game-note.is-miss .rhythm-game-note-target { background: var(--coral); }
   .rhythm-game-note.is-judged .rhythm-game-note-target {
-    animation: rhythmNoteJudged .26s ease-out forwards;
+    animation: rhythmNoteJudged .18s ease-out forwards;
   }
   @keyframes rhythmNoteJudged {
     0% { opacity: 1; transform: scale(1); }
-    45% { opacity: .9; transform: scale(1.18); }
-    100% { opacity: 0; transform: scale(.72); }
+    45% { opacity: .88; transform: scale(1.06); }
+    100% { opacity: 0; transform: scale(.88); }
   }
 
   #rhythm-game-hud {
@@ -503,21 +543,27 @@
     font-size: clamp(72px, 18vmin, 160px);
   }
   #rhythm-game-judgement {
-    top: 40%;
-    min-width: 180px;
-    font-size: clamp(24px, 5vmin, 48px);
+    top: max(66px, calc(env(safe-area-inset-top) + 56px));
+    min-width: 0;
+    padding: 5px 9px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    background: rgba(255, 250, 240, .86);
+    font-size: 11px;
+    letter-spacing: .04em;
+    text-shadow: none;
     opacity: 0;
   }
   #rhythm-game-judgement.is-visible {
-    animation: rhythmJudgement .42s ease-out forwards;
+    animation: rhythmJudgement .26s linear forwards;
   }
   #rhythm-game-judgement.is-good { color: #0c967f; }
   #rhythm-game-judgement.is-miss,
   #rhythm-game-judgement.is-wrong { color: #c9474c; }
   @keyframes rhythmJudgement {
-    0% { opacity: 0; transform: translate(-50%, -40%) scale(.82); }
-    24% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
-    100% { opacity: 0; transform: translate(-50%, -72%) scale(.96); }
+    0% { opacity: 0; transform: translate(-50%, -50%); }
+    20% { opacity: .92; transform: translate(-50%, -50%); }
+    100% { opacity: 0; transform: translate(-50%, -56%); }
   }
 
   #rhythm-game-results {
@@ -2245,6 +2291,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260722-rhythm-phrases"></script>
+  <script src="main.js?v=20260722-rhythm-random-cell-fx"></script>
 </body>
 </html>

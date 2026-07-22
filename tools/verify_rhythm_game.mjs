@@ -127,7 +127,10 @@ function verifyChart(deckSlots, seed) {
       assert.equal(note.localRow, 2);
       assert.ok(note.duration >= api.S8 * 2);
       assert.ok(note.endTime <= chart.duration - api.S8 + 1e-8);
-      assert.equal(note.slideTargets.length, 2);
+      assert.ok([0, 2].includes(note.slideTargets.length));
+      if (note.slideTargets.length === 0) {
+        assert.ok(note.holdTickTimes.length > 0);
+      }
       let previousColumn = note.localColumn;
       for (const slideTarget of note.slideTargets) {
         assert.equal(slideTarget.deckSlot, note.deckSlot);
@@ -143,10 +146,16 @@ function verifyChart(deckSlots, seed) {
   const phraseRows = new Map([
     ['大狗叫', [0, 1, 2]],
     ['大狗大狗叫叫叫', [0, 1, 0, 1, 2, 2, 2]],
+    ['大狗叫叫', [0, 1, 2, 2]],
+    ['大狗大狗叫', [0, 1, 0, 1, 2]],
     ['叮咚叮咚鸡', [0, 1, 0, 1, 2]],
     ['叮咚鸡', [0, 1, 2]],
+    ['叮咚鸡鸡', [0, 1, 2, 2]],
+    ['叮叮咚鸡', [0, 0, 1, 2]],
     ['哈基米', [0, 1, 2]],
     ['哈基哈基米米米', [0, 1, 0, 1, 2, 2, 2]],
+    ['哈基米米', [0, 1, 2, 2]],
+    ['哈基哈基米', [0, 1, 0, 1, 2]],
   ]);
   const phraseInstances = new Map();
   for (const note of chart.notes.filter(note => note.phraseId && note.phraseTokenIndex !== null)) {
@@ -183,6 +192,8 @@ function verifyChart(deckSlots, seed) {
   }
 
   const holds = chart.notes.filter(note => note.kind === 'hold');
+  assert.ok(holds.some(note => note.slideTargets.length === 2));
+  assert.ok(holds.some(note => note.slideTargets.length === 0));
   for (const hold of holds) {
     const overlapping = chart.notes.filter(note =>
       note.id !== hold.id &&
@@ -213,6 +224,12 @@ function verifyChart(deckSlots, seed) {
     0
   );
   assert.equal(chart.totalJudgements, expectedJudgements);
+  const sectionRoles = new Set(
+    chart.notes.map(note => String(note.phraseRole ?? '').split('-')[0])
+  );
+  for (const role of ['theme', 'dialogue', 'lift', 'resolve']) {
+    assert.ok(sectionRoles.has(role));
+  }
   return chart;
 }
 
@@ -440,6 +457,54 @@ for (const id of [
   assert.match(htmlSource, new RegExp(`id="${id}"`));
 }
 assert.match(
+  htmlSource,
+  /#stage\.is-rhythm-game #fx \{ opacity: \.9; \}/,
+);
+assert.match(
+  htmlSource,
+  /#stage\.is-rhythm-game #touch-fx \{ opacity: \.76; \}/,
+);
+assert.match(
+  htmlSource,
+  /#stage\.is-rhythm-game \.zone-flash[\s\S]*rhythmZoneFade \.38s/,
+);
+assert.match(
+  htmlSource,
+  /\.rhythm-zone-image[\s\S]*rhythmZoneImagePop \.38s/,
+);
+assert.match(
+  extractFunction('drawTouchTrails'),
+  /drawRhythmGameTouchFeedback\(now, emojiMode\)/,
+);
+assert.match(
+  extractFunction('drawRhythmGameTouchFeedback'),
+  /const radius = 8 \+ easeOutCubic\(pulseProgress\) \* 18/,
+);
+assert.match(
+  extractFunction('scheduleActivationVisual'),
+  /const quietFeedback = isRhythmGameActive\(\)[\s\S]*spawnRhythmGameEffect\(zi, ctx\.currentTime, deckId\)/,
+);
+assert.match(
+  extractConst('RHYTHM_GAME_EFFECTS'),
+  /'confetti'[\s\S]*'zigzag'[\s\S]*'pop'[\s\S]*'stars'/,
+);
+assert.match(
+  extractFunction('spawnRhythmGameEffect'),
+  /Math\.floor\(Math\.random\(\) \* RHYTHM_GAME_EFFECTS\.length\)[\s\S]*scale: RHYTHM_GAME_EFFECT_SCALE[\s\S]*life: RHYTHM_GAME_EFFECT_LIFE/,
+);
+assert.match(
+  extractFunction('flashZone'),
+  /CHARACTER_IMAGE_SETS\[sfxId\][\s\S]*image\.src = character\.open[\s\S]*el\.appendChild\(image\)/,
+);
+assert.match(
+  extractFunction('fxFrame'),
+  /const sc = inst\.scale \* exitScale/,
+);
+assert.match(
+  mainSource,
+  /async function startRhythmGame\([\s\S]*?clearPerformanceVisualEffects\(\)/,
+);
+assert.match(
   extractFunction('enterZone'),
   /handleRhythmGameHoldZoneChange\(pointerId, zi\)/,
 );
@@ -561,12 +626,14 @@ assert.match(
 );
 
 console.log('DJ rhythm game verification passed:');
-console.log('- four-bar phrases stay between one and three minutes on the 128 BPM grid');
+console.log('- four-bar sections stay between one and three minutes on the 128 BPM grid');
 console.log('- 大狗叫、大狗大狗叫叫叫、叮咚叮咚鸡 keep their exact syllable order');
+console.log('- theme, dialogue, lift, and resolve sections rotate phrase roles and grooves');
 console.log('- phrase pitches move only to the same or an adjacent column');
 console.log('- two and three Deck layouts target the complete 4 × 3 cell set');
 console.log('- double notes use two different Decks at one timestamp');
-console.log('- legato chains stay on the sustain row and slide through adjacent cells');
+console.log('- sustained holds and legato chains alternate on the sustain row');
 console.log('- generated charts never require more than two simultaneous contacts');
+console.log('- rhythm mode randomizes four short-range effects and colors the full hit cell with its character');
 console.log('- press, slide checkpoints, release timing, pointer, and keyboard hooks are present');
 console.log('- AUTO mode schedules short presses, slides, double notes, and timed releases');

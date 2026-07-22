@@ -34,12 +34,41 @@ const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
       text: '大狗叫',
       rows: Object.freeze([0, 1, 2]),
       steps: Object.freeze([0, 2, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4]),
+        Object.freeze([1, 3, 6]),
+        Object.freeze([0, 3, 5]),
+      ]),
     }),
     Object.freeze({
       id: 'dagou-chant',
       text: '大狗大狗叫叫叫',
       rows: Object.freeze([0, 1, 0, 1, 2, 2, 2]),
       steps: Object.freeze([0, 1, 2, 3, 4, 5, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 3, 4, 5, 6, 7]),
+        Object.freeze([0, 2, 3, 4, 5, 6, 7]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dagou-tail',
+      text: '大狗叫叫',
+      rows: Object.freeze([0, 1, 2, 2]),
+      steps: Object.freeze([0, 2, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4, 5]),
+        Object.freeze([1, 3, 5, 6]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dagou-double-call',
+      text: '大狗大狗叫',
+      rows: Object.freeze([0, 1, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 3, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 2, 3, 5, 7]),
+        Object.freeze([1, 2, 4, 5, 6]),
+      ]),
     }),
   ]),
   dingdong: Object.freeze([
@@ -48,12 +77,41 @@ const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
       text: '叮咚叮咚鸡',
       rows: Object.freeze([0, 1, 0, 1, 2]),
       steps: Object.freeze([0, 1, 2, 3, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 3, 4, 6]),
+        Object.freeze([1, 2, 4, 5, 7]),
+      ]),
     }),
     Object.freeze({
       id: 'dingdong-call',
       text: '叮咚鸡',
       rows: Object.freeze([0, 1, 2]),
       steps: Object.freeze([0, 2, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4]),
+        Object.freeze([1, 3, 6]),
+        Object.freeze([0, 3, 5]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dingdong-tail',
+      text: '叮咚鸡鸡',
+      rows: Object.freeze([0, 1, 2, 2]),
+      steps: Object.freeze([0, 2, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4, 5]),
+        Object.freeze([1, 3, 5, 6]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'dingdong-stutter',
+      text: '叮叮咚鸡',
+      rows: Object.freeze([0, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 3, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 2, 4, 5]),
+        Object.freeze([1, 2, 5, 7]),
+      ]),
     }),
   ]),
   hajimi: Object.freeze([
@@ -62,12 +120,41 @@ const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
       text: '哈基米',
       rows: Object.freeze([0, 1, 2]),
       steps: Object.freeze([0, 2, 4]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4]),
+        Object.freeze([1, 3, 6]),
+        Object.freeze([0, 3, 5]),
+      ]),
     }),
     Object.freeze({
       id: 'hajimi-chant',
       text: '哈基哈基米米米',
       rows: Object.freeze([0, 1, 0, 1, 2, 2, 2]),
       steps: Object.freeze([0, 1, 2, 3, 4, 5, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 3, 4, 5, 6, 7]),
+        Object.freeze([0, 2, 3, 4, 5, 6, 7]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'hajimi-tail',
+      text: '哈基米米',
+      rows: Object.freeze([0, 1, 2, 2]),
+      steps: Object.freeze([0, 2, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 1, 4, 5]),
+        Object.freeze([1, 3, 5, 6]),
+      ]),
+    }),
+    Object.freeze({
+      id: 'hajimi-double-call',
+      text: '哈基哈基米',
+      rows: Object.freeze([0, 1, 0, 1, 2]),
+      steps: Object.freeze([0, 1, 3, 4, 6]),
+      variations: Object.freeze([
+        Object.freeze([0, 2, 3, 5, 7]),
+        Object.freeze([1, 2, 4, 5, 6]),
+      ]),
     }),
   ]),
 });
@@ -1359,7 +1446,9 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
   const notes = [];
   let eventSerial = 0;
   let phraseSerial = 0;
+  let chordSerial = 0;
   const templateCounters = new Map();
+  const lastGrooveByDeck = new Map();
   const deckStates = new Map(deckSlots.map(deckSlot => [
     deckSlot,
     {
@@ -1456,11 +1545,21 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
     deckSlot,
     startStep,
     template,
-    { role = 'lead', chordAtStart = null, variation = false } = {}
+    { role = 'lead', variation = false } = {}
   ) => {
     const state = deckStates.get(deckSlot);
     if (!state) return [];
     if (variation) state.direction *= -1;
+    const grooves = [template.steps, ...(template.variations ?? [])];
+    let grooveIndex = Math.floor(nextRandom() * grooves.length);
+    const lastGroove = lastGrooveByDeck.get(deckSlot);
+    if (grooves.length > 1 && grooveIndex === lastGroove) {
+      grooveIndex = (grooveIndex + 1 + Math.floor(
+        nextRandom() * (grooves.length - 1)
+      )) % grooves.length;
+    }
+    lastGrooveByDeck.set(deckSlot, grooveIndex);
+    const phraseSteps = grooves[grooveIndex];
     const phraseId = `phrase-${++phraseSerial}-${template.id}`;
     const phraseNotes = [];
     for (let index = 0; index < template.rows.length; index++) {
@@ -1471,9 +1570,8 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       const target = getZone(deckSlot, template.rows[index], state.column);
       const note = appendNote(
         target,
-        (startStep + template.steps[index]) * S8,
+        (startStep + phraseSteps[index]) * S8,
         {
-          chordId: index === 0 ? chordAtStart : null,
           phraseId,
           phraseText: template.text,
           phraseRole: role,
@@ -1494,12 +1592,50 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
     return note;
   };
 
-  const appendSlideHold = (deckSlot, startStep, phraseGroup) => {
+  const appendChordedPhrase = (
+    phraseDeck,
+    accentDeck,
+    startStep,
+    template,
+    options = {}
+  ) => {
+    const phraseNotes = appendPhrase(
+      phraseDeck,
+      startStep,
+      template,
+      options
+    );
+    const firstNote = phraseNotes[0];
+    if (!firstNote || phraseDeck === accentDeck) return phraseNotes;
+    const chordId = `chord-${++chordSerial}`;
+    firstNote.chordId = chordId;
+    appendAccent(
+      accentDeck,
+      Math.round(firstNote.time / S8),
+      chordId,
+      `${options.role ?? 'phrase'}-accent`
+    );
+    return phraseNotes;
+  };
+
+  const appendCadenceHold = (
+    deckSlot,
+    startStep,
+    phraseGroup,
+    profileIndex
+  ) => {
     const state = deckStates.get(deckSlot);
     if (!state) return null;
+    const profiles = [
+      { durationSteps: 6, slideOffsets: [2, 4], text: '连音链' },
+      { durationSteps: 7, slideOffsets: [2, 5], text: '长连音' },
+      { durationSteps: 6, slideOffsets: [], text: '长音' },
+      { durationSteps: 7, slideOffsets: [], text: '长音收束' },
+    ];
+    const profile = profiles[profileIndex % profiles.length];
     const startTarget = getZone(deckSlot, 2, state.column);
     const slideTargets = [];
-    for (const stepOffset of [2, 4]) {
+    for (const stepOffset of profile.slideOffsets) {
       const column = advanceDeckColumn(deckSlot, true);
       const target = getZone(deckSlot, 2, column);
       if (target) {
@@ -1509,14 +1645,37 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
         });
       }
     }
-    return appendNote(startTarget, startStep * S8, {
+    const note = appendNote(startTarget, startStep * S8, {
       kind: 'hold',
-      duration: 6 * S8,
+      duration: profile.durationSteps * S8,
       slideTargets,
-      phraseId: `legato-${phraseGroup}`,
-      phraseText: '连音链',
-      phraseRole: 'legato',
+      phraseId: `hold-${phraseGroup}-${profileIndex}`,
+      phraseText: profile.text,
+      phraseRole: slideTargets.length > 0 ? 'legato' : 'sustain',
     });
+    if (slideTargets.length === 0) advanceDeckColumn(deckSlot, true);
+    return note;
+  };
+
+  const appendCounterLine = (
+    deckSlot,
+    startStep,
+    offsets,
+    phraseRole
+  ) => {
+    const state = deckStates.get(deckSlot);
+    if (!state) return [];
+    const counterNotes = [];
+    const rows = [0, 1, 0, 2];
+    offsets.forEach((stepOffset, index) => {
+      const target = getZone(deckSlot, rows[index % rows.length], state.column);
+      const note = appendNote(target, (startStep + stepOffset) * S8, {
+        phraseRole,
+      });
+      if (note) counterNotes.push(note);
+      advanceDeckColumn(deckSlot, index % 2 === 1);
+    });
+    return counterNotes;
   };
 
   const firstDeckIndex = Math.floor(nextRandom() * deckSlots.length);
@@ -1530,55 +1689,138 @@ function createRhythmGameChart(activeZones, rng = Math.random) {
       firstDeckIndex + phraseGroup * deckDirection
     );
     const responseIndex = wrapDeckIndex(leadIndex + deckDirection);
+    const relayIndex = wrapDeckIndex(leadIndex + deckDirection * 2);
     const leadDeck = deckSlots[leadIndex];
     const responseDeck = deckSlots[responseIndex];
+    const relayDeck = deckSlots[relayIndex];
     const leadTemplate = nextPhraseTemplate(leadDeck);
+    const leadVariationTemplate = nextPhraseTemplate(leadDeck);
     const responseTemplate = nextPhraseTemplate(responseDeck);
-
-    appendPhrase(leadDeck, groupStartStep, leadTemplate, { role: 'theme' });
-    appendPhrase(leadDeck, groupStartStep + 8, leadTemplate, {
-      role: 'variation',
-      variation: true,
-    });
-
-    const answerChordId = `chord-answer-${phraseGroup}`;
-    appendAccent(
-      leadDeck,
-      groupStartStep + 16,
-      answerChordId,
-      'answer-accent'
+    const relayTemplate = nextPhraseTemplate(relayDeck);
+    const sectionRole = phraseGroup % 4;
+    const arrangementVariant = Math.floor(nextRandom() * 2);
+    const getAccentDeck = (phraseDeck, preferredDeck) => (
+      preferredDeck !== phraseDeck
+        ? preferredDeck
+        : deckSlots.find(deckSlot => deckSlot !== phraseDeck)
     );
-    appendPhrase(responseDeck, groupStartStep + 16, responseTemplate, {
-      role: 'answer',
-      chordAtStart: answerChordId,
-    });
 
-    const cadenceStartStep = groupStartStep + 24;
-    if (phraseGroup % 2 === 0) {
-      appendSlideHold(leadDeck, cadenceStartStep, phraseGroup);
-      const responseState = deckStates.get(responseDeck);
-      for (const [index, stepOffset] of [2, 4].entries()) {
-        if (!responseState) continue;
-        const target = getZone(responseDeck, index, responseState.column);
-        appendNote(target, (cadenceStartStep + stepOffset) * S8, {
-          phraseRole: 'legato-answer',
-        });
-        advanceDeckColumn(responseDeck);
-      }
-    } else {
-      const cadenceChordId = `chord-cadence-${phraseGroup}`;
-      appendAccent(
-        responseDeck,
-        cadenceStartStep,
-        cadenceChordId,
-        'cadence-accent'
+    if (sectionRole === 0) {
+      // 主题先重复一次，第二次改节奏或改句子，让旋律有记忆点。
+      appendPhrase(leadDeck, groupStartStep, leadTemplate, { role: 'theme' });
+      appendPhrase(
+        leadDeck,
+        groupStartStep + 8,
+        arrangementVariant === 0 ? leadTemplate : leadVariationTemplate,
+        { role: 'theme-echo', variation: true }
       );
-      appendPhrase(leadDeck, cadenceStartStep, leadTemplate, {
-        role: 'cadence',
-        chordAtStart: cadenceChordId,
+      appendChordedPhrase(
+        responseDeck,
+        getAccentDeck(responseDeck, relayDeck),
+        groupStartStep + 16,
+        responseTemplate,
+        { role: 'theme-answer' }
+      );
+      appendCadenceHold(
+        leadDeck,
+        groupStartStep + 24,
+        phraseGroup,
+        arrangementVariant
+      );
+      appendCounterLine(
+        responseDeck,
+        groupStartStep + 24,
+        arrangementVariant === 0 ? [2, 4] : [1, 4, 6],
+        'theme-counter'
+      );
+      continue;
+    }
+
+    if (sectionRole === 1) {
+      // 三台 Deck 像接龙一样传递乐句，双 Deck 则左右问答。
+      appendPhrase(leadDeck, groupStartStep, leadTemplate, {
+        role: 'dialogue-call',
+      });
+      appendPhrase(
+        arrangementVariant === 0 ? responseDeck : relayDeck,
+        groupStartStep + 8,
+        arrangementVariant === 0 ? responseTemplate : relayTemplate,
+        { role: 'dialogue-answer', variation: true }
+      );
+      appendPhrase(
+        arrangementVariant === 0 ? relayDeck : responseDeck,
+        groupStartStep + 16,
+        arrangementVariant === 0 ? relayTemplate : responseTemplate,
+        { role: 'dialogue-relay' }
+      );
+      appendChordedPhrase(
+        leadDeck,
+        getAccentDeck(leadDeck, responseDeck),
+        groupStartStep + 24,
+        leadVariationTemplate,
+        { role: 'dialogue-cadence', variation: true }
+      );
+      continue;
+    }
+
+    if (sectionRole === 2) {
+      // 提升段用双押开头，第四小节拉出长音，疏密对比更明显。
+      appendChordedPhrase(
+        leadDeck,
+        getAccentDeck(leadDeck, responseDeck),
+        groupStartStep,
+        leadTemplate,
+        { role: 'lift-entry' }
+      );
+      appendPhrase(responseDeck, groupStartStep + 8, responseTemplate, {
+        role: 'lift-answer',
+      });
+      appendPhrase(relayDeck, groupStartStep + 16, relayTemplate, {
+        role: 'lift-relay',
         variation: true,
       });
+      appendCadenceHold(
+        responseDeck,
+        groupStartStep + 24,
+        phraseGroup,
+        2 + arrangementVariant
+      );
+      appendCounterLine(
+        leadDeck,
+        groupStartStep + 24,
+        arrangementVariant === 0 ? [1, 3, 5] : [2, 5],
+        'lift-counter'
+      );
+      continue;
     }
+
+    // 收束段先留出长音空间，后三小节逐台回应，最后以双押落地。
+    appendCadenceHold(
+      leadDeck,
+      groupStartStep,
+      phraseGroup,
+      arrangementVariant === 0 ? 1 : 3
+    );
+    appendCounterLine(
+      responseDeck,
+      groupStartStep,
+      arrangementVariant === 0 ? [2, 4] : [1, 4, 6],
+      'resolve-opening'
+    );
+    appendPhrase(responseDeck, groupStartStep + 8, responseTemplate, {
+      role: 'resolve-answer',
+    });
+    appendPhrase(relayDeck, groupStartStep + 16, relayTemplate, {
+      role: 'resolve-relay',
+      variation: true,
+    });
+    appendChordedPhrase(
+      leadDeck,
+      getAccentDeck(leadDeck, responseDeck),
+      groupStartStep + 24,
+      leadVariationTemplate,
+      { role: 'resolve-cadence', variation: true }
+    );
   }
 
   notes.sort((left, right) =>
@@ -2140,6 +2382,7 @@ async function startRhythmGame({ autoplay = false } = {}) {
     showToyNotice('当前 Deck 没有可用区域。', true);
     return false;
   }
+  clearPerformanceVisualEffects();
   clearRhythmGameCues();
   rhythmGame.phase = 'countdown';
   rhythmGame.notes = chart.notes;
@@ -2263,7 +2506,7 @@ function updateRhythmGame(audioNow) {
         );
         note.element.style.setProperty(
           '--rhythm-note-scale',
-          (1.34 - slideApproach * 0.34).toFixed(3)
+          (1.2 - slideApproach * 0.2).toFixed(3)
         );
       }
       const slideDue = Boolean(
@@ -2288,9 +2531,9 @@ function updateRhythmGame(audioNow) {
       Math.min(1, 1 - until / RHYTHM_GAME_CUE_LEAD)
     );
     const scale = until >= 0
-      ? 1.72 - approach * 0.72
-      : 1 + Math.min(0.14, -until * 0.5);
-    const opacity = Math.max(0.28, Math.min(1, 0.28 + approach * 0.9));
+      ? 1.42 - approach * 0.42
+      : 1 + Math.min(0.06, -until * 0.24);
+    const opacity = Math.max(0.34, Math.min(1, 0.34 + approach * 0.82));
     note.element.style.setProperty('--rhythm-note-scale', scale.toFixed(3));
     note.element.style.setProperty('--rhythm-note-opacity', opacity.toFixed(3));
     note.element.classList.toggle(
@@ -3322,6 +3565,15 @@ const EFFECTS = [
   'stars',    // 星星弹跳
   'grid',     // 旋转线栅
 ];
+const RHYTHM_GAME_EFFECTS = Object.freeze([
+  'confetti', // 纸屑
+  'zigzag',   // 折线
+  'pop',      // 几何雨
+  'stars',    // 星星
+]);
+const RHYTHM_GAME_EFFECT_SCALE = 0.34;
+const RHYTHM_GAME_EFFECT_ALPHA = 0.72;
+const RHYTHM_GAME_EFFECT_LIFE = 0.42;
 
 /* ============================================================
  * 音频初始化
@@ -4385,10 +4637,64 @@ function drawTouchEmoji(g, emoji, x, y, size, alpha, rotation = 0) {
   g.restore();
 }
 
+function drawRhythmGameTouchFeedback(now, emojiMode) {
+  const feedbackLife = 0.22;
+  for (const [pointerId, trail] of touchTrails) {
+    const releaseProgress = trail.releasedAt === null
+      ? 0
+      : clamp01((now - trail.releasedAt) / TOUCH_TRAIL_RELEASE);
+    if (releaseProgress >= 1) {
+      touchTrails.delete(pointerId);
+      continue;
+    }
+    const pulseProgress = clamp01((now - trail.pulseAt) / feedbackLife);
+    const alpha =
+      (1 - smooth(pulseProgress)) * (1 - smooth(releaseProgress));
+    if (alpha <= 0.001) continue;
+
+    if (emojiMode) {
+      drawTouchEmoji(
+        touchFx2d,
+        trail.emoji,
+        trail.x,
+        Math.max(18, trail.y - 12 - pulseProgress * 5),
+        22 + easeOutCubic(pulseProgress) * 7,
+        alpha * 0.72
+      );
+      continue;
+    }
+
+    const radius = 8 + easeOutCubic(pulseProgress) * 18;
+    touchFx2d.save();
+    touchFx2d.globalAlpha = alpha * 0.52;
+    touchFx2d.strokeStyle = trail.color;
+    touchFx2d.lineWidth = 2.2 - pulseProgress * 0.7;
+    touchFx2d.beginPath();
+    touchFx2d.arc(trail.x, trail.y, radius, 0, Math.PI * 2);
+    touchFx2d.stroke();
+    touchFx2d.globalAlpha = alpha * 0.68;
+    drawPiece(
+      touchFx2d,
+      'diamond',
+      trail.color,
+      trail.x,
+      trail.y,
+      3.6 * (1 - pulseProgress * 0.28),
+      Math.PI / 4
+    );
+    touchFx2d.restore();
+  }
+  touchFx2d.globalAlpha = 1;
+}
+
 function drawTouchTrails(now) {
   touchFx2d.clearRect(0, 0, fxW, fxH);
   const emojiMode =
     performanceSettings.djMode && djSettings.trailStyle === 'emoji';
+  if (isRhythmGameActive()) {
+    drawRhythmGameTouchFeedback(now, emojiMode);
+    return;
+  }
 
   for (const [pointerId, trail] of touchTrails) {
     trail.points = trail.points.filter(
@@ -4640,6 +4946,14 @@ function releaseTouchTrail(pointerId, at = touchTrailNow()) {
 
 function releaseAllTouchTrails(at = touchTrailNow()) {
   for (const pointerId of touchTrails.keys()) releaseTouchTrail(pointerId, at);
+}
+
+function clearPerformanceVisualEffects() {
+  fxList.length = 0;
+  touchTrails.clear();
+  flashLayer.replaceChildren();
+  fx2d.clearRect(0, 0, fxW, fxH);
+  touchFx2d.clearRect(0, 0, fxW, fxH);
 }
 
 function fxResize() {
@@ -5097,12 +5411,22 @@ function strokePartial(g, pts, lens, vis) {
 }
 
 /* 生成一个特效实例；DJ 模式从对应 Deck 中心发散。 */
-function buildEffect(type, origin = null) {
+function buildEffect(type, origin = null, options = {}) {
   const rng = mulberry32((Math.random() * 1e9) | 0);
+  const usesScreenCoordinates =
+    type === 'zigzag' || type === 'pop' || type === 'stars';
+  const sourceCenter = options.localize && usesScreenCoordinates
+    ? { x: cx0(), y: cy0() }
+    : { x: origin?.x ?? cx0(), y: origin?.y ?? cy0() };
   const inst = {
     type,
     cx: origin?.x ?? cx0(), cy: origin?.y ?? cy0(),
+    sourceCx: sourceCenter.x,
+    sourceCy: sourceCenter.y,
     t0: 0, state: 'in', outT0: 0,
+    scale: Number.isFinite(options.scale) ? options.scale : 1,
+    alpha: Number.isFinite(options.alpha) ? options.alpha : 1,
+    life: Number.isFinite(options.life) ? options.life : null,
     rot0: rng() * Math.PI * 2,
     dir: rng() < 0.5 ? -1 : 1,
     shapes: [],
@@ -5122,9 +5446,20 @@ function getDeckEffectOrigin(deckId) {
   };
 }
 
+function getZoneEffectOrigin(zoneIndexValue) {
+  const { width, height } = getStageMetrics();
+  const column = zoneIndexValue % cols;
+  const row = Math.floor(zoneIndexValue / cols);
+  return {
+    x: (column + 0.5) * width / cols,
+    y: (row + 0.5) * height / rows,
+  };
+}
+
 /* 同一 Deck 的新特效接替旧特效，多台 Deck 可以同时保留各自画面。 */
-function spawnEffect(zi, when, deckId = null) {
-  const type = EFFECTS[zi % EFFECTS.length];
+function spawnEffect(zi, when, deckId = null, options = {}) {
+  const effectTypes = options.effectTypes ?? EFFECTS;
+  const type = options.effectType ?? effectTypes[zi % effectTypes.length];
   const now = nowSec();
   const effectScope = deckId ?? 'solo';
 
@@ -5136,10 +5471,28 @@ function spawnEffect(zi, when, deckId = null) {
   }
   while (fxList.length > 12) fxList.shift();   // 多台 Deck 快速连打时兜底清理
 
-  const inst = buildEffect(type, deckId ? getDeckEffectOrigin(deckId) : null);
+  const origin = options.origin ?? (
+    deckId ? getDeckEffectOrigin(deckId) : null
+  );
+  const inst = buildEffect(type, origin, options);
   inst.scope = effectScope;
   inst.t0 = Math.min(when, now + 0.05);       // 尽量贴节拍，最多延迟 50ms
   fxList.push(inst);
+}
+
+function spawnRhythmGameEffect(zi, when, deckId = null) {
+  const effectType = RHYTHM_GAME_EFFECTS[
+    Math.floor(Math.random() * RHYTHM_GAME_EFFECTS.length)
+  ];
+  spawnEffect(zi, when, deckId, {
+    effectTypes: RHYTHM_GAME_EFFECTS,
+    effectType,
+    origin: getZoneEffectOrigin(zi),
+    scale: RHYTHM_GAME_EFFECT_SCALE,
+    alpha: RHYTHM_GAME_EFFECT_ALPHA,
+    life: RHYTHM_GAME_EFFECT_LIFE,
+    localize: true,
+  });
 }
 
 /* 每帧绘制：固定米白背景 → 各特效（按叠放顺序） */
@@ -5148,6 +5501,14 @@ function fxFrame(now) {
 
   for (let i = fxList.length - 1; i >= 0; i--) {
     const inst = fxList[i];
+    if (
+      inst.state !== 'out' &&
+      inst.life !== null &&
+      now - inst.t0 >= inst.life
+    ) {
+      inst.state = 'out';
+      inst.outT0 = inst.t0 + inst.life;
+    }
     let outK = 0;
     if (inst.state === 'out') {
       outK = clamp01((now - inst.outT0) / FX_OUT);
@@ -5157,12 +5518,13 @@ function fxFrame(now) {
     if (t < 0) continue;                                  // 等待节拍点
 
     // 常驻特效整体随节拍呼吸；退场特效整体淡出 + 缩小
-    const fade = 1 - smooth(outK);
-    const sc = inst.state === 'out' ? 1 - 0.22 * outK : 1 + beatP * 0.02;
+    const fade = (1 - smooth(outK)) * inst.alpha;
+    const exitScale = inst.state === 'out' ? 1 - 0.22 * outK : 1;
+    const sc = inst.scale * exitScale * (1 + beatP * 0.02);
     fx2d.save();
     fx2d.translate(inst.cx, inst.cy);
     fx2d.scale(sc, sc);
-    fx2d.translate(-inst.cx, -inst.cy);
+    fx2d.translate(-inst.sourceCx, -inst.sourceCy);
     DRAW[inst.type](fx2d, inst, t, fade);
     fx2d.restore();
   }
@@ -5256,6 +5618,18 @@ function flashZone(zi) {
   el.style.top    = `calc(${r * 100 / rows}% + 3px)`;
   el.style.width  = `calc(${100 / cols}% - 6px)`;
   el.style.height = `calc(${100 / rows}% - 6px)`;
+  if (isRhythmGameActive()) {
+    const sfxId = zones[zi]?.sfxId ?? 'dagou';
+    const character = CHARACTER_IMAGE_SETS[sfxId] ??
+      CHARACTER_IMAGE_SETS.dagou;
+    el.dataset.sfx = sfxId;
+    const image = document.createElement('img');
+    image.className = 'rhythm-zone-image';
+    image.src = character.open;
+    image.alt = '';
+    image.draggable = false;
+    el.appendChild(image);
+  }
   el.addEventListener('animationend', () => el.remove());
   flashLayer.appendChild(el);
 }
@@ -5367,7 +5741,13 @@ function scheduleActivationVisual(zi, when, deckId = null) {
   const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
   const timer = setTimeout(() => {
     inputVisualTimers.delete(timer);
-    openMouth(280, deckId);
+    const quietFeedback = isRhythmGameActive();
+    openMouth(quietFeedback ? 150 : 280, deckId);
+    if (quietFeedback) {
+      kickCharacter(deckId);
+      spawnRhythmGameEffect(zi, ctx.currentTime, deckId);
+      return;
+    }
     kickCharacter(deckId);
     spawnEffect(zi, ctx.currentTime, deckId);
   }, waitMs);
@@ -5427,10 +5807,11 @@ function clearInputVisualTimers() {
 }
 
 function updateDjDeckCharacter(deck, now, dt, sway) {
+  const motionScale = isRhythmGameActive() ? 0.18 : 1;
   deck.character.style.transform =
-    `translate(${(sway * 3).toFixed(2)}px, ${(-7 * beatP).toFixed(2)}px)` +
-    ` rotate(${(sway * 1.8).toFixed(2)}deg)` +
-    ` scale(${(1 + 0.05 * beatP).toFixed(4)}, ${(1 - 0.04 * beatP).toFixed(4)})`;
+    `translate(${(sway * 3 * motionScale).toFixed(2)}px, ${(-7 * beatP * motionScale).toFixed(2)}px)` +
+    ` rotate(${(sway * 1.8 * motionScale).toFixed(2)}deg)` +
+    ` scale(${(1 + 0.05 * beatP * motionScale).toFixed(4)}, ${(1 - 0.04 * beatP * motionScale).toFixed(4)})`;
 
   const popTarget = deck.mouthPopped ? 1 : 0;
   deck.barkPopVel += (popTarget - deck.barkPop) * 320 * dt;
@@ -5438,19 +5819,19 @@ function updateDjDeckCharacter(deck, now, dt, sway) {
   deck.barkPopVel = Math.max(-10, Math.min(10, deck.barkPopVel));
   deck.barkPop += deck.barkPopVel * dt;
   deck.inner.style.transform =
-    `scale(${(1 + 0.17 * deck.barkPop).toFixed(4)})` +
-    ` rotate(${(-3.5 * deck.barkPop).toFixed(2)}deg)`;
+    `scale(${(1 + 0.17 * deck.barkPop * motionScale).toFixed(4)})` +
+    ` rotate(${(-3.5 * deck.barkPop * motionScale).toFixed(2)}deg)`;
 
   const holdTarget = deck.holding ? 1 : 0;
   const tau = deck.holding ? 1.1 : 0.22;
   deck.holdLevel +=
     (holdTarget - deck.holdLevel) * (1 - Math.exp(-dt / tau));
-  const scaleTarget = 1 + 0.16 * deck.holdLevel;
+  const scaleTarget = 1 + 0.16 * deck.holdLevel * motionScale;
   deck.jellyVel += (scaleTarget - deck.jellyScale) * 55 * dt;
   deck.jellyVel *= Math.exp(-7 * dt);
   deck.jellyScale += deck.jellyVel * dt;
 
-  const amp = 5 * deck.holdLevel;
+  const amp = 5 * deck.holdLevel * motionScale;
   const jx =
     (Math.sin(now * 120 + deck.slot) +
       Math.sin(now * 197 + 1.7 + deck.slot) * 0.6) * amp * 0.55;
@@ -5459,14 +5840,14 @@ function updateDjDeckCharacter(deck, now, dt, sway) {
       Math.sin(now * 233 + 3.1 + deck.slot) * 0.6) * amp * 0.55;
   const jr =
     (Math.sin(now * 108 + 2.2 + deck.slot) +
-      Math.sin(now * 181 + deck.slot) * 0.5) * 2.2 * deck.holdLevel;
+      Math.sin(now * 181 + deck.slot) * 0.5) * 2.2 * deck.holdLevel * motionScale;
   deck.jelly.style.transform =
     `translate(${jx.toFixed(2)}px, ${jy.toFixed(2)}px)` +
     ` rotate(${jr.toFixed(2)}deg) scale(${deck.jellyScale.toFixed(4)})`;
   deck.jelly.style.filter = deck.holdLevel > 0.004
-    ? `hue-rotate(${(-42 * deck.holdLevel).toFixed(1)}deg)` +
-      ` saturate(${(1 + 0.7 * deck.holdLevel).toFixed(3)})` +
-      ` brightness(${(1 + 0.04 * deck.holdLevel).toFixed(3)})`
+    ? `hue-rotate(${(-42 * deck.holdLevel * motionScale).toFixed(1)}deg)` +
+      ` saturate(${(1 + 0.7 * deck.holdLevel * motionScale).toFixed(3)})` +
+      ` brightness(${(1 + 0.04 * deck.holdLevel * motionScale).toFixed(3)})`
     : '';
 }
 

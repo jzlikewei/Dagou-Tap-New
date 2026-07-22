@@ -298,6 +298,7 @@ vm.runInNewContext(
     return { width: 1000, height: 500, left: 100, top: 50 };
   }
   function touchTrailNow() { return 99; }
+  function isRhythmGameActive() { return false; }
   ${extractFunction('getTouchTrailPoint')}
   ${extractFunction('getTouchTrailAppearance')}
   ${extractFunction('beginTouchTrail')}
