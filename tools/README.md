@@ -22,6 +22,7 @@ node tools/verify_runtime_mapping.mjs
 node tools/verify_interaction_queue.mjs
 node tools/verify_toy_cloud_flow.mjs
 node tools/verify_dj_mode.mjs
+node tools/verify_rhythm_game.mjs
 node tools/verify_spatial_audio.mjs
 node tools/verify_mobile_startup.mjs
 ```
@@ -57,12 +58,19 @@ node tools/verify_mobile_startup.mjs
 控制细网格，以及多指跟手尾迹的移动采样、长度上限、跨格脉冲、独立退场与
 按 Deck 音色映射的 `🐶🐱🐔` 样式。
 
-第七条命令会验证顶部与设置菜单的 3D 音效开关保持同步、关闭时旁路 HRTF、
+第七条命令会验证 DJ 音游生成 1–3 分钟的 `128 BPM` 四小节乐句，保持“大狗叫”
+“大狗大狗叫叫叫”“叮咚叮咚鸡”的音节顺序，并把同一乐句的音高移动限制在
+相邻列。目标覆盖两台或三台 Deck 的完整 `4 × 3` 网格；双押固定使用不同 Deck，
+连音链固定使用第三行并逐格滑动，期间保留另一只手的单点空间。测试也会检查
+最多两指约束、起按与松手窗口、滑音节点、触控和键盘入口，以及自动演奏对
+单点释放、真实拖动、双押和连音末端释放的调度。
+
+第八条命令会验证顶部与设置菜单的 3D 音效开关保持同步、关闭时旁路 HRTF、
 两台和三台 Deck 的三维位置、
 手动滑杆的左右与远近偏移、横竖屏重力轴映射、3° 静区与 15° 满幅、
 iPad 感应权限入口、手动降级路径，以及 PC 端 `Z`、`/`、`B` 三个音场快捷键。
 
-第八条命令会验证 iPhone 与 iPad 的移动触控识别、横屏演奏门与本机设置记忆，
+第九条命令会验证 iPhone 与 iPad 的移动触控识别、横屏演奏门与本机设置记忆，
 确认开启时先请求全屏再锁定横屏，关闭时只退出页面自行进入的全屏；同时验证
 失败后的自动重试与手动旋转入口，以及首次音频解锁由 `pointerup` 触发，
 AudioContext 恢复超时后会清理启动状态并允许再次点击。

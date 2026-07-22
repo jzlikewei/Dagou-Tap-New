@@ -49,6 +49,7 @@ vm.runInNewContext(
   let djLandscape = true;
   const keyboardZoneByCode = new Map();
   const pointers = new Map();
+  const rhythmGame = { activeHolds: new Map() };
   const performanceSettings = { djMode: true, pianoMode: true };
   const djSettings = {
     deckCount: DEFAULT_DJ_SETTINGS.deckCount,
@@ -63,6 +64,7 @@ vm.runInNewContext(
   }
   function renderDjStage() {}
   function renderKeyGrid() {}
+  function releaseRhythmGameHold() {}
   ${extractFunction('getActiveDjSlots')}
   ${extractFunction('buildGrid')}
 
@@ -230,6 +232,7 @@ vm.runInNewContext(
   let rows = 3;
   const zones = [];
   const performanceSettings = { djMode: true, showGrid: false };
+  function isRhythmGameActive() { return false; }
   const classState = new Map();
   const keyGrid = {
     style: { setProperty() {} },
@@ -415,6 +418,7 @@ vm.runInNewContext(
   ]);
   const pressedKeyboardCodes = new Set();
   const pointers = new Map();
+  const rhythmGame = { activeHolds: new Map() };
   const inputQueue = [];
   const inputVisualTimers = new Set();
   const lastCommittedDjInputTimes = new Map();
@@ -436,6 +440,9 @@ vm.runInNewContext(
   }
   function releaseVoice(voice) { released.push(voice.id); }
   function forceStopVoice(voice) { forceStopped.push(voice.id); }
+  function judgeRhythmGameInput() {}
+  function routeRhythmGameKeyboardSlide() { return false; }
+  function releaseRhythmGameHold() {}
   function releaseTouchTrail() {}
   function releaseAllTouchTrails() {}
   function cancelQueuedInputs() {}

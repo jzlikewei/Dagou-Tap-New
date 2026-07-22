@@ -8,7 +8,7 @@ const mainSource = fs.readFileSync(new URL('../main.js', import.meta.url), 'utf8
 const htmlSource = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 function extractFunction(name) {
-  const candidates = [`async function ${name}`, `function ${name}`];
+  const candidates = [`async function ${name}(`, `function ${name}(`];
   const start = candidates
     .map(candidate => mainSource.indexOf(candidate))
     .filter(index => index >= 0)
@@ -226,7 +226,7 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /main\.js\?v=20260722-landscape-lock/,
+  /main\.js\?v=20260722-rhythm-phrases/,
   'the fixed startup script must use a fresh cache key',
 );
 assert.match(

@@ -89,6 +89,7 @@ vm.runInNewContext(
   let enqueuedZones = [];
   let swipeEntrySerial = 0;
   function retuneHeldJiao() { return false; }
+  function handleRhythmGameHoldZoneChange() {}
   function pulseTouchTrail() {}
   function releaseVoice() {}
   function commitUnsnappedInput() {}
@@ -102,6 +103,8 @@ vm.runInNewContext(
   const S8 = 0.25;
   const inputQueue = [];
   const performanceSettings = { djMode: false, rhythmSnap: true };
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
   let lastCommittedInputTime = -Infinity;
   const lastCommittedDjInputTimes = new Map();
   let quantizedTime = 1;
@@ -162,6 +165,8 @@ vm.runInNewContext(
   let inputSerial = 0;
   const inputQueue = [];
   const performanceSettings = { djMode: false, rhythmSnap: true };
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
   const selectedSfxId = 'hajimi';
   const pointers = new Map();
   const zones = [
@@ -229,6 +234,8 @@ const freeRhythmSandbox = {};
 vm.runInNewContext(
   `
   const performanceSettings = { djMode: false, rhythmSnap: false };
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
   const inputQueue = [];
   let lastCommittedInputTime = -Infinity;
   const lastCommittedDjInputTimes = new Map();
@@ -275,6 +282,8 @@ vm.runInNewContext(
   let inputSerial = 0;
   const inputQueue = [];
   const performanceSettings = { djMode: true, rhythmSnap: true };
+  function isRhythmGameActive() { return false; }
+  ${extractFunction('shouldQuantizePerformanceInput')}
   const selectedSfxId = 'dagou';
   const pointers = new Map();
   const zones = [
