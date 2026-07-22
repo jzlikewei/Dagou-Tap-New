@@ -90,8 +90,13 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /id="dj-recorder-library-view"[\s\S]*id="dj-library-detail-name"[\s\S]*id="dj-library-detail-code"[\s\S]*id="dj-library-play"[\s\S]*id="dj-library-export"[\s\S]*id="dj-library-delete"/,
-  'the local library must expose view, rename, play, export, and delete controls',
+  /id="dj-recorder-library-view"[\s\S]*id="dj-library-detail-name"[\s\S]*id="dj-library-detail-code"[\s\S]*id="dj-library-play"[\s\S]*id="dj-library-export"[\s\S]*id="dj-library-share-link"[\s\S]*id="dj-library-delete"[\s\S]*id="dj-library-detail-url"[^>]*readonly/,
+  'the local library must expose view, rename, play, code export, share links, and deletion',
+);
+assert.match(
+  extractFunction('copyDjLibraryTrackLink'),
+  /createDjShareUrl\(entry\.name, entry\.code\)[\s\S]*djLibraryDetailUrl\.value = shareUrl[\s\S]*copyDjText\(shareUrl, djLibraryDetailUrl\)/,
+  'library tracks must generate and copy their Feishu share URL',
 );
 assert.match(
   htmlSource,
@@ -534,5 +539,6 @@ console.log(`- compact header uses ${preciseHeader.length} bytes and imports DGT
 console.log(`- dense repeating take compresses to ${repeatingCode.length} characters`);
 console.log('- DGL1 shares carry 8-byte names and localStorage deduplicates tracks');
 console.log('- Feishu share URLs preserve the code and arm playback from the query');
+console.log('- local-library tracks generate selectable Feishu share URLs');
 console.log('- playback mirrors taps, holds, retunes, and releases on the touch canvas');
 console.log('- double presses, holds, retunes, CRC checks, and deck validation pass');

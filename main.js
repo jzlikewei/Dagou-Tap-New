@@ -636,9 +636,11 @@ const djLibraryDetail = document.getElementById('dj-library-detail');
 const djLibraryDetailMeta = document.getElementById('dj-library-detail-meta');
 const djLibraryDetailName = document.getElementById('dj-library-detail-name');
 const djLibraryDetailCode = document.getElementById('dj-library-detail-code');
+const djLibraryDetailUrl = document.getElementById('dj-library-detail-url');
 const djLibraryRename = document.getElementById('dj-library-rename');
 const djLibraryPlay = document.getElementById('dj-library-play');
 const djLibraryExport = document.getElementById('dj-library-export');
+const djLibraryShareLink = document.getElementById('dj-library-share-link');
 const djLibraryDelete = document.getElementById('dj-library-delete');
 const djRecorderStatus = document.getElementById('dj-recorder-status');
 const djTransportHud = document.getElementById('dj-transport-hud');
@@ -3804,7 +3806,9 @@ function renderDjLibrary() {
   djLibraryRename.disabled = !selectedEntry;
   djLibraryPlay.disabled = !selectedEntry || busy;
   djLibraryExport.disabled = !selectedEntry;
+  djLibraryShareLink.disabled = !selectedEntry;
   djLibraryDelete.disabled = !selectedEntry;
+  djLibraryDetailUrl.value = '';
   if (!selectedEntry) {
     djLibraryDetailMeta.textContent = '';
     djLibraryDetailName.value = '';
@@ -3824,6 +3828,7 @@ function renderDjLibrary() {
     djLibraryDetailCode.value = '';
     djLibraryPlay.disabled = true;
     djLibraryExport.disabled = true;
+    djLibraryShareLink.disabled = true;
   }
   djLibraryDetailName.value = selectedEntry.name;
 }
@@ -3851,6 +3856,22 @@ async function copyDjLibraryTrack(id) {
   } catch (error) {
     console.warn('[大狗Tap] 曲目分享码复制失败。', error);
     showToyNotice('复制失败，请在曲目详情里手动选择', true);
+  }
+}
+
+async function copyDjLibraryTrackLink(id) {
+  const entry = djLibraryEntries.find(item => item.id === id);
+  if (!entry) return;
+  selectedDjLibraryId = id;
+  renderDjLibrary();
+  try {
+    const shareUrl = createDjShareUrl(entry.name, entry.code);
+    djLibraryDetailUrl.value = shareUrl;
+    await copyDjText(shareUrl, djLibraryDetailUrl);
+    showToyNotice(`“${entry.name}”分享链接已复制`);
+  } catch (error) {
+    console.warn('[大狗Tap] 曲目分享链接生成失败。', error);
+    showToyNotice('生成失败，请继续使用分享码', true);
   }
 }
 
@@ -5483,6 +5504,11 @@ djLibraryPlay.addEventListener('click', () => {
 });
 djLibraryExport.addEventListener('click', () => {
   if (selectedDjLibraryId) void copyDjLibraryTrack(selectedDjLibraryId);
+});
+djLibraryShareLink.addEventListener('click', () => {
+  if (selectedDjLibraryId) {
+    void copyDjLibraryTrackLink(selectedDjLibraryId);
+  }
 });
 djLibraryDelete.addEventListener('click', deleteSelectedDjLibraryTrack);
 djTransportStop.addEventListener('click', () => {

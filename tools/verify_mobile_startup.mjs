@@ -226,7 +226,7 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /main\.js\?v=20260722-playback-touch/,
+  /main\.js\?v=20260722-library-share-link/,
   'the fixed startup script must use a fresh cache key',
 );
 assert.match(

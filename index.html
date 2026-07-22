@@ -1757,6 +1757,7 @@
   #dj-recording-share-link,
   #dj-recording-save,
   #dj-library-export,
+  #dj-library-share-link,
   #dj-library-rename {
     color: #8d6200;
     border-color: rgba(255, 180, 0, .52);
@@ -1796,7 +1797,8 @@
   #dj-recording-code,
   #dj-recording-share-code,
   #dj-recording-share-url,
-  #dj-library-detail-code {
+  #dj-library-detail-code,
+  #dj-library-detail-url {
     width: 100%;
     min-height: 74px;
     max-height: 132px;
@@ -1816,12 +1818,14 @@
   #dj-recording-share-code:focus,
   #dj-recording-share-url:focus,
   #dj-library-detail-code:focus,
+  #dj-library-detail-url:focus,
   .dj-track-name-input:focus {
     outline: 2px solid rgba(255, 180, 0, .42);
     outline-offset: 1px;
   }
   #dj-recording-share-code,
-  #dj-recording-share-url { background: rgba(255, 255, 255, .94); }
+  #dj-recording-share-url,
+  #dj-library-detail-url { background: rgba(255, 255, 255, .94); }
   .dj-library-header {
     display: flex;
     align-items: flex-start;
@@ -1885,10 +1889,14 @@
     color: rgba(111, 106, 99, .68);
     font: 650 9px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
-  .dj-library-card-actions,
-  .dj-library-detail-actions {
+  .dj-library-card-actions {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .dj-library-detail-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px;
   }
   .dj-library-card-button {
@@ -1917,7 +1925,8 @@
     grid-template-columns: minmax(0, 1fr) 88px;
     gap: 7px;
   }
-  #dj-library-detail-code {
+  #dj-library-detail-code,
+  #dj-library-detail-url {
     min-height: 68px;
     max-height: 110px;
   }
@@ -2537,8 +2546,11 @@
             <div class="dj-library-detail-actions">
               <button id="dj-library-play" class="dj-recorder-button" type="button">播放</button>
               <button id="dj-library-export" class="dj-recorder-button" type="button">导出分享码</button>
+              <button id="dj-library-share-link" class="dj-recorder-button" type="button">生成分享链接</button>
               <button id="dj-library-delete" class="dj-recorder-button" type="button">删除</button>
             </div>
+            <label class="dj-recorder-field-label" for="dj-library-detail-url">分享链接</label>
+            <textarea id="dj-library-detail-url" maxlength="65535" readonly spellcheck="false" aria-label="曲目分享链接" placeholder="点击“生成分享链接”后显示"></textarea>
           </div>
           <div id="dj-library-list" aria-label="本机曲目列表"></div>
         </section>
@@ -2784,6 +2796,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260722-playback-touch"></script>
+  <script src="main.js?v=20260722-library-share-link"></script>
 </body>
 </html>
