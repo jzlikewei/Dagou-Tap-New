@@ -359,7 +359,7 @@ vm.runInNewContext(
   `
   const C = { amber: '#ffb400', teal: '#16c2a3', blue: '#3e7bfa' };
   const TOUCH_TRAIL_COLORS = Object.freeze([C.amber, C.teal, C.blue]);
-  const SFX_EMOJIS = Object.freeze({ dagou: '🐶', dingdong: '🐔', hajimi: '🐱' });
+  ${extractConst('CHARACTER_IMAGE_SETS')}
   const TOUCH_TRAIL_MAX_POINTS = 10;
   const TOUCH_TRAIL_POINT_GAP = 8;
   const TOUCH_TRAIL_EXIT_MOMENTUM_WINDOW = 0.12;
@@ -392,7 +392,7 @@ vm.runInNewContext(
       y: trail.y,
       sampleX: trail.sampleX,
       color: trail.color,
-      emoji: trail.emoji,
+      sfxId: trail.sfxId,
       pulseAt: trail.pulseAt,
       releasedAt: trail.releasedAt,
       exitX: trail.exitX,
@@ -422,7 +422,7 @@ assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
   y: 50,
   sampleX: 100,
   color: '#ffb400',
-  emoji: '🐶',
+  sfxId: 'dagou',
   pulseAt: 1,
   releasedAt: null,
   exitX: 0,
@@ -437,14 +437,14 @@ assert.equal(
 );
 touchTrailApi.move(1, 550, 300, 1.15);
 assert.equal(touchTrailApi.snapshot(1).color, '#16c2a3');
-assert.equal(touchTrailApi.snapshot(1).emoji, '🐱');
+assert.equal(touchTrailApi.snapshot(1).sfxId, 'hajimi');
 touchTrailApi.move(1, 800, 300, 1.2);
 assert.deepEqual(clone(touchTrailApi.snapshot(1)), {
   x: 700,
   y: 250,
   sampleX: 700,
   color: '#3e7bfa',
-  emoji: '🐔',
+  sfxId: 'dingdong',
   pulseAt: 1,
   releasedAt: null,
   exitX: 0,
@@ -468,22 +468,32 @@ assert.deepEqual(
     exitY: touchTrailApi.snapshot(3).exitY,
   }),
   { exitX: 1, exitY: 0 },
-  'emoji release must keep the latest swipe direction for its fly-out',
+  'character-image release must keep the latest swipe direction for its fly-out',
 );
 assert.match(
   extractFunction('drawTouchTrails'),
   /isDeckPerformanceMode\(\)\s*&&\s*djSettings\.trailStyle === 'emoji'/,
-  'emoji trails must stay scoped to deck-based modes',
+  'character-image trails must stay scoped to deck-based modes',
 );
 assert.match(
-  extractFunction('drawTouchEmoji'),
-  /fillText\(emoji, 0, 0\)/,
-  'emoji trails must draw the sound-matched glyph on the touch canvas',
+  extractFunction('drawTouchCharacterImage'),
+  /touchTrailImages\[sfxId\][\s\S]*g\.drawImage\(image/,
+  'character trails must draw the sound-matched image on the touch canvas',
+);
+assert.match(
+  extractFunction('drawTouchTrails'),
+  /drawTouchRing\([\s\S]*drawTouchRing\([\s\S]*if \(characterMode\)/,
+  'character-image trails must retain both touch rings behind the image',
 );
 assert.match(
   extractFunction('drawTouchTrails'),
   /TOUCH_TRAIL_EXIT_DISTANCE \* exitProgress/,
-  'emoji release must accelerate away from the finger while fading',
+  'character-image release must accelerate away from the finger while fading',
+);
+assert.match(
+  htmlSource,
+  /aria-label="大狗、猫、鸡图片"[\s\S]*?dagou_open_mouth\.png[\s\S]*?maodie_open_mouth\.png[\s\S]*?dingdongji_open_mouth\.png/,
+  'the trail-style selector must preview all three character images',
 );
 
 const keyboardSandbox = {};
@@ -702,4 +712,4 @@ console.log('- layout rotation releases input tied to the previous grid');
 console.log('- different decks sustain together while the newest voice wins within one deck');
 console.log('- the grid setting controls DJ cell boundaries while deck structure remains active');
 console.log('- multi-pointer touch trails follow movement, cap history, pulse, and release independently');
-console.log('- emoji trails map each deck sound and fly along the last swipe on release');
+console.log('- character-image trails map each deck sound and fly along the last swipe on release');

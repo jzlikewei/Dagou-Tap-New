@@ -39,6 +39,17 @@ const DJ_RECORDING_TIME_UNITS_PER_BEAT = 1024;
 const DJ_RECORDING_SNAP_UNITS = DJ_RECORDING_TIME_UNITS_PER_BEAT / 2;
 const DJ_RECORDING_LOOP_UNITS = DJ_RECORDING_TIME_UNITS_PER_BEAT * 16;
 const DJ_RECORDING_FORMAT_VERSION = 2;
+const DJ_LIBRARY_STORAGE_KEY = 'dagou_dj_library_v1';
+const DJ_LIBRARY_SCHEMA_VERSION = 1;
+const DJ_LIBRARY_SHARE_PREFIX = 'DGL1';
+const DJ_LIBRARY_MAX_TRACKS = 50;
+const DJ_LIBRARY_MAX_NAME_BYTES = 8;
+const DJ_LIBRARY_MAX_SHARE_CODE_LENGTH = DJ_RECORDING_MAX_CODE_LENGTH + 32;
+const DJ_PLAYBACK_TOUCH_PREFIX = 'dj-playback:';
+const DJ_PLAYBACK_TAP_HOLD_SECONDS = 0.12;
+const DJ_SHARE_URL_BASE =
+  'https://t9lqe93khi.feishuapp.com/app/app_17ammbtgvq8/';
+const DJ_SHARE_QUERY_PARAM = 'dj';
 const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
   dagou: Object.freeze([
     Object.freeze({
@@ -231,6 +242,16 @@ const CHARACTER_IMAGE_SETS = Object.freeze({
     alt: '哈基米',
   }),
 });
+const touchTrailImages = Object.freeze(
+  Object.fromEntries(
+    Object.entries(CHARACTER_IMAGE_SETS).map(([sfxId, imageSet]) => {
+      const image = new Image();
+      image.decoding = 'async';
+      image.src = imageSet.open;
+      return [sfxId, image];
+    })
+  )
+);
 const SFX_LABELS = Object.freeze({
   dagou: '大狗叫',
   dingdong: '叮咚鸡',
@@ -346,6 +367,7 @@ const djTransport = {
   restoreState: null,
   statusMessage: '',
 };
+let pendingDjSharePlayback = false;
 let djRecordingNoteByVoice = new WeakMap();
 let djSettingsSaving = false;
 let rhythmGameSettingsSaving = false;
@@ -399,35 +421,13 @@ const SUSTAIN_REGIONS = {
 const SUSTAIN_CLAIM_LEAD = 0.008; // 提前声明长音，避免多指延音短暂重叠
 const RELEASE_SCHEDULE_LEAD = 0.006;
 const EMERGENCY_FADE = 0.018;
-const SPATIAL_DECK_PANS = Object.freeze([-0.72, 0, 0.72]);
-const SPATIAL_FIELD_SHIFT = 0.3;
-const SPATIAL_FOCUS_GAIN = 0.12;
-const HRTF_X_SPREAD = 1.25;
-const HRTF_FIELD_SHIFT = 0.48;
-const HRTF_BASE_DISTANCE = 1.15;
-const HRTF_DEPTH_SHIFT = 0.5;
-const GRAVITY_DEAD_ZONE = 3;
-const GRAVITY_FULL_TILT = 15;
-const GRAVITY_SMOOTHING = 0.2;
-const SOUND_FIELD_KEY_POSITIONS = Object.freeze({
-  KeyZ: -1,
-  Slash: 1,
-  KeyB: 0,
-});
+const STEREO_PAN_SPREAD = 0.8;
 
 const liveVoices = new Set();
-const liveSpatialOutputs = new Set();
+const liveStereoOutputs = new Set();
 let voiceSerial = 0;
 const activeSustainVoices = new Map();
 let mouthVoice = null;
-let spatialControlMode = 'manual';
-let soundFieldPosition = 0;
-let manualSoundFieldPosition = 0;
-let gravityBaseline = null;
-let lastGravityTilt = null;
-let gravityListenerActive = false;
-let gravityPermissionPending = false;
-let gravitySensorTimer = 0;
 
 let cols = 4, rows = 3;   // 分区网格（纯逻辑分区，无可见格子）
 let zones = [];           // 每个分区的音色配置
@@ -555,7 +555,7 @@ const shortcutToggle = document.getElementById('shortcut-toggle');
 const shortcutToggleLabel = document.getElementById('shortcut-toggle-label');
 const musicToggle = document.getElementById('music-toggle');
 const sfxToggle = document.getElementById('sfx-toggle');
-const spatialAudioToggle = document.getElementById('spatial-audio-toggle');
+const stereoAudioToggle = document.getElementById('stereo-audio-toggle');
 const settingsButton = document.getElementById('settings-button');
 const updateDot = document.getElementById('update-dot');
 const settingsOverlay = document.getElementById('settings-overlay');
@@ -603,6 +603,12 @@ const djRecordingToggle = document.getElementById('dj-recording-toggle');
 const djRecordingPlay = document.getElementById('dj-recording-play');
 const djRecordingImportPlay = document.getElementById('dj-recording-import-play');
 const djRecordingShare = document.getElementById('dj-recording-share');
+const djRecordingShareLink = document.getElementById(
+  'dj-recording-share-link'
+);
+const djRecordingSave = document.getElementById('dj-recording-save');
+const djRecordingName = document.getElementById('dj-recording-name');
+const djImportName = document.getElementById('dj-import-name');
 const djRecorderDock = document.getElementById('dj-recorder-dock');
 const djRecorderOpenButton = document.getElementById('dj-recorder-open');
 const djRecorderOverlay = document.getElementById('dj-recorder-overlay');
@@ -613,29 +619,32 @@ const djRecorderTabButtons = [
 ];
 const djRecorderRecordView = document.getElementById('dj-recorder-record-view');
 const djRecorderImportView = document.getElementById('dj-recorder-import-view');
+const djRecorderLibraryView = document.getElementById('dj-recorder-library-view');
 const djRecordingDurationButtons = [
   ...document.querySelectorAll('[data-dj-recording-seconds]'),
 ];
 const djRecordingCode = document.getElementById('dj-recording-code');
 const djRecordingShareCode = document.getElementById('dj-recording-share-code');
+const djRecordingShareUrl = document.getElementById('dj-recording-share-url');
 const djShareResult = document.getElementById('dj-share-result');
 const djRecordingImport = document.getElementById('dj-recording-import');
 const djRecordingLoop = document.getElementById('dj-recording-loop');
+const djLibrarySummary = document.getElementById('dj-library-summary');
+const djLibraryEmpty = document.getElementById('dj-library-empty');
+const djLibraryList = document.getElementById('dj-library-list');
+const djLibraryDetail = document.getElementById('dj-library-detail');
+const djLibraryDetailMeta = document.getElementById('dj-library-detail-meta');
+const djLibraryDetailName = document.getElementById('dj-library-detail-name');
+const djLibraryDetailCode = document.getElementById('dj-library-detail-code');
+const djLibraryRename = document.getElementById('dj-library-rename');
+const djLibraryPlay = document.getElementById('dj-library-play');
+const djLibraryExport = document.getElementById('dj-library-export');
+const djLibraryDelete = document.getElementById('dj-library-delete');
 const djRecorderStatus = document.getElementById('dj-recorder-status');
 const djTransportHud = document.getElementById('dj-transport-hud');
 const djTransportState = document.getElementById('dj-transport-state');
 const djTransportTime = document.getElementById('dj-transport-time');
 const djTransportStop = document.getElementById('dj-transport-stop');
-const spatialAudioSettingsPanel = document.getElementById(
-  'spatial-audio-settings'
-);
-const spatialModeButtons = [
-  ...document.querySelectorAll('[data-spatial-mode]'),
-];
-const soundFieldControl = document.getElementById('sound-field-control');
-const soundFieldModeLabel = document.getElementById('sound-field-mode-label');
-const soundFieldSlider = document.getElementById('sound-field-slider');
-const soundFieldCenterButton = document.getElementById('sound-field-center');
 const performanceSettingsStatus = document.getElementById(
   'performance-settings-status'
 );
@@ -963,7 +972,7 @@ function updateUiRhythm(beatPosition) {
   if (!Number.isFinite(beatPosition)) {
     setRhythmScale(musicToggle, 0, 0.075);
     setRhythmScale(sfxToggle, 0, 0.075);
-    setRhythmScale(spatialAudioToggle, 0, 0.075);
+    setRhythmScale(stereoAudioToggle, 0, 0.075);
     setRhythmScale(settingsButton, 0, 0.075);
     setRhythmScale(updateDot, 0, 0.4);
     setRhythmScale(videoPlay, 0, 0.12);
@@ -990,7 +999,7 @@ function updateUiRhythm(beatPosition) {
 
   setRhythmScale(musicToggle, musicPulse, 0.075);
   setRhythmScale(sfxToggle, sfxPulse, 0.075);
-  setRhythmScale(spatialAudioToggle, pulse, 0.075);
+  setRhythmScale(stereoAudioToggle, pulse, 0.075);
   setRhythmScale(settingsButton, pulse, 0.075);
   setRhythmScale(updateDot, pulse, 0.4);
   setRhythmScale(videoPlay, pulse, 0.12);
@@ -1104,6 +1113,9 @@ shortcutToggle.addEventListener('click', toggleShortcutOverlay);
 let settingsOpen = false;
 let djRecorderOpen = false;
 let djRecorderTab = 'record';
+let djLibraryEntries = [];
+let selectedDjLibraryId = null;
+let djImportNameAutoFilled = false;
 let toyNoticeTimer = 0;
 const toyCloudState = {
   toy: null,
@@ -1165,43 +1177,25 @@ function stopActivePerformanceInput() {
   for (const voice of [...liveVoices]) forceStopVoice(voice);
 }
 
-function clampSoundFieldPosition(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return 0;
-  return Math.max(-1, Math.min(1, number));
-}
-
-function getDeckBaseSpatialPan(deckId) {
-  if (typeof deckId !== 'string' || !deckId.startsWith('dj-')) return 0;
+function getStereoDeckSlot(deckId) {
+  if (typeof deckId !== 'string' || !deckId.startsWith('dj-')) return null;
   const slot = Number(deckId.slice(3));
-  return SPATIAL_DECK_PANS[slot] ?? 0;
+  return Number.isInteger(slot) && slot >= 0 && slot < DJ_DECK_LABELS.length
+    ? slot
+    : null;
 }
 
-function getSpatialOutputTargets(deckId) {
-  const basePan = getDeckBaseSpatialPan(deckId);
-  if (!performanceSettings.spatialAudio) {
-    return { enabled: false, pan: 0, gain: 1, x: 0, y: 0, z: -1 };
-  }
-  const focus = basePan * soundFieldPosition;
-  return {
-    enabled: true,
-    pan: clampSoundFieldPosition(
-      basePan + soundFieldPosition * SPATIAL_FIELD_SHIFT
-    ),
-    gain: Math.max(
-      0.82,
-      Math.min(
-        1.18,
-        1 + basePan * soundFieldPosition * SPATIAL_FOCUS_GAIN
-      )
-    ),
-    x: basePan * HRTF_X_SPREAD + soundFieldPosition * HRTF_FIELD_SHIFT,
-    y: 0,
-    z: -(HRTF_BASE_DISTANCE - focus * HRTF_DEPTH_SHIFT),
-  };
+function getStereoPan(deckId) {
+  if (!performanceSettings.spatialAudio || !isDeckPerformanceMode()) return 0;
+  const slot = getStereoDeckSlot(deckId);
+  const activeSlots = getActiveDeckSlots();
+  const activeIndex = activeSlots.indexOf(slot);
+  if (activeSlots.length < 2 || activeIndex < 0) return 0;
+  return -STEREO_PAN_SPREAD +
+    activeIndex * (STEREO_PAN_SPREAD * 2 / (activeSlots.length - 1));
 }
 
-function setSpatialAudioParam(param, value, immediate = false) {
+function setStereoAudioParam(param, value, immediate = false) {
   if (!param || !ctx) return;
   const now = ctx.currentTime;
   param.cancelScheduledValues(now);
@@ -1209,198 +1203,24 @@ function setSpatialAudioParam(param, value, immediate = false) {
   else param.setTargetAtTime(value, now, 0.035);
 }
 
-function updateSpatialOutput(output, immediate = false) {
-  if (!output) return;
-  const targets = getSpatialOutputTargets(output.deckId);
-  setSpatialAudioParam(
-    output.dryGain.gain,
-    targets.enabled ? 0 : 1,
-    immediate
+function updateStereoOutput(output, immediate = false) {
+  if (!output?.panner) return;
+  setStereoAudioParam(output.panner.pan, getStereoPan(output.deckId), immediate);
+}
+
+function updateLiveStereoOutputs(immediate = false) {
+  for (const output of liveStereoOutputs) {
+    updateStereoOutput(output, immediate);
+  }
+}
+
+function renderStereoAudioControls() {
+  const toggleAction = performanceSettings.spatialAudio ? '关闭' : '开启';
+  stereoAudioToggle.setAttribute(
+    'aria-label',
+    `${toggleAction}双声道立体声`
   );
-  setSpatialAudioParam(
-    output.spatialGain.gain,
-    targets.enabled ? targets.gain : 0,
-    immediate
-  );
-  if (output.pannerKind === 'hrtf') {
-    if (output.panner.positionX && output.panner.positionZ) {
-      setSpatialAudioParam(output.panner.positionX, targets.x, immediate);
-      setSpatialAudioParam(output.panner.positionY, targets.y, immediate);
-      setSpatialAudioParam(output.panner.positionZ, targets.z, immediate);
-    } else if (typeof output.panner.setPosition === 'function') {
-      output.panner.setPosition(targets.x, targets.y, targets.z);
-    }
-  } else if (output.pannerKind === 'stereo') {
-    setSpatialAudioParam(output.panner.pan, targets.pan, immediate);
-  }
-}
-
-function updateLiveSpatialOutputs(immediate = false) {
-  for (const output of liveSpatialOutputs) {
-    updateSpatialOutput(output, immediate);
-  }
-}
-
-function renderSoundFieldPosition() {
-  const percent = Math.round(soundFieldPosition * 100);
-  soundFieldSlider.value = String(percent);
-  const valueText = percent === 0
-    ? '居中'
-    : `${Math.abs(percent)}% 偏${percent < 0 ? '左' : '右'}`;
-  soundFieldSlider.setAttribute('aria-valuetext', valueText);
-}
-
-function renderSpatialAudioControls() {
-  const enabled = performanceSettings.spatialAudio;
-  const gravityMode = spatialControlMode === 'gravity';
-  const transportBusy = isDjTransportBusy();
-  const toggleAction = enabled ? '关闭' : '开启';
-  spatialAudioToggle.setAttribute('aria-label', `${toggleAction} 3D 音效`);
-  spatialAudioToggle.title = `${toggleAction} 3D 音效`;
-  spatialAudioSettingsPanel.classList.toggle('is-visible', enabled);
-  spatialAudioSettingsPanel.setAttribute('aria-hidden', String(!enabled));
-  stage.classList.toggle('is-spatial-audio', enabled);
-  stage.classList.toggle('is-spatial-gravity', enabled && gravityMode);
-  soundFieldControl.setAttribute('aria-hidden', String(!enabled));
-  soundFieldSlider.disabled = !enabled || gravityMode || transportBusy;
-  soundFieldModeLabel.textContent = gravityMode
-    ? 'HRTF · 重力'
-    : 'HRTF · 手动';
-  soundFieldCenterButton.textContent = gravityMode ? '校准' : '回中';
-  soundFieldCenterButton.disabled = !enabled || transportBusy;
-
-  for (const button of spatialModeButtons) {
-    const selected = button.dataset.spatialMode === spatialControlMode;
-    button.classList.toggle('is-active', selected);
-    button.setAttribute('aria-checked', String(selected));
-    button.disabled = !enabled || gravityPermissionPending || transportBusy;
-  }
-  renderSoundFieldPosition();
-}
-
-function setSoundFieldPosition(value, rememberManual = false) {
-  soundFieldPosition = clampSoundFieldPosition(value);
-  if (rememberManual) manualSoundFieldPosition = soundFieldPosition;
-  renderSoundFieldPosition();
-  updateLiveSpatialOutputs();
-}
-
-function stopGravitySoundField() {
-  clearTimeout(gravitySensorTimer);
-  gravitySensorTimer = 0;
-  if (gravityListenerActive) {
-    window.removeEventListener('deviceorientation', handleDeviceOrientation);
-  }
-  gravityListenerActive = false;
-  gravityBaseline = null;
-  lastGravityTilt = null;
-}
-
-function activateManualSoundField() {
-  stopGravitySoundField();
-  spatialControlMode = 'manual';
-  setSoundFieldPosition(manualSoundFieldPosition, true);
-  renderSpatialAudioControls();
-}
-
-function screenRelativeTilt(event) {
-  const angle = Number(
-    window.screen?.orientation?.angle ?? window.orientation ?? 0
-  );
-  const normalizedAngle = ((angle % 360) + 360) % 360;
-  if (normalizedAngle === 90) return Number(event.beta);
-  if (normalizedAngle === 270) return -Number(event.beta);
-  return Number(event.gamma);
-}
-
-function getGravitySoundFieldTarget(delta) {
-  const magnitude = Math.abs(delta);
-  if (magnitude <= GRAVITY_DEAD_ZONE) return 0;
-  return Math.sign(delta) * clampSoundFieldPosition(
-    (magnitude - GRAVITY_DEAD_ZONE) /
-    (GRAVITY_FULL_TILT - GRAVITY_DEAD_ZONE)
-  );
-}
-
-function handleDeviceOrientation(event) {
-  if (
-    spatialControlMode !== 'gravity' ||
-    !performanceSettings.spatialAudio ||
-    isDjTransportBusy()
-  ) {
-    return;
-  }
-  const tilt = screenRelativeTilt(event);
-  if (!Number.isFinite(tilt)) return;
-
-  clearTimeout(gravitySensorTimer);
-  gravitySensorTimer = 0;
-  lastGravityTilt = tilt;
-  if (!Number.isFinite(gravityBaseline)) gravityBaseline = tilt;
-
-  const delta = tilt - gravityBaseline;
-  const target = getGravitySoundFieldTarget(delta);
-  setSoundFieldPosition(
-    soundFieldPosition + (target - soundFieldPosition) * GRAVITY_SMOOTHING
-  );
-}
-
-function fallBackToManualSoundField(message) {
-  activateManualSoundField();
-  showToyNotice(message, true);
-}
-
-async function enableGravitySoundField() {
-  if (!performanceSettings.spatialAudio || gravityPermissionPending) return;
-  const OrientationEvent = window.DeviceOrientationEvent;
-  if (typeof OrientationEvent !== 'function') {
-    fallBackToManualSoundField('当前设备无法使用重力感应，已切换为手动拖动。');
-    return;
-  }
-
-  gravityPermissionPending = true;
-  renderSpatialAudioControls();
-  try {
-    if (typeof OrientationEvent.requestPermission === 'function') {
-      const permission = await OrientationEvent.requestPermission();
-      if (permission !== 'granted') {
-        fallBackToManualSoundField(
-          '重力感应权限没有开启，已切换为手动拖动。'
-        );
-        return;
-      }
-    }
-
-    stopGravitySoundField();
-    spatialControlMode = 'gravity';
-    soundFieldPosition = 0;
-    gravityListenerActive = true;
-    window.addEventListener('deviceorientation', handleDeviceOrientation);
-    gravitySensorTimer = setTimeout(() => {
-      if (spatialControlMode === 'gravity' && lastGravityTilt === null) {
-        fallBackToManualSoundField(
-          '没有读取到重力感应数据，已切换为手动拖动。'
-        );
-      }
-    }, 2200);
-  } catch (error) {
-    console.warn('[大狗Tap] 重力感应启动失败。', error);
-    fallBackToManualSoundField(
-      '重力感应启动失败，已切换为手动拖动。'
-    );
-  } finally {
-    gravityPermissionPending = false;
-    renderSpatialAudioControls();
-  }
-}
-
-function centerSoundField() {
-  if (spatialControlMode === 'gravity') {
-    gravityBaseline = Number.isFinite(lastGravityTilt) ? lastGravityTilt : null;
-    setSoundFieldPosition(0);
-    return;
-  }
-  setSoundFieldPosition(0, true);
+  stereoAudioToggle.title = `${toggleAction}双声道立体声`;
 }
 
 function getActiveDjSlots() {
@@ -2844,8 +2664,7 @@ function applyPerformanceSettings(previousSettings) {
     previousSettings &&
     previousSettings.spatialAudio !== performanceSettings.spatialAudio
   ) {
-    if (!performanceSettings.spatialAudio) activateManualSoundField();
-    updateLiveSpatialOutputs();
+    updateLiveStereoOutputs();
   }
 
   if (
@@ -3454,7 +3273,7 @@ function decodeDjRecording(code) {
     }
     bpm = bytes[cursor.index++];
     if (bpm < 40 || bpm > 240) throw new Error('DJ recording BPM is invalid');
-    cursor.index++; // DGT1 音场位置；DGT2 起只保留 3D 开关。
+    cursor.index++; // DGT1 旧音场位置；DGT2 起只保留立体声开关。
     phaseUnits = readDjRecordingVarUint(bytes, cursor);
   } else if (rhythmSnap) {
     if (cursor.index >= bytes.length) {
@@ -3543,6 +3362,546 @@ function formatDjRecordingTime(seconds) {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
+function djStringToUtf8Bytes(value) {
+  const bytes = [];
+  for (const character of String(value ?? '')) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint <= 0x7f) {
+      bytes.push(codePoint);
+    } else if (codePoint <= 0x7ff) {
+      bytes.push(
+        0xc0 | codePoint >>> 6,
+        0x80 | codePoint & 0x3f
+      );
+    } else if (codePoint <= 0xffff) {
+      bytes.push(
+        0xe0 | codePoint >>> 12,
+        0x80 | codePoint >>> 6 & 0x3f,
+        0x80 | codePoint & 0x3f
+      );
+    } else {
+      bytes.push(
+        0xf0 | codePoint >>> 18,
+        0x80 | codePoint >>> 12 & 0x3f,
+        0x80 | codePoint >>> 6 & 0x3f,
+        0x80 | codePoint & 0x3f
+      );
+    }
+  }
+  return Uint8Array.from(bytes);
+}
+
+function djUtf8BytesToString(bytes) {
+  let result = '';
+  let index = 0;
+  while (index < bytes.length) {
+    const lead = bytes[index++];
+    if (lead <= 0x7f) {
+      result += String.fromCodePoint(lead);
+      continue;
+    }
+
+    let continuationCount;
+    let codePoint;
+    let minimumCodePoint;
+    if (lead >= 0xc2 && lead <= 0xdf) {
+      continuationCount = 1;
+      codePoint = lead & 0x1f;
+      minimumCodePoint = 0x80;
+    } else if (lead >= 0xe0 && lead <= 0xef) {
+      continuationCount = 2;
+      codePoint = lead & 0x0f;
+      minimumCodePoint = 0x800;
+    } else if (lead >= 0xf0 && lead <= 0xf4) {
+      continuationCount = 3;
+      codePoint = lead & 0x07;
+      minimumCodePoint = 0x10000;
+    } else {
+      throw new Error('DJ library name contains invalid UTF-8');
+    }
+
+    if (index + continuationCount > bytes.length) {
+      throw new Error('DJ library name is incomplete');
+    }
+    for (let offset = 0; offset < continuationCount; offset++) {
+      const continuation = bytes[index++];
+      if ((continuation & 0xc0) !== 0x80) {
+        throw new Error('DJ library name contains invalid UTF-8');
+      }
+      codePoint = codePoint << 6 | continuation & 0x3f;
+    }
+    if (
+      codePoint < minimumCodePoint ||
+      codePoint > 0x10ffff ||
+      (codePoint >= 0xd800 && codePoint <= 0xdfff)
+    ) {
+      throw new Error('DJ library name contains invalid UTF-8');
+    }
+    result += String.fromCodePoint(codePoint);
+  }
+  return result;
+}
+
+function getDjLibraryNameByteLength(value) {
+  return djStringToUtf8Bytes(value).length;
+}
+
+function truncateDjLibraryName(value) {
+  let result = '';
+  for (const character of String(value ?? '')) {
+    if (
+      getDjLibraryNameByteLength(result + character) >
+      DJ_LIBRARY_MAX_NAME_BYTES
+    ) break;
+    result += character;
+  }
+  return result;
+}
+
+function normalizeDjLibraryName(value, fallback = '') {
+  const normalized = String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const truncated = truncateDjLibraryName(normalized);
+  if (truncated) return truncated;
+  return truncateDjLibraryName(String(fallback ?? '').trim());
+}
+
+function createDefaultDjLibraryName(timestamp = Date.now()) {
+  const date = new Date(timestamp);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `DJ ${hours}${minutes}`;
+}
+
+function encodeDjSharedRecording(name, recordingCode) {
+  const normalizedName = normalizeDjLibraryName(
+    name,
+    createDefaultDjLibraryName()
+  );
+  const normalizedCode = String(recordingCode ?? '').replace(/\s+/g, '');
+  decodeDjRecording(normalizedCode);
+  const encodedName = djRecordingBytesToBase64Url(
+    djStringToUtf8Bytes(normalizedName)
+  );
+  const sharedCode =
+    `${DJ_LIBRARY_SHARE_PREFIX}.${encodedName}.${normalizedCode}`;
+  if (sharedCode.length > DJ_LIBRARY_MAX_SHARE_CODE_LENGTH) {
+    throw new Error('DJ library share code is too long');
+  }
+  return sharedCode;
+}
+
+function decodeDjSharedRecording(value) {
+  const normalized = String(value ?? '').replace(/\s+/g, '');
+  if (
+    normalized.length === 0 ||
+    normalized.length > DJ_LIBRARY_MAX_SHARE_CODE_LENGTH
+  ) {
+    throw new Error('DJ library share code length is invalid');
+  }
+  if (!normalized.startsWith(`${DJ_LIBRARY_SHARE_PREFIX}.`)) {
+    return {
+      name: '',
+      code: normalized,
+      track: decodeDjRecording(normalized),
+      named: false,
+    };
+  }
+
+  const parts = normalized.split('.');
+  if (parts.length !== 4 || parts[0] !== DJ_LIBRARY_SHARE_PREFIX) {
+    throw new Error('DJ library share code is invalid');
+  }
+  const nameBytes = djRecordingBase64UrlToBytes(parts[1]);
+  if (
+    nameBytes.length === 0 ||
+    nameBytes.length > DJ_LIBRARY_MAX_NAME_BYTES
+  ) {
+    throw new Error('DJ library name length is invalid');
+  }
+  const name = normalizeDjLibraryName(djUtf8BytesToString(nameBytes));
+  if (!name) throw new Error('DJ library name is invalid');
+  const code = `${parts[2]}.${parts[3]}`;
+  return {
+    name,
+    code,
+    track: decodeDjRecording(code),
+    named: true,
+  };
+}
+
+function createDjShareUrl(name, recordingCode) {
+  const url = new URL(DJ_SHARE_URL_BASE);
+  url.searchParams.set(
+    DJ_SHARE_QUERY_PARAM,
+    encodeDjSharedRecording(name, recordingCode)
+  );
+  return url.toString();
+}
+
+function decodeDjShareQuery(search) {
+  const shareCode = new URLSearchParams(String(search ?? '')).get(
+    DJ_SHARE_QUERY_PARAM
+  );
+  return shareCode ? decodeDjSharedRecording(shareCode) : null;
+}
+
+function prepareDjShareLinkPlayback() {
+  let shared;
+  try {
+    shared = decodeDjShareQuery(window.location.search);
+  } catch (error) {
+    console.warn('[大狗Tap] 分享链接读取失败。', error);
+    djTransport.statusMessage = '分享链接无效或内容损坏';
+    subEl.textContent = '分享链接无效 · 点击进入页面';
+    renderDjRecorder();
+    return false;
+  }
+  if (!shared) return false;
+
+  const name = shared.name || createDefaultDjLibraryName();
+  djTransport.loadedTrack = shared.track;
+  djTransport.loadedTrackOrigin = 'import';
+  djTransport.shareCode = shared.code;
+  djTransport.loopPlayback = false;
+  djTransport.statusMessage = '分享链接已载入 · 点击页面开始播放';
+  djImportName.value = name;
+  djImportNameAutoFilled = true;
+  djRecordingCode.value = encodeDjSharedRecording(name, shared.code);
+  pendingDjSharePlayback = true;
+  subEl.textContent = `点击开始播放 · ${name}`;
+  renderDjRecorder();
+  return true;
+}
+
+async function playPendingDjShareLink() {
+  if (!pendingDjSharePlayback) return false;
+  await toyStateReady;
+  const playing = await startDjPlayback(true);
+  if (playing) pendingDjSharePlayback = false;
+  return playing;
+}
+
+function createDjLibraryId() {
+  try {
+    const uuid = window.crypto?.randomUUID?.();
+    if (uuid) return uuid;
+  } catch (error) {
+    console.info('[大狗Tap] 当前浏览器无法生成 UUID。', error);
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function formatDjLibraryDate(timestamp) {
+  const date = new Date(timestamp);
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${month}-${day} ${hours}:${minutes}`;
+}
+
+function loadDjLibrary() {
+  djLibraryEntries = [];
+  selectedDjLibraryId = null;
+  try {
+    const raw = window.localStorage.getItem(DJ_LIBRARY_STORAGE_KEY);
+    if (!raw) return;
+    const payload = JSON.parse(raw);
+    if (
+      payload?.version !== DJ_LIBRARY_SCHEMA_VERSION ||
+      !Array.isArray(payload.tracks)
+    ) {
+      throw new Error('DJ library schema is unsupported');
+    }
+
+    const entries = [];
+    const usedIds = new Set();
+    for (const candidate of payload.tracks) {
+      if (entries.length >= DJ_LIBRARY_MAX_TRACKS) break;
+      try {
+        const shared = decodeDjSharedRecording(candidate?.code);
+        const createdAt = Number.isFinite(Number(candidate?.createdAt))
+          ? Number(candidate.createdAt)
+          : Date.now();
+        const updatedAt = Number.isFinite(Number(candidate?.updatedAt))
+          ? Number(candidate.updatedAt)
+          : createdAt;
+        let id = String(candidate?.id ?? '').slice(0, 80);
+        if (!id || usedIds.has(id)) id = createDjLibraryId();
+        usedIds.add(id);
+        entries.push({
+          id,
+          name: normalizeDjLibraryName(
+            candidate?.name,
+            shared.name || createDefaultDjLibraryName(createdAt)
+          ),
+          code: shared.code,
+          createdAt,
+          updatedAt,
+        });
+      } catch (error) {
+        console.warn('[大狗Tap] 已跳过损坏的本机曲目。', error);
+      }
+    }
+    entries.sort((left, right) => right.updatedAt - left.updatedAt);
+    djLibraryEntries = entries;
+  } catch (error) {
+    console.warn('[大狗Tap] 本机曲库读取失败。', error);
+  }
+}
+
+function persistDjLibraryEntries(entries) {
+  const payload = {
+    version: DJ_LIBRARY_SCHEMA_VERSION,
+    tracks: entries,
+  };
+  try {
+    window.localStorage.setItem(
+      DJ_LIBRARY_STORAGE_KEY,
+      JSON.stringify(payload)
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] 本机曲库保存失败。', error);
+    throw new Error('曲库保存失败，存储空间可能已满');
+  }
+  djLibraryEntries = entries;
+}
+
+function saveDjLibraryTrack(name, code) {
+  const shared = decodeDjSharedRecording(code);
+  const now = Date.now();
+  const normalizedName = normalizeDjLibraryName(
+    name,
+    shared.name || createDefaultDjLibraryName(now)
+  );
+  const existing = djLibraryEntries.find(entry => entry.code === shared.code);
+  if (!existing && djLibraryEntries.length >= DJ_LIBRARY_MAX_TRACKS) {
+    throw new Error(`曲库最多保存 ${DJ_LIBRARY_MAX_TRACKS} 首`);
+  }
+  const entry = existing
+    ? { ...existing, name: normalizedName, updatedAt: now }
+    : {
+      id: createDjLibraryId(),
+      name: normalizedName,
+      code: shared.code,
+      createdAt: now,
+      updatedAt: now,
+    };
+  const nextEntries = [
+    entry,
+    ...djLibraryEntries.filter(item => item.id !== entry.id),
+  ];
+  persistDjLibraryEntries(nextEntries);
+  selectedDjLibraryId = entry.id;
+  return { entry, track: shared.track };
+}
+
+function renameDjLibraryTrack(id, name) {
+  const existing = djLibraryEntries.find(entry => entry.id === id);
+  if (!existing) return null;
+  const renamed = {
+    ...existing,
+    name: normalizeDjLibraryName(name, existing.name),
+    updatedAt: Date.now(),
+  };
+  persistDjLibraryEntries([
+    renamed,
+    ...djLibraryEntries.filter(entry => entry.id !== id),
+  ]);
+  selectedDjLibraryId = id;
+  return renamed;
+}
+
+function getDjLibraryTrackMeta(entry) {
+  const track = decodeDjRecording(entry.code);
+  return {
+    track,
+    text: `${formatDjRecordingTime(djRecordingUnitsToSeconds(
+      track.durationUnits,
+      track.bpm
+    ))} · ${track.notes.length} 音符 · ${formatDjLibraryDate(entry.updatedAt)}`,
+  };
+}
+
+function selectDjLibraryTrack(id) {
+  selectedDjLibraryId = id;
+  djTransport.statusMessage = '';
+  renderDjLibrary();
+  requestAnimationFrame(() => {
+    djLibraryDetail.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function createDjLibraryCardButton(label, onClick, disabled = false) {
+  const button = document.createElement('button');
+  button.className = 'dj-library-card-button';
+  button.type = 'button';
+  button.textContent = label;
+  button.disabled = disabled;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function renderDjLibrary() {
+  const busy = isDjTransportBusy();
+  const selectedEntry = djLibraryEntries.find(
+    entry => entry.id === selectedDjLibraryId
+  ) ?? null;
+  if (!selectedEntry) selectedDjLibraryId = null;
+
+  djLibrarySummary.textContent =
+    `本机曲库 · ${djLibraryEntries.length} / ${DJ_LIBRARY_MAX_TRACKS}`;
+  djLibraryEmpty.hidden = djLibraryEntries.length > 0;
+  djLibraryList.replaceChildren();
+
+  const fragment = document.createDocumentFragment();
+  for (const entry of djLibraryEntries) {
+    let meta;
+    try {
+      meta = getDjLibraryTrackMeta(entry).text;
+    } catch (error) {
+      console.warn('[大狗Tap] 曲目详情读取失败。', error);
+      meta = '分享码内容损坏';
+    }
+    const card = document.createElement('article');
+    card.className = 'dj-library-card';
+    card.classList.toggle('is-selected', entry.id === selectedDjLibraryId);
+
+    const copy = document.createElement('div');
+    copy.className = 'dj-library-card-copy';
+    const title = document.createElement('div');
+    title.className = 'dj-library-card-title';
+    title.textContent = entry.name;
+    const metadata = document.createElement('div');
+    metadata.className = 'dj-library-card-meta';
+    metadata.textContent = meta;
+    copy.append(title, metadata);
+
+    const actions = document.createElement('div');
+    actions.className = 'dj-library-card-actions';
+    actions.append(
+      createDjLibraryCardButton('查看', () => {
+        selectDjLibraryTrack(entry.id);
+      }),
+      createDjLibraryCardButton('播放', () => {
+        void playDjLibraryTrack(entry.id);
+      }, busy),
+      createDjLibraryCardButton('导出', () => {
+        void copyDjLibraryTrack(entry.id);
+      })
+    );
+    card.append(copy, actions);
+    fragment.appendChild(card);
+  }
+  djLibraryList.appendChild(fragment);
+
+  const detailVisible = Boolean(selectedEntry);
+  djLibraryDetail.classList.toggle('is-visible', detailVisible);
+  djLibraryDetail.setAttribute('aria-hidden', String(!detailVisible));
+  djLibraryRename.disabled = !selectedEntry;
+  djLibraryPlay.disabled = !selectedEntry || busy;
+  djLibraryExport.disabled = !selectedEntry;
+  djLibraryDelete.disabled = !selectedEntry;
+  if (!selectedEntry) {
+    djLibraryDetailMeta.textContent = '';
+    djLibraryDetailName.value = '';
+    djLibraryDetailCode.value = '';
+    return;
+  }
+
+  try {
+    djLibraryDetailMeta.textContent = getDjLibraryTrackMeta(selectedEntry).text;
+    djLibraryDetailCode.value = encodeDjSharedRecording(
+      selectedEntry.name,
+      selectedEntry.code
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] 曲目分享码展示失败。', error);
+    djLibraryDetailMeta.textContent = '分享码内容损坏';
+    djLibraryDetailCode.value = '';
+    djLibraryPlay.disabled = true;
+    djLibraryExport.disabled = true;
+  }
+  djLibraryDetailName.value = selectedEntry.name;
+}
+
+async function copyDjText(value, fallbackElement) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  fallbackElement.value = value;
+  fallbackElement.focus();
+  fallbackElement.select();
+  if (!document.execCommand('copy')) throw new Error('copy command failed');
+}
+
+async function copyDjLibraryTrack(id) {
+  const entry = djLibraryEntries.find(item => item.id === id);
+  if (!entry) return;
+  selectedDjLibraryId = id;
+  renderDjLibrary();
+  try {
+    const shareCode = encodeDjSharedRecording(entry.name, entry.code);
+    await copyDjText(shareCode, djLibraryDetailCode);
+    showToyNotice(`“${entry.name}”分享码已复制`);
+  } catch (error) {
+    console.warn('[大狗Tap] 曲目分享码复制失败。', error);
+    showToyNotice('复制失败，请在曲目详情里手动选择', true);
+  }
+}
+
+async function playDjLibraryTrack(id) {
+  if (isDjTransportBusy()) return;
+  const entry = djLibraryEntries.find(item => item.id === id);
+  if (!entry) return;
+  try {
+    const track = decodeDjRecording(entry.code);
+    selectedDjLibraryId = id;
+    djTransport.loadedTrack = track;
+    djTransport.loadedTrackOrigin = 'import';
+    djTransport.shareCode = entry.code;
+    djTransport.loopPlayback = false;
+    djTransport.statusMessage = '';
+    djImportName.value = entry.name;
+    djRecordingCode.value = encodeDjSharedRecording(entry.name, entry.code);
+    renderDjRecorder();
+    await startDjPlayback();
+  } catch (error) {
+    console.warn('[大狗Tap] 本机曲目播放失败。', error);
+    djTransport.statusMessage = '曲目内容损坏，无法播放';
+    renderDjRecorder();
+  }
+}
+
+function deleteSelectedDjLibraryTrack() {
+  const entry = djLibraryEntries.find(
+    item => item.id === selectedDjLibraryId
+  );
+  if (!entry) return;
+  if (!window.confirm(`确定删除“${entry.name}”吗？`)) return;
+  try {
+    persistDjLibraryEntries(
+      djLibraryEntries.filter(item => item.id !== entry.id)
+    );
+    selectedDjLibraryId = null;
+    djTransport.statusMessage = '曲目已删除';
+    renderDjRecorder();
+  } catch (error) {
+    djTransport.statusMessage = error.message;
+    renderDjRecorder();
+  }
+}
+
+function enforceDjLibraryNameInput(input) {
+  const normalized = truncateDjLibraryName(input.value);
+  if (input.value !== normalized) input.value = normalized;
+  return normalized;
+}
+
 function isDjRecordingActive() {
   return djTransport.phase === 'armed' || djTransport.phase === 'recording';
 }
@@ -3568,7 +3927,9 @@ function isDjPlaybackLoopEnabled() {
 }
 
 function setDjRecorderTab(tab, moveFocus = false) {
-  djRecorderTab = tab === 'import' ? 'import' : 'record';
+  djRecorderTab = ['record', 'import', 'library'].includes(tab)
+    ? tab
+    : 'record';
   renderDjRecorder();
   if (!moveFocus) return;
   const activeButton = djRecorderTabButtons.find(
@@ -3631,10 +3992,14 @@ function renderDjRecorder() {
     button.setAttribute('aria-selected', String(selected));
   }
   const recordViewActive = djRecorderTab === 'record';
+  const importViewActive = djRecorderTab === 'import';
+  const libraryViewActive = djRecorderTab === 'library';
   djRecorderRecordView.classList.toggle('is-active', recordViewActive);
   djRecorderRecordView.setAttribute('aria-hidden', String(!recordViewActive));
-  djRecorderImportView.classList.toggle('is-active', !recordViewActive);
-  djRecorderImportView.setAttribute('aria-hidden', String(recordViewActive));
+  djRecorderImportView.classList.toggle('is-active', importViewActive);
+  djRecorderImportView.setAttribute('aria-hidden', String(!importViewActive));
+  djRecorderLibraryView.classList.toggle('is-active', libraryViewActive);
+  djRecorderLibraryView.setAttribute('aria-hidden', String(!libraryViewActive));
 
   for (const button of djRecordingDurationButtons) {
     const selected = Number(button.dataset.djRecordingSeconds) ===
@@ -3657,19 +4022,38 @@ function renderDjRecorder() {
   djRecordingImportPlay.disabled = !performanceSettings.djMode || recording ||
     !importedTrack || (playing && !importedTrack);
   djRecordingShare.disabled = busy || !recordedTrack;
+  djRecordingShareLink.disabled = busy || !recordedTrack;
+  djRecordingSave.disabled = busy || !recordedTrack;
   djRecordingImport.disabled = busy;
+  djRecordingName.disabled = busy;
+  djImportName.disabled = busy;
   djRecordingCode.disabled = busy;
   djRecordingLoop.disabled = busy;
   djRecordingLoop.setAttribute(
     'aria-checked',
     String(djTransport.loopPlayback)
   );
-  djRecordingShareCode.value = recordedTrack ? djTransport.shareCode : '';
+  if (recordedTrack && !djRecordingName.value) {
+    djRecordingName.value = createDefaultDjLibraryName();
+  }
+  try {
+    djRecordingShareCode.value = recordedTrack
+      ? encodeDjSharedRecording(djRecordingName.value, djTransport.shareCode)
+      : '';
+  } catch (error) {
+    console.warn('[大狗Tap] 录制分享码展示失败。', error);
+    djRecordingShareCode.value = '';
+  }
+  if (!recordedTrack) djRecordingShareUrl.value = '';
   djShareResult.classList.toggle('is-visible', recordedTrack);
   djShareResult.setAttribute('aria-hidden', String(!recordedTrack));
+  renderDjLibrary();
 
   if (djTransport.statusMessage) {
     djRecorderStatus.textContent = djTransport.statusMessage;
+  } else if (libraryViewActive) {
+    djRecorderStatus.textContent =
+      `本机曲库 · ${djLibraryEntries.length} / ${DJ_LIBRARY_MAX_TRACKS}`;
   } else if (hasTrack) {
     const duration = djRecordingUnitsToSeconds(
       djTransport.loadedTrack.durationUnits,
@@ -3683,9 +4067,9 @@ function renderDjRecorder() {
       `${djTransport.loadedTrack.notes.length} 音符 · ` +
       `${djTransport.shareCode.length} 字符${loopLabel}`;
   } else {
-    djRecorderStatus.textContent = djRecorderTab === 'record'
+    djRecorderStatus.textContent = recordViewActive
       ? `准备录制 · ${formatDjRecordingTime(djTransport.recordingLimitSeconds)}`
-      : '粘贴分享码后导入';
+      : '粘贴分享码后导入并保存';
   }
 
   djTransportHud.classList.toggle('is-visible', busy);
@@ -3754,6 +4138,7 @@ async function startDjRecording() {
   djTransport.startAt = 0;
   djTransport.phaseUnits = 0;
   djTransport.statusMessage = '等待第一次演奏';
+  djRecordingName.value = '';
   djRecordingNoteByVoice = new WeakMap();
   closeSettings();
   closeDjRecorder(false);
@@ -3970,13 +4355,15 @@ function getDjPlaybackStartAt(track) {
   return phaseBase + cycle * loopDuration;
 }
 
-async function startDjPlayback() {
+async function startDjPlayback(allowModeSwitch = false) {
   const track = djTransport.loadedTrack;
-  if (!track || !performanceSettings.djMode || djTransport.phase !== 'idle') {
-    return;
+  const modeAvailable = performanceSettings.djMode ||
+    allowModeSwitch;
+  if (!track || !modeAvailable || djTransport.phase !== 'idle') {
+    return false;
   }
   const ready = await start();
-  if (!ready) return;
+  if (!ready) return false;
 
   stopActivePerformanceInput();
   djTransport.restoreState = {
@@ -3986,8 +4373,6 @@ async function startDjPlayback() {
       deckSfxIds: [...djSettings.deckSfxIds],
       trailStyle: djSettings.trailStyle,
     },
-    soundFieldPosition,
-    manualSoundFieldPosition,
   };
   replacePerformanceSettings({
     ...performanceSettings,
@@ -4013,6 +4398,7 @@ async function startDjPlayback() {
   closeSettings();
   closeDjRecorder(false);
   renderPerformanceSettings();
+  return true;
 }
 
 function scheduleDjPlaybackZoneFlash(zoneIndexValue, when) {
@@ -4022,6 +4408,66 @@ function scheduleDjPlaybackZoneFlash(zoneIndexValue, when) {
     flashZone(zoneIndexValue);
   }, waitMs);
   inputVisualTimers.add(timer);
+}
+
+function getDjPlaybackTouchId(noteIndex) {
+  return `${DJ_PLAYBACK_TOUCH_PREFIX}${noteIndex}`;
+}
+
+function scheduleDjPlaybackTouchRelease(inputId) {
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    releaseTouchTrail(inputId);
+  }, DJ_PLAYBACK_TAP_HOLD_SECONDS * 1000);
+  inputVisualTimers.add(timer);
+}
+
+function scheduleDjPlaybackTouchFeedback(
+  event,
+  zoneIndexValue,
+  track,
+  when
+) {
+  const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    if (djTransport.phase !== 'playing') return;
+
+    const inputId = getDjPlaybackTouchId(event.noteIndex);
+    if (event.kind === 'release') {
+      releaseTouchTrail(inputId);
+      return;
+    }
+
+    const center = getRhythmGameZoneCenter(zoneIndexValue);
+    if (event.kind === 'press') {
+      beginTouchTrail(inputId, center.x, center.y);
+      pulseTouchTrail(inputId);
+      if (track.notes[event.noteIndex]?.gateUnits === null) {
+        scheduleDjPlaybackTouchRelease(inputId);
+      }
+      return;
+    }
+
+    if (!touchTrails.has(inputId)) {
+      beginTouchTrail(inputId, center.x, center.y);
+    } else {
+      moveTouchTrail(inputId, center.x, center.y);
+    }
+    pulseTouchTrail(inputId);
+  }, waitMs);
+  inputVisualTimers.add(timer);
+}
+
+function clearDjPlaybackTouchTrails() {
+  for (const inputId of touchTrails.keys()) {
+    if (
+      typeof inputId === 'string' &&
+      inputId.startsWith(DJ_PLAYBACK_TOUCH_PREFIX)
+    ) {
+      touchTrails.delete(inputId);
+    }
+  }
 }
 
 function scheduleDjPlaybackEvent(event, track, when) {
@@ -4045,6 +4491,7 @@ function scheduleDjPlaybackEvent(event, track, when) {
     );
     if (voice) djTransport.playbackVoices.set(event.noteIndex, voice);
     scheduleDjPlaybackZoneFlash(zoneIndexValue, when);
+    scheduleDjPlaybackTouchFeedback(event, zoneIndexValue, track, when);
     scheduleActivationVisual(zoneIndexValue, when, zone.deckId);
     return;
   }
@@ -4058,11 +4505,13 @@ function scheduleDjPlaybackEvent(event, track, when) {
     const rate = barkPlaybackRate(voice.name, zone.pitchTier, zone.targetMidi);
     if (retuneSustainVoice(voice, rate, when)) {
       scheduleDjPlaybackZoneFlash(zoneIndexValue, when);
+      scheduleDjPlaybackTouchFeedback(event, zoneIndexValue, track, when);
       scheduleActivationVisual(zoneIndexValue, when, zone.deckId);
     }
     return;
   }
   releaseVoice(voice, true, when);
+  scheduleDjPlaybackTouchFeedback(event, -1, track, when);
 }
 
 function scheduleDjPlaybackEvents(horizon) {
@@ -4103,6 +4552,7 @@ function stopDjPlayback({ natural = false } = {}) {
   djTransport.playbackVoices = new Map();
   djTransport.playbackOneShots = new Set();
   if (!natural) clearInputVisualTimers();
+  clearDjPlaybackTouchTrails();
   for (const voice of voices) {
     if (!natural || voice.held) forceStopVoice(voice);
   }
@@ -4115,8 +4565,6 @@ function stopDjPlayback({ natural = false } = {}) {
   if (restore) {
     replacePerformanceSettings(restore.performanceSettings);
     replaceDjSettings(restore.djSettings);
-    manualSoundFieldPosition = restore.manualSoundFieldPosition;
-    setSoundFieldPosition(restore.soundFieldPosition);
   }
   renderPerformanceSettings();
 }
@@ -4150,23 +4598,61 @@ function updateDjTransport(audioNow) {
 }
 
 function importDjRecording() {
+  let shared;
   try {
     const normalized = djRecordingCode.value.replace(/\s+/g, '');
-    const track = decodeDjRecording(normalized);
-    djTransport.loadedTrack = track;
+    shared = decodeDjSharedRecording(normalized);
+    const requestedName = normalizeDjLibraryName(djImportName.value);
+    const name = requestedName || shared.name || createDefaultDjLibraryName();
+    djTransport.loadedTrack = shared.track;
     djTransport.loadedTrackOrigin = 'import';
-    djTransport.shareCode = normalized;
+    djTransport.shareCode = shared.code;
     djTransport.statusMessage = '';
-    djRecordingCode.value = normalized;
+    djImportName.value = name;
+    djImportNameAutoFilled = true;
+    djRecordingCode.value = encodeDjSharedRecording(name, shared.code);
+    try {
+      const saved = saveDjLibraryTrack(name, shared.code);
+      djImportName.value = saved.entry.name;
+      djTransport.statusMessage = '已导入并存入本机曲库';
+    } catch (storageError) {
+      console.warn('[大狗Tap] 导入后存入曲库失败。', storageError);
+      djTransport.statusMessage = storageError.message;
+    }
     renderDjRecorder();
     showToyNotice(
       `已导入 ${formatDjRecordingTime(
-        djRecordingUnitsToSeconds(track.durationUnits, track.bpm)
-      )} 的 DJ 录制`
+        djRecordingUnitsToSeconds(
+          shared.track.durationUnits,
+          shared.track.bpm
+        )
+      )} 的 DJ 曲目`
     );
   } catch (error) {
     console.warn('[大狗Tap] DJ 录制导入失败。', error);
     djTransport.statusMessage = '分享码无效或内容损坏';
+    renderDjRecorder();
+  }
+}
+
+function saveCurrentDjRecordingToLibrary() {
+  if (
+    !djTransport.shareCode ||
+    djTransport.loadedTrackOrigin !== 'recording' ||
+    isDjTransportBusy()
+  ) return;
+  try {
+    const saved = saveDjLibraryTrack(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    djRecordingName.value = saved.entry.name;
+    djTransport.statusMessage = '已存入本机曲库';
+    renderDjRecorder();
+    showToyNotice(`“${saved.entry.name}”已存入曲库`);
+  } catch (error) {
+    console.warn('[大狗Tap] 录制存入曲库失败。', error);
+    djTransport.statusMessage = error.message;
     renderDjRecorder();
   }
 }
@@ -4177,17 +4663,35 @@ async function copyDjRecordingShareCode() {
     djTransport.loadedTrackOrigin !== 'recording'
   ) return;
   try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(djTransport.shareCode);
-    } else {
-      djRecordingShareCode.focus();
-      djRecordingShareCode.select();
-      document.execCommand('copy');
-    }
+    const shareCode = encodeDjSharedRecording(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    djRecordingShareCode.value = shareCode;
+    await copyDjText(shareCode, djRecordingShareCode);
     showToyNotice('分享码已复制');
   } catch (error) {
     console.warn('[大狗Tap] DJ 分享码复制失败。', error);
     showToyNotice('复制失败，请手动选择分享码', true);
+  }
+}
+
+async function copyDjRecordingShareLink() {
+  if (
+    !djTransport.shareCode ||
+    djTransport.loadedTrackOrigin !== 'recording'
+  ) return;
+  try {
+    const shareUrl = createDjShareUrl(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    djRecordingShareUrl.value = shareUrl;
+    await copyDjText(shareUrl, djRecordingShareUrl);
+    showToyNotice('分享链接已生成并复制');
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 分享链接生成失败。', error);
+    showToyNotice('生成失败，请继续使用分享码', true);
   }
 }
 
@@ -4267,7 +4771,7 @@ function renderPerformanceSettings() {
     : '开放一个八度的音阶';
   renderDjSettings();
   renderRhythmGameSettings();
-  renderSpatialAudioControls();
+  renderStereoAudioControls();
 
   performanceSettingsStatus.classList.toggle(
     'is-error',
@@ -4620,6 +5124,7 @@ function selectSfxOption(option) {
   }
   if (selectedSfxId === 'hajimi') ensureHajimiAnimationLoaded();
   applyHajimiAnimationVisibility();
+  renderSoundFieldSources();
 }
 
 function activateSfxOption(option) {
@@ -4720,38 +5225,8 @@ landscapeGateDisable.addEventListener('click', () => {
   void setLandscapePerformance(false);
 });
 
-soundFieldSlider.addEventListener('input', () => {
-  if (spatialControlMode !== 'manual') return;
-  setSoundFieldPosition(Number(soundFieldSlider.value) / 100, true);
-});
-soundFieldCenterButton.addEventListener('click', centerSoundField);
-for (const button of spatialModeButtons) {
-  button.addEventListener('click', () => {
-    const mode = button.dataset.spatialMode;
-    if (mode === spatialControlMode || gravityPermissionPending) return;
-    if (mode === 'gravity') void enableGravitySoundField();
-    else activateManualSoundField();
-  });
-}
-for (const eventName of [
-  'pointerdown',
-  'pointermove',
-  'pointerup',
-  'pointercancel',
-  'click',
-]) {
-  soundFieldControl.addEventListener(
-    eventName,
-    (event) => event.stopPropagation()
-  );
-}
 window.addEventListener('orientationchange', () => {
   window.setTimeout(renderLandscapePerformancePreference, 0);
-  if (spatialControlMode === 'gravity') {
-    gravityBaseline = null;
-    lastGravityTilt = null;
-    setSoundFieldPosition(0);
-  }
 });
 document.addEventListener('fullscreenchange', () => {
   if (document.fullscreenElement !== document.documentElement) {
@@ -4909,6 +5384,10 @@ djRecordingImportPlay.addEventListener('click', () => {
 djRecordingShare.addEventListener('click', () => {
   void copyDjRecordingShareCode();
 });
+djRecordingShareLink.addEventListener('click', () => {
+  void copyDjRecordingShareLink();
+});
+djRecordingSave.addEventListener('click', saveCurrentDjRecordingToLibrary);
 djRecordingImport.addEventListener('click', importDjRecording);
 djRecordingLoop.addEventListener('click', () => {
   if (isDjTransportBusy()) return;
@@ -4917,11 +5396,95 @@ djRecordingLoop.addEventListener('click', () => {
   renderDjRecorder();
 });
 djRecordingCode.addEventListener('input', () => {
+  try {
+    const shared = decodeDjSharedRecording(djRecordingCode.value);
+    if (shared.name) {
+      djImportName.value = shared.name;
+      djImportNameAutoFilled = true;
+    } else if (djImportNameAutoFilled) {
+      djImportName.value = '';
+      djImportNameAutoFilled = false;
+    }
+  } catch (error) {
+    // 输入中的分享码尚未完整，保留当前名称。
+  }
   if (djTransport.statusMessage === '分享码无效或内容损坏') {
     djTransport.statusMessage = '';
     renderDjRecorder();
   }
 });
+function refreshDjRecordedShareName() {
+  enforceDjLibraryNameInput(djRecordingName);
+  if (
+    djTransport.loadedTrackOrigin === 'recording' &&
+    djTransport.shareCode
+  ) {
+    djRecordingShareCode.value = encodeDjSharedRecording(
+      djRecordingName.value,
+      djTransport.shareCode
+    );
+    if (djRecordingShareUrl.value) {
+      djRecordingShareUrl.value = createDjShareUrl(
+        djRecordingName.value,
+        djTransport.shareCode
+      );
+    }
+  }
+}
+djRecordingName.addEventListener('input', (event) => {
+  if (event.isComposing) return;
+  refreshDjRecordedShareName();
+});
+djRecordingName.addEventListener('compositionend', refreshDjRecordedShareName);
+djImportName.addEventListener('input', (event) => {
+  djImportNameAutoFilled = false;
+  if (event.isComposing) return;
+  enforceDjLibraryNameInput(djImportName);
+});
+djImportName.addEventListener('compositionend', () => {
+  djImportNameAutoFilled = false;
+  enforceDjLibraryNameInput(djImportName);
+});
+djLibraryDetailName.addEventListener('input', (event) => {
+  if (event.isComposing) return;
+  enforceDjLibraryNameInput(djLibraryDetailName);
+});
+djLibraryDetailName.addEventListener('compositionend', () => {
+  enforceDjLibraryNameInput(djLibraryDetailName);
+});
+djLibraryRename.addEventListener('click', () => {
+  if (!selectedDjLibraryId) return;
+  try {
+    const renamed = renameDjLibraryTrack(
+      selectedDjLibraryId,
+      djLibraryDetailName.value
+    );
+    if (!renamed) return;
+    if (
+      djTransport.loadedTrackOrigin === 'import' &&
+      djTransport.shareCode === renamed.code
+    ) {
+      djImportName.value = renamed.name;
+      djRecordingCode.value = encodeDjSharedRecording(
+        renamed.name,
+        renamed.code
+      );
+    }
+    djTransport.statusMessage = '曲目名称已保存';
+    renderDjRecorder();
+    showToyNotice(`已改名为“${renamed.name}”`);
+  } catch (error) {
+    djTransport.statusMessage = error.message;
+    renderDjRecorder();
+  }
+});
+djLibraryPlay.addEventListener('click', () => {
+  if (selectedDjLibraryId) void playDjLibraryTrack(selectedDjLibraryId);
+});
+djLibraryExport.addEventListener('click', () => {
+  if (selectedDjLibraryId) void copyDjLibraryTrack(selectedDjLibraryId);
+});
+djLibraryDelete.addEventListener('click', deleteSelectedDjLibraryTrack);
 djTransportStop.addEventListener('click', () => {
   if (isDjRecordingActive()) {
     finishDjRecording();
@@ -5068,7 +5631,7 @@ document.addEventListener(
     const target = event.target;
     if (
       target instanceof Element &&
-      target.closest('#music-toggle, #sfx-toggle, #spatial-audio-toggle')
+      target.closest('#music-toggle, #sfx-toggle, #stereo-audio-toggle')
     ) {
       return;
     }
@@ -5619,57 +6182,33 @@ function safeStop(source, when = ctx.currentTime) {
   try { source.stop(when); } catch (_) { /* 已经结束或尚未启动均可忽略 */ }
 }
 
-function createSpatialOutput(deckId) {
+function createStereoOutput(deckId) {
   const input = ctx.createGain();
-  const dryGain = ctx.createGain();
-  const spatialGain = ctx.createGain();
-  let panner = null;
-  let pannerKind = 'none';
+  const panner = typeof ctx.createStereoPanner === 'function'
+    ? ctx.createStereoPanner()
+    : null;
 
-  input.connect(dryGain);
-  dryGain.connect(sfxBus);
-  input.connect(spatialGain);
-
-  if (typeof ctx.createPanner === 'function') {
-    panner = ctx.createPanner();
-    pannerKind = 'hrtf';
-    panner.panningModel = 'HRTF';
-    panner.distanceModel = 'inverse';
-    panner.refDistance = 1;
-    panner.maxDistance = 10;
-    panner.rolloffFactor = 0.35;
-    panner.coneInnerAngle = 360;
-    panner.coneOuterAngle = 360;
-    spatialGain.connect(panner);
-    panner.connect(sfxBus);
-  } else if (typeof ctx.createStereoPanner === 'function') {
-    panner = ctx.createStereoPanner();
-    pannerKind = 'stereo';
-    spatialGain.connect(panner);
+  if (panner) {
+    input.connect(panner);
     panner.connect(sfxBus);
   } else {
-    spatialGain.connect(sfxBus);
+    input.connect(sfxBus);
   }
 
   const output = {
     deckId,
     input,
-    dryGain,
-    spatialGain,
     panner,
-    pannerKind,
   };
-  liveSpatialOutputs.add(output);
-  updateSpatialOutput(output, true);
+  liveStereoOutputs.add(output);
+  updateStereoOutput(output, true);
   return output;
 }
 
-function disconnectSpatialOutput(output) {
+function disconnectStereoOutput(output) {
   if (!output) return;
-  liveSpatialOutputs.delete(output);
+  liveStereoOutputs.delete(output);
   try { output.input.disconnect(); } catch (_) { /* 节点可能已断开 */ }
-  try { output.dryGain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
-  try { output.spatialGain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   if (output.panner) {
     try { output.panner.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   }
@@ -5695,7 +6234,7 @@ function cleanupVoice(voice) {
     if (!node) continue;
     try { node.disconnect(); } catch (_) { /* 节点可能已断开 */ }
   }
-  disconnectSpatialOutput(voice.spatialOutput);
+  disconnectStereoOutput(voice.stereoOutput);
 }
 
 function createTailSource(voice, boundary, sourceOffset) {
@@ -5705,7 +6244,7 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.playbackRate.setValueAtTime(voice.rate, boundary);
   gain.gain.setValueAtTime(voice.sampleGain, boundary);
   source.connect(gain);
-  gain.connect(voice.spatialOutput.input);
+  gain.connect(voice.stereoOutput.input);
   source.start(boundary, sourceOffset);
 
   voice.tailSource = source;
@@ -5730,11 +6269,11 @@ function playPressVoice(
   if (!sustain) {
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
-    const spatialOutput = createSpatialOutput(deckId);
+    const stereoOutput = createStereoOutput(deckId);
     const oneShot = {
       source,
       gain,
-      spatialOutput,
+      stereoOutput,
       ended: false,
       stopped: false,
     };
@@ -5742,12 +6281,12 @@ function playPressVoice(
     source.playbackRate.setValueAtTime(rate, when);
     gain.gain.setValueAtTime(sampleGain, when);
     source.connect(gain);
-    gain.connect(spatialOutput.input);
+    gain.connect(stereoOutput.input);
     source.onended = () => {
       oneShot.ended = true;
       try { source.disconnect(); } catch (_) { /* 节点可能已断开 */ }
       try { gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
-      disconnectSpatialOutput(spatialOutput);
+      disconnectStereoOutput(stereoOutput);
     };
     if (typeof observeOneShot === 'function') observeOneShot(oneShot);
     source.start(when);
@@ -5755,7 +6294,7 @@ function playPressVoice(
   }
 
   const handoffAt = when + sustain.tailOffset / rate;
-  const spatialOutput = createSpatialOutput(deckId);
+  const stereoOutput = createStereoOutput(deckId);
 
   // 完整原音始终先启动；短按只需取消未来的静音事件即可保持原效果。
   const drySource = ctx.createBufferSource();
@@ -5765,7 +6304,7 @@ function playPressVoice(
   dryGain.gain.setValueAtTime(sampleGain, when);
   dryGain.gain.setValueAtTime(0, handoffAt);
   drySource.connect(dryGain);
-  dryGain.connect(spatialOutput.input);
+  dryGain.connect(stereoOutput.input);
 
   // 延音源从原音尾段起点开始，起音源在同一采样时刻静音。
   const loopSource = ctx.createBufferSource();
@@ -5775,7 +6314,7 @@ function playPressVoice(
   loopSource.playbackRate.setValueAtTime(rate, handoffAt);
   loopGain.gain.setValueAtTime(sampleGain, handoffAt);
   loopSource.connect(loopGain);
-  loopGain.connect(spatialOutput.input);
+  loopGain.connect(stereoOutput.input);
 
   const voice = {
     id: ++voiceSerial,
@@ -5792,7 +6331,7 @@ function playPressVoice(
     dryGain,
     loopSource,
     loopGain,
-    spatialOutput,
+    stereoOutput,
     tailSource: null,
     tailGain: null,
     tailEndAt: 0,
@@ -6295,22 +6834,58 @@ function drawPiece(g, kind, color, x, y, r, rot) {
   g.restore();
 }
 
-function drawTouchEmoji(g, emoji, x, y, size, alpha, rotation = 0) {
+function drawTouchCharacterImage(
+  g,
+  sfxId,
+  x,
+  y,
+  size,
+  alpha,
+  rotation = 0
+) {
   if (size <= 0 || alpha <= 0) return;
+  const image = touchTrailImages[sfxId] ?? touchTrailImages.dagou;
+  if (!image.complete || image.naturalWidth <= 0) return;
+
   g.save();
   g.translate(x, y);
   g.rotate(rotation);
   g.globalAlpha = alpha;
-  g.font = `${size.toFixed(1)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
   g.shadowColor = 'rgba(111, 106, 99, .28)';
   g.shadowBlur = Math.min(8, size * 0.18);
-  g.fillText(emoji, 0, 0);
+  const scale = size / Math.max(image.naturalWidth, image.naturalHeight);
+  const width = image.naturalWidth * scale;
+  const height = image.naturalHeight * scale;
+  g.drawImage(image, -width / 2, -height / 2, width, height);
   g.restore();
 }
 
-function drawRhythmGameTouchFeedback(now, emojiMode) {
+function drawTouchRing(
+  g,
+  x,
+  y,
+  radius,
+  color,
+  alpha,
+  lineWidth,
+  shadowBlur = 0
+) {
+  if (radius <= 0 || alpha <= 0 || lineWidth <= 0) return;
+  g.save();
+  g.globalAlpha = alpha;
+  g.strokeStyle = color;
+  g.lineWidth = lineWidth;
+  if (shadowBlur > 0) {
+    g.shadowColor = color;
+    g.shadowBlur = shadowBlur;
+  }
+  g.beginPath();
+  g.arc(x, y, radius, 0, Math.PI * 2);
+  g.stroke();
+  g.restore();
+}
+
+function drawRhythmGameTouchFeedback(now, characterMode) {
   const feedbackLife = 0.22;
   for (const [pointerId, trail] of touchTrails) {
     const releaseProgress = trail.releasedAt === null
@@ -6325,10 +6900,21 @@ function drawRhythmGameTouchFeedback(now, emojiMode) {
       (1 - smooth(pulseProgress)) * (1 - smooth(releaseProgress));
     if (alpha <= 0.001) continue;
 
-    if (emojiMode) {
-      drawTouchEmoji(
+    const radius = 8 + easeOutCubic(pulseProgress) * 18;
+    drawTouchRing(
+      touchFx2d,
+      trail.x,
+      trail.y,
+      radius,
+      trail.color,
+      alpha * 0.52,
+      2.2 - pulseProgress * 0.7
+    );
+
+    if (characterMode) {
+      drawTouchCharacterImage(
         touchFx2d,
-        trail.emoji,
+        trail.sfxId,
         trail.x,
         Math.max(18, trail.y - 12 - pulseProgress * 5),
         22 + easeOutCubic(pulseProgress) * 7,
@@ -6337,14 +6923,7 @@ function drawRhythmGameTouchFeedback(now, emojiMode) {
       continue;
     }
 
-    const radius = 8 + easeOutCubic(pulseProgress) * 18;
     touchFx2d.save();
-    touchFx2d.globalAlpha = alpha * 0.52;
-    touchFx2d.strokeStyle = trail.color;
-    touchFx2d.lineWidth = 2.2 - pulseProgress * 0.7;
-    touchFx2d.beginPath();
-    touchFx2d.arc(trail.x, trail.y, radius, 0, Math.PI * 2);
-    touchFx2d.stroke();
     touchFx2d.globalAlpha = alpha * 0.68;
     drawPiece(
       touchFx2d,
@@ -6362,10 +6941,10 @@ function drawRhythmGameTouchFeedback(now, emojiMode) {
 
 function drawTouchTrails(now) {
   touchFx2d.clearRect(0, 0, fxW, fxH);
-  const emojiMode =
+  const characterMode =
     isDeckPerformanceMode() && djSettings.trailStyle === 'emoji';
   if (isRhythmGameActive()) {
-    drawRhythmGameTouchFeedback(now, emojiMode);
+    drawRhythmGameTouchFeedback(now, characterMode);
     return;
   }
 
@@ -6387,12 +6966,12 @@ function drawTouchTrails(now) {
       const age = clamp01((now - point.at) / TOUCH_TRAIL_POINT_LIFE);
       const order = pointCount > 0 ? (index + 1) / pointCount : 1;
       const alpha = (1 - smooth(age)) * (0.18 + order * 0.58) * releaseAlpha;
-      if (emojiMode) {
+      if (characterMode) {
         const distanceFromHead = pointCount - 1 - index;
         if (distanceFromHead > 0 && distanceFromHead % 2 === 1) return;
-        drawTouchEmoji(
+        drawTouchCharacterImage(
           touchFx2d,
-          point.emoji,
+          point.sfxId,
           point.x,
           Math.max(14, point.y - 18),
           (12 + order * 10) * (1 - age * 0.3),
@@ -6417,26 +6996,42 @@ function drawTouchTrails(now) {
 
     const intro = easeOutBack(clamp01((now - trail.startedAt) / 0.12));
     const pulse = 1 - clamp01((now - trail.pulseAt) / 0.18);
-    if (emojiMode) {
+    const radius = (24 + pulse * 9 + releaseProgress * 18) * intro;
+    const shadowBlur = 10 + pulse * 7;
+    drawTouchRing(
+      touchFx2d,
+      trail.x,
+      trail.y,
+      radius,
+      trail.color,
+      releaseAlpha,
+      3 + pulse * 1.8,
+      shadowBlur
+    );
+    drawTouchRing(
+      touchFx2d,
+      trail.x,
+      trail.y,
+      radius + 7 + pulse * 4,
+      trail.color,
+      0.28 * releaseAlpha,
+      2,
+      shadowBlur
+    );
+    if (characterMode) {
       const releasePop = Math.sin(
         Math.min(1, releaseProgress / 0.5) * Math.PI / 2
       );
       const exitProgress = releaseProgress * releaseProgress;
       const exitDistance = TOUCH_TRAIL_EXIT_DISTANCE * exitProgress;
-      const emojiX = trail.x + trail.exitX * exitDistance;
-      const emojiY = Math.max(24, trail.y - 30) + trail.exitY * exitDistance;
-      touchFx2d.save();
-      touchFx2d.globalAlpha = 0.58 * releaseAlpha;
-      touchFx2d.fillStyle = trail.color;
-      touchFx2d.beginPath();
-      touchFx2d.arc(trail.x, trail.y, 4 + pulse * 2.5, 0, Math.PI * 2);
-      touchFx2d.fill();
-      touchFx2d.restore();
-      drawTouchEmoji(
+      const characterX = trail.x + trail.exitX * exitDistance;
+      const characterY = Math.max(24, trail.y - 30)
+        + trail.exitY * exitDistance;
+      drawTouchCharacterImage(
         touchFx2d,
-        trail.emoji,
-        emojiX,
-        emojiY,
+        trail.sfxId,
+        characterX,
+        characterY,
         (34 + pulse * 8 + releasePop * 7) * intro,
         releaseAlpha,
         Math.sin(now * 5 + trail.x * 0.01) * 0.07
@@ -6445,23 +7040,7 @@ function drawTouchTrails(now) {
       continue;
     }
 
-    const radius = (24 + pulse * 9 + releaseProgress * 18) * intro;
     touchFx2d.save();
-    touchFx2d.globalAlpha = releaseAlpha;
-    touchFx2d.strokeStyle = trail.color;
-    touchFx2d.lineWidth = 3 + pulse * 1.8;
-    touchFx2d.shadowColor = trail.color;
-    touchFx2d.shadowBlur = 10 + pulse * 7;
-    touchFx2d.beginPath();
-    touchFx2d.arc(trail.x, trail.y, radius, 0, Math.PI * 2);
-    touchFx2d.stroke();
-
-    touchFx2d.globalAlpha = 0.28 * releaseAlpha;
-    touchFx2d.lineWidth = 2;
-    touchFx2d.beginPath();
-    touchFx2d.arc(trail.x, trail.y, radius + 7 + pulse * 4, 0, Math.PI * 2);
-    touchFx2d.stroke();
-
     touchFx2d.globalAlpha = 0.92 * releaseAlpha;
     drawPiece(
       touchFx2d,
@@ -6530,20 +7109,20 @@ function getTouchTrailAppearance(clientX, clientY) {
     color: Number.isInteger(zone?.deckSlot)
       ? TOUCH_TRAIL_COLORS[zone.deckSlot]
       : C.amber,
-    emoji: SFX_EMOJIS[zone?.sfxId] ?? SFX_EMOJIS.dagou,
+    sfxId: CHARACTER_IMAGE_SETS[zone?.sfxId] ? zone.sfxId : 'dagou',
   };
 }
 
 function beginTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
   const point = getTouchTrailPoint(clientX, clientY);
-  const { color, emoji } = getTouchTrailAppearance(clientX, clientY);
+  const { color, sfxId } = getTouchTrailAppearance(clientX, clientY);
   touchTrails.set(pointerId, {
     x: point.x,
     y: point.y,
     sampleX: point.x,
     sampleY: point.y,
     color,
-    emoji,
+    sfxId,
     startedAt: at,
     updatedAt: at,
     sampleAt: at,
@@ -6551,7 +7130,7 @@ function beginTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
     releasedAt: null,
     exitX: 0,
     exitY: -1,
-    points: [{ ...point, color, emoji, at }],
+    points: [{ ...point, color, sfxId, at }],
   });
 }
 
@@ -6560,7 +7139,7 @@ function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
   if (!trail || trail.releasedAt !== null) return;
 
   const point = getTouchTrailPoint(clientX, clientY);
-  const { color, emoji } = getTouchTrailAppearance(clientX, clientY);
+  const { color, sfxId } = getTouchTrailAppearance(clientX, clientY);
   const dx = point.x - trail.sampleX;
   const dy = point.y - trail.sampleY;
   const distance = Math.hypot(dx, dy);
@@ -6575,7 +7154,7 @@ function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
       x: trail.sampleX + dx * progress,
       y: trail.sampleY + dy * progress,
       color,
-      emoji,
+      sfxId,
       at: trail.sampleAt + (at - trail.sampleAt) * progress,
     });
   }
@@ -6591,7 +7170,7 @@ function moveTouchTrail(pointerId, clientX, clientY, at = touchTrailNow()) {
   trail.x = point.x;
   trail.y = point.y;
   trail.color = color;
-  trail.emoji = emoji;
+  trail.sfxId = sfxId;
   trail.updatedAt = at;
 }
 
@@ -7769,7 +8348,6 @@ function beginKeyboardInput(code) {
 }
 
 function handleKeyboardDown(event) {
-  if (handleSoundFieldKeyboard(event)) return;
   if (
     !isDeckPerformanceMode() ||
     djTransport.phase === 'playing' ||
@@ -7788,26 +8366,6 @@ function handleKeyboardDown(event) {
       beginKeyboardInput(event.code);
     }
   });
-}
-
-function handleSoundFieldKeyboard(event) {
-  const position = SOUND_FIELD_KEY_POSITIONS[event.code];
-  if (
-    position === undefined ||
-    !performanceSettings.spatialAudio ||
-    isDjTransportBusy() ||
-    settingsOpen ||
-    djRecorderOpen ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.altKey
-  ) return false;
-
-  event.preventDefault();
-  if (event.repeat) return true;
-  if (spatialControlMode !== 'manual') activateManualSoundField();
-  setSoundFieldPosition(position, true);
-  return true;
 }
 
 function handleKeyboardUp(event) {
@@ -7893,7 +8451,9 @@ async function start() {
 // 触摸设备在 pointerup/click 才获得媒体播放所需的用户激活。
 overlay.addEventListener('pointerup', (event) => {
   event.preventDefault();
-  void start();
+  void start().then((ready) => {
+    if (ready) void playPendingDjShareLink();
+  });
 });
 
 let resizeTimer = 0;
@@ -7909,6 +8469,8 @@ if (window.ResizeObserver) {
   stageResizeObserver.observe(stage);
 }
 
+loadDjLibrary();
+prepareDjShareLinkPlayback();
 buildGrid();
 fxResize();
 renderLandscapePerformancePreference();

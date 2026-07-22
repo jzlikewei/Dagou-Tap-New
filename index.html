@@ -59,71 +59,6 @@
   #stage.is-rhythm-game #fx { opacity: .9; }
   #stage.is-rhythm-game #touch-fx { opacity: .76; }
 
-  /* 3D 音场控制：手动模式可拖动，重力模式作为实时倾斜指示器。 */
-  #sound-field-control {
-    position: absolute;
-    left: 50%;
-    top: max(70px, calc(env(safe-area-inset-top) + 58px));
-    z-index: 28;
-    width: min(340px, 46vw);
-    min-width: 250px;
-    min-height: 42px;
-    padding: 7px 9px;
-    display: none;
-    align-items: center;
-    gap: 7px;
-    color: #6f6a63;
-    background: rgba(255, 250, 240, .9);
-    border: 1px solid rgba(255, 180, 0, .5);
-    border-radius: 11px;
-    box-shadow: 0 5px 16px rgba(135, 131, 126, .18);
-    transform: translateX(-50%);
-    pointer-events: auto;
-    touch-action: none;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-  }
-  #stage.is-spatial-audio #sound-field-control { display: flex; }
-  .sound-field-badge {
-    flex: none;
-    color: #b57e00;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: .04em;
-  }
-  .sound-field-edge {
-    flex: none;
-    color: rgba(111, 106, 99, .68);
-    font: 800 9px/1 system-ui, sans-serif;
-  }
-  #sound-field-slider {
-    flex: 1;
-    min-width: 80px;
-    height: 24px;
-    margin: 0;
-    accent-color: var(--amber);
-    cursor: ew-resize;
-    touch-action: none;
-  }
-  #sound-field-slider:disabled {
-    opacity: .72;
-    cursor: default;
-  }
-  #sound-field-center {
-    flex: none;
-    min-width: 42px;
-    min-height: 27px;
-    padding: 4px 7px;
-    border: 1px solid rgba(135, 131, 126, .34);
-    border-radius: 7px;
-    color: #77716b;
-    background: rgba(255, 255, 255, .72);
-    font: 750 9px/1 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-  #sound-field-center:active { transform: scale(.95); }
-
   /* 常驻创作署名：保留原作者入口，并补充 DJ 版改编者。 */
   #author-credits {
     position: absolute;
@@ -657,9 +592,6 @@
   #stage.is-rhythm-game #top-controls .control-button {
     pointer-events: none !important;
   }
-  #stage.is-rhythm-game #sound-field-control {
-    display: none !important;
-  }
   @media (max-width: 900px) {
     #rhythm-game-hud {
       width: min(410px, calc(100% - 28px));
@@ -977,12 +909,12 @@
     font: 900 9px/1 system-ui, sans-serif;
     letter-spacing: -.04em;
   }
-  #spatial-audio-toggle[aria-checked="true"] {
+  #stereo-audio-toggle[aria-checked="true"] {
     --btn-edge: rgba(255, 180, 0, .88);
     --btn-fill: rgba(255, 250, 240, .97);
     color: #b57e00;
   }
-  #spatial-audio-toggle:disabled {
+  #stereo-audio-toggle:disabled {
     opacity: .58;
     cursor: wait;
   }
@@ -1091,16 +1023,6 @@
       font-size: 7px;
     }
     .dj-author-name { font-size: 9px; }
-    #sound-field-control {
-      top: max(62px, calc(env(safe-area-inset-top) + 52px));
-      width: min(280px, calc(100% - 126px));
-      min-width: 210px;
-      min-height: 38px;
-      padding: 5px 7px;
-      gap: 5px;
-    }
-    .sound-field-badge { font-size: 9px; }
-    #sound-field-center { min-width: 38px; padding-inline: 5px; }
   }
 
   /* 开始遮罩（首次点击解锁音频） */
@@ -1473,32 +1395,6 @@
   }
   .dj-settings.is-visible,
   .rhythm-game-settings.is-visible { display: grid; }
-  .spatial-audio-settings {
-    display: none;
-    gap: 7px;
-    margin-top: 1px;
-    padding: 9px;
-    background: rgba(255, 244, 224, .54);
-    border: 1px solid rgba(255, 180, 0, .28);
-    border-radius: 10px;
-  }
-  .spatial-audio-settings.is-visible { display: grid; }
-  .spatial-mode-setting {
-    display: grid;
-    grid-template-columns: 54px minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-  }
-  .spatial-mode-label {
-    color: rgba(111, 106, 99, .8);
-    font-size: 10px;
-    font-weight: 800;
-  }
-  .spatial-mode-choices {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-  }
   .dj-count,
   .rhythm-game-lane-count {
     display: grid;
@@ -1511,8 +1407,7 @@
   .dj-count-button,
   .rhythm-game-lane-button,
   .dj-sfx-choice,
-  .dj-trail-choice,
-  .spatial-mode-button {
+  .dj-trail-choice {
     border: 1px solid rgba(135, 131, 126, .32);
     color: #77716b;
     background: rgba(255, 255, 255, .66);
@@ -1529,15 +1424,10 @@
     min-height: 34px;
     border-radius: 8px;
   }
-  .spatial-mode-button {
-    min-height: 34px;
-    border-radius: 8px;
-  }
   .dj-count-button.is-active,
   .rhythm-game-lane-button.is-active,
   .dj-sfx-choice.is-active,
-  .dj-trail-choice.is-active,
-  .spatial-mode-button.is-active {
+  .dj-trail-choice.is-active {
     color: #b57e00;
     border-color: rgba(255, 180, 0, .78);
     background: rgba(255, 250, 240, .96);
@@ -1545,8 +1435,7 @@
   .dj-count-button:disabled,
   .rhythm-game-lane-button:disabled,
   .dj-sfx-choice:disabled,
-  .dj-trail-choice:disabled,
-  .spatial-mode-button:disabled {
+  .dj-trail-choice:disabled {
     opacity: .52;
     cursor: wait;
   }
@@ -1571,8 +1460,22 @@
     border-radius: 8px;
   }
   .dj-trail-choice[data-dj-trail-style="emoji"] {
-    font-size: 16px;
-    letter-spacing: .12em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dj-trail-image-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+  }
+  .dj-trail-image-preview img {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 2px rgba(111, 106, 99, .16));
   }
   .rhythm-game-launches {
     display: grid;
@@ -1773,7 +1676,7 @@
   }
   .dj-recorder-tabs {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 6px;
     margin-top: 12px;
     padding: 4px;
@@ -1850,7 +1753,11 @@
     background: rgba(231, 255, 248, .84);
   }
   #dj-recording-import,
-  #dj-recording-share {
+  #dj-recording-share,
+  #dj-recording-share-link,
+  #dj-recording-save,
+  #dj-library-export,
+  #dj-library-rename {
     color: #8d6200;
     border-color: rgba(255, 180, 0, .52);
     background: rgba(255, 250, 240, .94);
@@ -1870,8 +1777,26 @@
     background: rgba(255, 244, 224, .55);
   }
   .dj-share-result.is-visible { display: grid; }
+  .dj-share-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #dj-recording-share-link { grid-column: 1 / -1; }
+  .dj-track-name-input {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid rgba(135, 131, 126, .3);
+    border-radius: 9px;
+    color: #625e59;
+    background: rgba(255, 255, 255, .86);
+    font: 750 11px/1.3 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
   #dj-recording-code,
-  #dj-recording-share-code {
+  #dj-recording-share-code,
+  #dj-recording-share-url,
+  #dj-library-detail-code {
     width: 100%;
     min-height: 74px;
     max-height: 132px;
@@ -1888,11 +1813,119 @@
     touch-action: pan-y;
   }
   #dj-recording-code:focus,
-  #dj-recording-share-code:focus {
+  #dj-recording-share-code:focus,
+  #dj-recording-share-url:focus,
+  #dj-library-detail-code:focus,
+  .dj-track-name-input:focus {
     outline: 2px solid rgba(255, 180, 0, .42);
     outline-offset: 1px;
   }
-  #dj-recording-share-code { background: rgba(255, 255, 255, .94); }
+  #dj-recording-share-code,
+  #dj-recording-share-url { background: rgba(255, 255, 255, .94); }
+  .dj-library-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .dj-library-header-copy {
+    display: grid;
+    gap: 3px;
+  }
+  #dj-library-summary {
+    color: #765300;
+    font-size: 12px;
+    font-weight: 900;
+  }
+  .dj-library-device-note {
+    color: rgba(111, 106, 99, .68);
+    font-size: 9px;
+    line-height: 1.45;
+  }
+  #dj-library-empty {
+    padding: 24px 12px;
+    border: 1px dashed rgba(135, 131, 126, .32);
+    border-radius: 12px;
+    color: rgba(111, 106, 99, .64);
+    background: rgba(255, 255, 255, .5);
+    font-size: 11px;
+    text-align: center;
+  }
+  #dj-library-list {
+    display: grid;
+    gap: 8px;
+  }
+  .dj-library-card {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(135, 131, 126, .24);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .68);
+  }
+  .dj-library-card.is-selected {
+    border-color: rgba(255, 180, 0, .62);
+    background: rgba(255, 248, 232, .9);
+  }
+  .dj-library-card-copy {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+  }
+  .dj-library-card-title {
+    overflow: hidden;
+    color: #6a5521;
+    font-size: 12px;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dj-library-card-meta,
+  #dj-library-detail-meta {
+    color: rgba(111, 106, 99, .68);
+    font: 650 9px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .dj-library-card-actions,
+  .dj-library-detail-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .dj-library-card-button {
+    min-height: 36px;
+    padding: 6px;
+    border: 1px solid rgba(135, 131, 126, .26);
+    border-radius: 8px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .78);
+    font: 800 10px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-library-card-button:disabled { opacity: .44; cursor: not-allowed; }
+  #dj-library-detail {
+    display: none;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(255, 180, 0, .4);
+    border-radius: 12px;
+    background: rgba(255, 244, 224, .58);
+  }
+  #dj-library-detail.is-visible { display: grid; }
+  .dj-library-name-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 88px;
+    gap: 7px;
+  }
+  #dj-library-detail-code {
+    min-height: 68px;
+    max-height: 110px;
+  }
+  #dj-library-delete {
+    color: #9d3940;
+    border-color: rgba(255, 90, 95, .44);
+    background: rgba(255, 241, 239, .9);
+  }
   #dj-recording-loop {
     min-height: 48px;
     padding: 8px 10px;
@@ -2022,12 +2055,6 @@
   }
   @media (max-width: 360px) {
     #dj-recorder-open { min-width: 56px; padding-inline: 4px; font-size: 8px; }
-  }
-  .spatial-audio-hint {
-    color: rgba(135, 131, 126, .8);
-    font-size: 10px;
-    line-height: 1.45;
-    text-align: center;
   }
 
   /* 作者卡：八边形头像 + 主页按钮 */
@@ -2323,13 +2350,6 @@
   <div id="stage">
     <canvas id="fx"></canvas>
     <canvas id="touch-fx" aria-hidden="true"></canvas>
-    <div id="sound-field-control" role="group" aria-label="3D 音场控制" aria-hidden="true">
-      <span class="sound-field-badge" id="sound-field-mode-label">3D · 手动</span>
-      <span class="sound-field-edge" aria-hidden="true">L</span>
-      <input id="sound-field-slider" type="range" min="-100" max="100" step="1" value="0" aria-label="音场位置；Z 左移，斜杠右移，B 回中" aria-valuetext="居中" aria-keyshortcuts="Z / B" />
-      <span class="sound-field-edge" aria-hidden="true">R</span>
-      <button id="sound-field-center" type="button">回中</button>
-    </div>
     <div id="dj-transport-hud" role="status" aria-live="polite" aria-hidden="true">
       <span id="dj-transport-state">REC</span>
       <strong id="dj-transport-time">待机 · 0:30</strong>
@@ -2391,7 +2411,7 @@
     </div>
     <img id="dog-animation-atlas" alt="" hidden decoding="async" fetchpriority="low" />
 
-    <div id="top-controls" class="is-visible has-update-dot" aria-label="声音、DJ 录制、3D 音场与导航控制">
+    <div id="top-controls" class="is-visible has-update-dot" aria-label="声音、DJ 录制、立体声与导航控制">
       <div id="audio-controls" class="control-group">
         <button id="shortcut-toggle" class="control-button" type="button" aria-label="展示快捷键" aria-pressed="false" disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2417,9 +2437,9 @@
           </svg>
           <span>音效</span>
         </button>
-        <button id="spatial-audio-toggle" class="control-button" type="button" role="switch" aria-label="开启 3D 音效" aria-checked="false" data-setting="spatialAudio" disabled>
-          <span class="control-glyph" aria-hidden="true">3D</span>
-          <span>音场</span>
+        <button id="stereo-audio-toggle" class="control-button" type="button" role="switch" aria-label="开启双声道立体声" aria-checked="false" data-setting="spatialAudio" disabled>
+          <span class="control-glyph" aria-hidden="true">LR</span>
+          <span>立体声</span>
         </button>
       </div>
       <div id="dj-recorder-dock" aria-hidden="true">
@@ -2447,9 +2467,10 @@
             </svg>
           </button>
         </div>
-        <div class="dj-recorder-tabs" role="tablist" aria-label="录制或导入">
+        <div class="dj-recorder-tabs" role="tablist" aria-label="录制、导入或曲库">
           <button id="dj-recorder-record-tab" class="dj-recorder-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="dj-recorder-record-view" data-dj-recorder-tab="record">录制</button>
           <button id="dj-recorder-import-tab" class="dj-recorder-tab" type="button" role="tab" aria-selected="false" aria-controls="dj-recorder-import-view" data-dj-recorder-tab="import">导入</button>
+          <button id="dj-recorder-library-tab" class="dj-recorder-tab" type="button" role="tab" aria-selected="false" aria-controls="dj-recorder-library-view" data-dj-recorder-tab="library">曲库</button>
         </div>
 
         <section id="dj-recorder-record-view" class="dj-recorder-view is-active" role="tabpanel" aria-labelledby="dj-recorder-record-tab" aria-hidden="false">
@@ -2464,15 +2485,25 @@
             <button id="dj-recording-play" class="dj-recorder-button" type="button" disabled>播放录制</button>
           </div>
           <div id="dj-share-result" class="dj-share-result" aria-hidden="true">
+            <label class="dj-recorder-field-label" for="dj-recording-name">曲目名称（最多 8 字节）</label>
+            <input id="dj-recording-name" class="dj-track-name-input" type="text" maxlength="8" autocomplete="off" placeholder="给这段演奏起个名字">
             <label class="dj-recorder-field-label" for="dj-recording-share-code">分享码</label>
-            <textarea id="dj-recording-share-code" maxlength="32768" readonly spellcheck="false" aria-label="录制生成的 DJ 分享码"></textarea>
-            <button id="dj-recording-share" class="dj-recorder-button" type="button" disabled>复制分享码</button>
+            <textarea id="dj-recording-share-code" maxlength="32800" readonly spellcheck="false" aria-label="录制生成的 DJ 分享码"></textarea>
+            <div class="dj-share-actions">
+              <button id="dj-recording-save" class="dj-recorder-button" type="button" disabled>存入曲库</button>
+              <button id="dj-recording-share" class="dj-recorder-button" type="button" disabled>复制分享码</button>
+              <button id="dj-recording-share-link" class="dj-recorder-button" type="button" disabled>生成分享链接</button>
+            </div>
+            <label class="dj-recorder-field-label" for="dj-recording-share-url">分享链接</label>
+            <textarea id="dj-recording-share-url" maxlength="65535" readonly spellcheck="false" aria-label="录制生成的 DJ 分享链接" placeholder="点击“生成分享链接”后显示"></textarea>
           </div>
         </section>
 
         <section id="dj-recorder-import-view" class="dj-recorder-view" role="tabpanel" aria-labelledby="dj-recorder-import-tab" aria-hidden="true">
+          <label class="dj-recorder-field-label" for="dj-import-name">曲目名称（最多 8 字节）</label>
+          <input id="dj-import-name" class="dj-track-name-input" type="text" maxlength="8" autocomplete="off" placeholder="导入后使用的名称">
           <label class="dj-recorder-field-label" for="dj-recording-code">粘贴分享码</label>
-          <textarea id="dj-recording-code" maxlength="32768" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" aria-label="待导入的 DJ 分享码" placeholder="粘贴 DGT1 / DGT2 分享码"></textarea>
+          <textarea id="dj-recording-code" maxlength="32800" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" aria-label="待导入的 DJ 分享码" placeholder="粘贴 DGL1 / DGT1 / DGT2 分享码"></textarea>
           <button id="dj-recording-loop" type="button" role="switch" aria-checked="false">
             <span class="dj-recording-loop-copy">
               <strong>循环播放</strong>
@@ -2481,9 +2512,35 @@
             <span class="dj-recording-loop-switch" aria-hidden="true"></span>
           </button>
           <div class="dj-recorder-actions">
-            <button id="dj-recording-import" class="dj-recorder-button" type="button">导入</button>
+            <button id="dj-recording-import" class="dj-recorder-button" type="button">导入并保存</button>
             <button id="dj-recording-import-play" class="dj-recorder-button" type="button" disabled>播放导入</button>
           </div>
+        </section>
+
+        <section id="dj-recorder-library-view" class="dj-recorder-view" role="tabpanel" aria-labelledby="dj-recorder-library-tab" aria-hidden="true">
+          <div class="dj-library-header">
+            <div class="dj-library-header-copy">
+              <span id="dj-library-summary">本机曲库 · 0 / 50</span>
+              <span class="dj-library-device-note">保存在当前浏览器，清理网站数据时会一并清除。</span>
+            </div>
+          </div>
+          <div id="dj-library-empty">曲库还是空的，先录一段或导入分享码。</div>
+          <div id="dj-library-detail" aria-hidden="true">
+            <div id="dj-library-detail-meta"></div>
+            <label class="dj-recorder-field-label" for="dj-library-detail-name">曲目名称（最多 8 字节）</label>
+            <div class="dj-library-name-row">
+              <input id="dj-library-detail-name" class="dj-track-name-input" type="text" maxlength="8" autocomplete="off">
+              <button id="dj-library-rename" class="dj-recorder-button" type="button">保存名称</button>
+            </div>
+            <label class="dj-recorder-field-label" for="dj-library-detail-code">分享码</label>
+            <textarea id="dj-library-detail-code" maxlength="32800" readonly spellcheck="false" aria-label="曲目分享码"></textarea>
+            <div class="dj-library-detail-actions">
+              <button id="dj-library-play" class="dj-recorder-button" type="button">播放</button>
+              <button id="dj-library-export" class="dj-recorder-button" type="button">导出分享码</button>
+              <button id="dj-library-delete" class="dj-recorder-button" type="button">删除</button>
+            </div>
+          </div>
+          <div id="dj-library-list" aria-label="本机曲目列表"></div>
         </section>
         <div id="dj-recorder-status" role="status" aria-live="polite">准备录制</div>
       </div>
@@ -2598,7 +2655,13 @@
                   <span class="dj-trail-label">跟手特效</span>
                   <div class="dj-trail-choices" role="radiogroup" aria-label="跟手特效">
                     <button class="dj-trail-choice is-active" type="button" role="radio" aria-checked="true" data-dj-trail-style="normal">普通</button>
-                    <button class="dj-trail-choice" type="button" role="radio" aria-checked="false" aria-label="动物 Emoji" data-dj-trail-style="emoji">🐶🐱🐔</button>
+                    <button class="dj-trail-choice" type="button" role="radio" aria-checked="false" aria-label="大狗、猫、鸡图片" data-dj-trail-style="emoji">
+                      <span class="dj-trail-image-preview" aria-hidden="true">
+                        <img src="Image/dagou_open_mouth.png" alt="" draggable="false" />
+                        <img src="Image/maodie_open_mouth.png" alt="" draggable="false" />
+                        <img src="Image/dingdongji_open_mouth.png" alt="" draggable="false" />
+                      </span>
+                    </button>
                   </div>
                 </div>
                 <div class="dj-deck-assignment" data-dj-slot="0">
@@ -2629,7 +2692,7 @@
               </div>
               <button class="setting-row" id="rhythm-game-mode-setting" type="button" role="switch" aria-checked="false" data-setting="rhythmGameMode" disabled>
                 <span class="setting-copy">
-                  <span class="setting-name">音游模式</span>
+                  <span class="setting-name">音游模式（不好玩）</span>
                   <span class="setting-description">随机生成固定 1 分钟谱面</span>
                 </span>
                 <span class="setting-switch" aria-hidden="true"></span>
@@ -2675,24 +2738,13 @@
                 </span>
                 <span class="setting-switch" aria-hidden="true"></span>
               </button>
-              <button class="setting-row" id="spatial-audio-setting" type="button" role="switch" aria-checked="false" data-setting="spatialAudio" disabled>
+              <button class="setting-row" id="stereo-audio-setting" type="button" role="switch" aria-checked="false" data-setting="spatialAudio" disabled>
                 <span class="setting-copy">
-                  <span class="setting-name">3D 音效</span>
-                  <span class="setting-description">开启 HRTF 空间定位</span>
+                  <span class="setting-name">双声道立体声</span>
+                  <span class="setting-description">各栏固定分布在左、中、右</span>
                 </span>
                 <span class="setting-switch" aria-hidden="true"></span>
               </button>
-              <div id="spatial-audio-settings" class="spatial-audio-settings" aria-hidden="true">
-                <div class="spatial-mode-setting">
-                  <span class="spatial-mode-label">控制方式</span>
-                  <div class="spatial-mode-choices" role="radiogroup" aria-label="3D 音场控制方式">
-                    <button class="spatial-mode-button is-active" type="button" role="radio" aria-checked="true" data-spatial-mode="manual">手动</button>
-                    <button class="spatial-mode-button" type="button" role="radio" aria-checked="false" data-spatial-mode="gravity">重力</button>
-                  </div>
-                </div>
-                <div class="spatial-audio-hint">HRTF 加入前后与远近定位，耳机效果更明显</div>
-                <div class="spatial-audio-hint">手动：拖动顶部滑杆；PC 用 Z 左移、/ 右移、B 回中。重力：倾斜 iPad，点“校准”重设中央位置。重力只移动音场，不改变屏幕方向</div>
-              </div>
             </div>
             <div id="performance-settings-status" role="status">正在读取哔哩哔哩云端设置…</div>
           </section>
@@ -2732,6 +2784,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260722-recording-countdown"></script>
+  <script src="main.js?v=20260722-playback-touch"></script>
 </body>
 </html>

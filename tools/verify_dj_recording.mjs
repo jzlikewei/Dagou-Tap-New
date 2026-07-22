@@ -55,8 +55,8 @@ assert.ok(
 );
 assert.match(
   htmlSource,
-  /data-dj-recorder-tab="record"[\s\S]*data-dj-recorder-tab="import"/,
-  'the recording dialog must provide recording and import tabs',
+  /data-dj-recorder-tab="record"[\s\S]*data-dj-recorder-tab="import"[\s\S]*data-dj-recorder-tab="library"/,
+  'the recording dialog must provide recording, import, and library tabs',
 );
 assert.match(
   htmlSource,
@@ -65,8 +65,8 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /id="dj-recording-code"[^>]*maxlength="32768"/,
-  'the import field must enforce the format size limit',
+  /id="dj-recording-code"[^>]*maxlength="32800"/,
+  'the import field must allow the named share envelope',
 );
 assert.match(
   htmlSource,
@@ -75,8 +75,28 @@ assert.match(
 );
 assert.match(
   htmlSource,
+  /id="dj-recording-share-link"[^>]*>生成分享链接<[\s\S]*id="dj-recording-share-url"[^>]*readonly/,
+  'recordings must expose a generated and selectable share URL',
+);
+assert.match(
+  htmlSource,
   /id="dj-recording-loop"[^>]*role="switch"[\s\S]*id="dj-recording-import-play"/,
   'imports must provide loop playback and a dedicated play control',
+);
+assert.match(
+  htmlSource,
+  /id="dj-recording-name"[^>]*maxlength="8"[\s\S]*id="dj-recording-save"[\s\S]*id="dj-import-name"[^>]*maxlength="8"/,
+  'recording and import must expose byte-limited names and library saving',
+);
+assert.match(
+  htmlSource,
+  /id="dj-recorder-library-view"[\s\S]*id="dj-library-detail-name"[\s\S]*id="dj-library-detail-code"[\s\S]*id="dj-library-play"[\s\S]*id="dj-library-export"[\s\S]*id="dj-library-delete"/,
+  'the local library must expose view, rename, play, export, and delete controls',
+);
+assert.match(
+  htmlSource,
+  /<span class="setting-name">音游模式（不好玩）<\/span>/,
+  'the rhythm game switch must carry the requested label',
 );
 assert.match(
   htmlSource,
@@ -139,13 +159,74 @@ assert.match(
   'manual playback stop must also fade scheduled one-shot samples',
 );
 assert.match(
+  extractFunction('scheduleDjPlaybackTouchFeedback'),
+  /event\.kind === 'release'[\s\S]*releaseTouchTrail\(inputId\)/,
+  'recorded releases must dismiss their matching playback touch feedback',
+);
+assert.match(
+  extractFunction('scheduleDjPlaybackTouchFeedback'),
+  /event\.kind === 'press'[\s\S]*beginTouchTrail\(inputId,[\s\S]*scheduleDjPlaybackTouchRelease\(inputId\)/,
+  'recorded taps must create touch feedback and dismiss one-shot notes',
+);
+assert.match(
+  extractFunction('scheduleDjPlaybackTouchFeedback'),
+  /moveTouchTrail\(inputId,[\s\S]*pulseTouchTrail\(inputId\)/,
+  'recorded retunes must move and pulse the same playback touch',
+);
+assert.match(
+  extractFunction('scheduleDjPlaybackEvent'),
+  /scheduleDjPlaybackTouchFeedback\(event, zoneIndexValue, track, when\)[\s\S]*scheduleDjPlaybackTouchFeedback\(event, -1, track, when\)/,
+  'press, retune, and release events must schedule matching touch feedback',
+);
+assert.match(
+  mainSource,
+  /function stopDjPlayback\([\s\S]*?clearDjPlaybackTouchTrails\(\)/,
+  'stopping playback must clear its synthetic touch feedback',
+);
+assert.match(
   mainSource,
   /stage\.addEventListener\('pointerdown',[\s\S]*djTransport\.phase === 'playing'/,
   'manual stage input must stay blocked during exact playback',
 );
+assert.match(
+  extractFunction('prepareDjShareLinkPlayback'),
+  /decodeDjShareQuery\(window\.location\.search\)[\s\S]*loadedTrackOrigin = 'import'[\s\S]*pendingDjSharePlayback = true/,
+  'the page query must prepare a validated imported track',
+);
+assert.match(
+  extractFunction('startDjPlayback'),
+  /performanceSettings\.djMode \|\|[\s\S]*allowModeSwitch[\s\S]*replacePerformanceSettings/,
+  'share-link playback must be able to enter DJ mode temporarily',
+);
+assert.match(
+  mainSource,
+  /overlay\.addEventListener\('pointerup',[\s\S]*start\(\)\.then[\s\S]*playPendingDjShareLink\(\)/,
+  'a shared track must play after the first audio-unlock gesture',
+);
 
+const djLibraryStorage = new Map();
+let djLibraryUuid = 0;
 const codecSandbox = {
   Uint8Array,
+  URL,
+  URLSearchParams,
+  console,
+  window: {
+    localStorage: {
+      getItem(key) {
+        return djLibraryStorage.has(key) ? djLibraryStorage.get(key) : null;
+      },
+      setItem(key, value) {
+        djLibraryStorage.set(key, String(value));
+      },
+    },
+    crypto: {
+      randomUUID() {
+        djLibraryUuid++;
+        return `library-test-${djLibraryUuid}`;
+      },
+    },
+  },
   btoa(binary) {
     return Buffer.from(binary, 'binary').toString('base64');
   },
@@ -164,6 +245,14 @@ vm.runInNewContext(
   ${extractConst('DJ_RECORDING_SNAP_UNITS')}
   ${extractConst('DJ_RECORDING_LOOP_UNITS')}
   ${extractConst('DJ_RECORDING_FORMAT_VERSION')}
+  ${extractConst('DJ_LIBRARY_STORAGE_KEY')}
+  ${extractConst('DJ_LIBRARY_SCHEMA_VERSION')}
+  ${extractConst('DJ_LIBRARY_SHARE_PREFIX')}
+  ${extractConst('DJ_LIBRARY_MAX_TRACKS')}
+  ${extractConst('DJ_LIBRARY_MAX_NAME_BYTES')}
+  ${extractConst('DJ_LIBRARY_MAX_SHARE_CODE_LENGTH')}
+  ${extractConst('DJ_SHARE_URL_BASE')}
+  ${extractConst('DJ_SHARE_QUERY_PARAM')}
   ${extractConst('DJ_RECORDING_SFX_CODES')}
   ${extractConst('DJ_RECORDING_SFX_IDS')}
   ${extractFunction('writeDjRecordingVarUint')}
@@ -180,7 +269,24 @@ vm.runInNewContext(
   ${extractFunction('readDjRecordingNotes')}
   ${extractFunction('encodeDjRecording')}
   ${extractFunction('decodeDjRecording')}
+  ${extractFunction('djStringToUtf8Bytes')}
+  ${extractFunction('djUtf8BytesToString')}
+  ${extractFunction('getDjLibraryNameByteLength')}
+  ${extractFunction('truncateDjLibraryName')}
+  ${extractFunction('normalizeDjLibraryName')}
+  ${extractFunction('createDefaultDjLibraryName')}
+  ${extractFunction('encodeDjSharedRecording')}
+  ${extractFunction('decodeDjSharedRecording')}
+  ${extractFunction('createDjShareUrl')}
+  ${extractFunction('decodeDjShareQuery')}
+  ${extractFunction('createDjLibraryId')}
+  ${extractFunction('loadDjLibrary')}
+  ${extractFunction('persistDjLibraryEntries')}
+  ${extractFunction('saveDjLibraryTrack')}
   ${extractFunction('buildDjPlaybackEvents')}
+
+  let djLibraryEntries = [];
+  let selectedDjLibraryId = null;
 
   function encodeLegacyDjRecording(track) {
     const bytes = [];
@@ -231,6 +337,22 @@ vm.runInNewContext(
       notes: DJ_RECORDING_MAX_NOTES,
       codeLength: DJ_RECORDING_MAX_CODE_LENGTH,
       unitsPerBeat: DJ_RECORDING_TIME_UNITS_PER_BEAT,
+    },
+  };
+  globalThis.libraryApi = {
+    encodeShare: encodeDjSharedRecording,
+    decodeShare: decodeDjSharedRecording,
+    createShareUrl: createDjShareUrl,
+    decodeShareQuery: decodeDjShareQuery,
+    nameBytes: getDjLibraryNameByteLength,
+    truncateName: truncateDjLibraryName,
+    save: saveDjLibraryTrack,
+    reload() {
+      loadDjLibrary();
+      return djLibraryEntries.map(entry => ({ ...entry }));
+    },
+    entries() {
+      return djLibraryEntries.map(entry => ({ ...entry }));
     },
   };
   `,
@@ -285,7 +407,7 @@ assert.match(preciseCode, /^DGT2[RZ]\.[A-Za-z0-9_-]+$/);
 assert.ok(preciseCode.length <= recording.limits.codeLength);
 const preciseHeader = clone(recording.inspectHeader(preciseCode));
 assert.equal(preciseHeader.length, 6, 'the snapped 90-second header must use 6 bytes');
-assert.equal(preciseHeader.flags & 8, 8, '3D audio must occupy one flag bit');
+assert.equal(preciseHeader.flags & 8, 8, 'stereo audio must occupy one flag bit');
 const decodedPrecise = clone(recording.decode(preciseCode));
 assert.equal(decodedPrecise.version, 2);
 assert.equal(decodedPrecise.durationUnits, units90Seconds);
@@ -296,6 +418,46 @@ assert.equal(decodedPrecise.trailStyle, 'emoji');
 assert.equal(decodedPrecise.spatialAudio, true);
 assert.equal('soundFieldPosition' in decodedPrecise, false);
 assert.deepEqual(decodedPrecise.notes, preciseTrack.notes);
+
+const library = codecSandbox.libraryApi;
+const namedShareCode = library.encodeShare('狗叫', preciseCode);
+assert.match(
+  namedShareCode,
+  /^DGL1\.[A-Za-z0-9_-]+\.DGT2[RZ]\.[A-Za-z0-9_-]+$/,
+  'named exports must wrap the recording in a DGL1 share envelope',
+);
+const decodedNamedShare = clone(library.decodeShare(namedShareCode));
+assert.equal(decodedNamedShare.name, '狗叫');
+assert.equal(decodedNamedShare.code, preciseCode);
+assert.deepEqual(decodedNamedShare.track.notes, preciseTrack.notes);
+assert.equal(library.nameBytes('狗叫'), 6);
+assert.equal(library.truncateName('狗叫鸡'), '狗叫');
+assert.equal(library.truncateName('abcdefghijk'), 'abcdefgh');
+assert.equal(clone(library.decodeShare(preciseCode)).name, '');
+const shareUrl = library.createShareUrl('狗叫', preciseCode);
+assert.match(
+  shareUrl,
+  /^https:\/\/t9lqe93khi\.feishuapp\.com\/app\/app_17ammbtgvq8\/\?dj=/,
+  'generated links must use the deployed Feishu Miaoda app',
+);
+const shareUrlValue = new URL(shareUrl).searchParams.get('dj');
+assert.equal(shareUrlValue, namedShareCode);
+const decodedShareQuery = clone(
+  library.decodeShareQuery(new URL(shareUrl).search)
+);
+assert.equal(decodedShareQuery.name, '狗叫');
+assert.deepEqual(decodedShareQuery.track.notes, preciseTrack.notes);
+
+library.save('狗叫', preciseCode);
+library.save('猫猫', preciseCode);
+assert.equal(clone(library.entries()).length, 1, 'duplicate codes must update in place');
+assert.equal(clone(library.entries())[0].name, '猫猫');
+const storedLibrary = JSON.parse(
+  djLibraryStorage.get('dagou_dj_library_v1')
+);
+assert.equal(storedLibrary.version, 1);
+assert.match(storedLibrary.tracks[0].code, /^DGT2[RZ]\./);
+assert.equal(clone(library.reload())[0].name, '猫猫');
 
 const legacyCode = recording.encodeLegacy({
   ...preciseTrack,
@@ -370,4 +532,7 @@ console.log('DJ recording verification passed:');
 console.log(`- exact 90-second take round-trips in ${preciseCode.length} characters`);
 console.log(`- compact header uses ${preciseHeader.length} bytes and imports DGT1`);
 console.log(`- dense repeating take compresses to ${repeatingCode.length} characters`);
+console.log('- DGL1 shares carry 8-byte names and localStorage deduplicates tracks');
+console.log('- Feishu share URLs preserve the code and arm playback from the query');
+console.log('- playback mirrors taps, holds, retunes, and releases on the touch canvas');
 console.log('- double presses, holds, retunes, CRC checks, and deck validation pass');

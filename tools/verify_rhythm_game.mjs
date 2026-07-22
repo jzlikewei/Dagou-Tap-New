@@ -524,11 +524,11 @@ assert.match(
 );
 assert.match(
   extractFunction('drawTouchTrails'),
-  /drawRhythmGameTouchFeedback\(now, emojiMode\)/,
+  /drawRhythmGameTouchFeedback\(now, characterMode\)/,
 );
 assert.match(
   extractFunction('drawRhythmGameTouchFeedback'),
-  /const radius = 8 \+ easeOutCubic\(pulseProgress\) \* 18/,
+  /const radius = 8 \+ easeOutCubic\(pulseProgress\) \* 18[\s\S]*drawTouchRing\([\s\S]*if \(characterMode\)/,
 );
 assert.match(
   extractFunction('scheduleActivationVisual'),

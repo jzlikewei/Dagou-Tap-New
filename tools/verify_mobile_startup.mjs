@@ -226,7 +226,7 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /main\.js\?v=20260722-recording-countdown/,
+  /main\.js\?v=20260722-playback-touch/,
   'the fixed startup script must use a fresh cache key',
 );
 assert.match(
@@ -246,12 +246,12 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /重力只移动音场，不改变屏幕方向/,
-  '3D gravity copy must stay independent from display orientation',
+  /id="stereo-audio-toggle"[^>]*data-setting="spatialAudio"/,
+  'stereo audio must stay separate from display orientation',
 );
 assert.match(
   mainSource,
-  /overlay\.addEventListener\('pointerup',[\s\S]*?void start\(\);[\s\S]*?\}\);/,
+  /overlay\.addEventListener\('pointerup',[\s\S]*?void start\(\)\.then\([\s\S]*?playPendingDjShareLink\(\)[\s\S]*?\}\);/,
   'audio startup must run from the touch pointerup activation',
 );
 

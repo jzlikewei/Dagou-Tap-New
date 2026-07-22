@@ -391,8 +391,9 @@ function makeHarness(toy, { embedded = true, debugUnlock = false } = {}) {
     resetRhythmGame() {},
     renderRhythmGameLaunch() {},
     activateManualSoundField() {},
-    updateLiveSpatialOutputs() {},
-    renderSpatialAudioControls() {},
+    updateLiveStereoOutputs() {},
+    renderStereoAudioControls() {},
+    renderSoundFieldSources() {},
     renderKeyGrid() {},
     buildGrid() { buildGridCalls++; },
     FEATURED_BVID: 'BV1kNKU6REBg',
@@ -1322,7 +1323,7 @@ console.log('- performance defaults, cloud restore/write, and local-only fallbac
 console.log('- DJ, rhythm, and piano modes stay mutually exclusive across clicks and cloud restore');
 console.log('- rhythm lane count restores and persists independently from DJ deck count');
 console.log('- DJ deck count and three deck assignments persist to their cloud keys');
-console.log('- DJ touch trails switch between normal and per-sound emoji styles');
-console.log('- 3D audio defaults, cloud restore, and cloud writes stay consistent');
+console.log('- DJ touch trails switch between normal and per-sound character images');
+console.log('- stereo audio defaults, cloud restore, and cloud writes stay consistent');
 console.log('- active Hajimi button toggles the lazy-loaded looping character');
 console.log('- Web Audio clock returns the lossless atlas to frame 0 every nine beats');
