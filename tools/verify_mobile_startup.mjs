@@ -226,7 +226,7 @@ assert.match(
 );
 assert.match(
   htmlSource,
-  /main\.js\?v=20260722-shortcut-toggle/,
+  /main\.js\?v=20260722-recording-countdown/,
   'the fixed startup script must use a fresh cache key',
 );
 assert.match(

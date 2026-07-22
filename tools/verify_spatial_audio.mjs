@@ -56,7 +56,9 @@ vm.runInNewContext(
   const performanceSettings = { spatialAudio: false };
   let soundFieldPosition = 0;
   let settingsOpen = false;
+  let djRecorderOpen = false;
   let spatialControlMode = 'manual';
+  let transportBusy = false;
   let shortcutPosition = null;
   let manualActivations = 0;
   function activateManualSoundField() {
@@ -66,6 +68,7 @@ vm.runInNewContext(
   function setSoundFieldPosition(value) {
     shortcutPosition = value;
   }
+  function isDjTransportBusy() { return transportBusy; }
   ${extractFunction('clampSoundFieldPosition')}
   ${extractFunction('getDeckBaseSpatialPan')}
   ${extractFunction('getSpatialOutputTargets')}
@@ -89,6 +92,7 @@ vm.runInNewContext(
     shortcut(code, options = {}) {
       performanceSettings.spatialAudio = options.enabled !== false;
       settingsOpen = options.settingsOpen === true;
+      transportBusy = options.transportBusy === true;
       spatialControlMode = options.mode ?? 'manual';
       shortcutPosition = null;
       manualActivations = 0;
@@ -181,6 +185,10 @@ assert.equal(
 );
 assert.equal(
   sandbox.spatialApi.shortcut('KeyZ', { settingsOpen: true }).handled,
+  false,
+);
+assert.equal(
+  sandbox.spatialApi.shortcut('KeyZ', { transportBusy: true }).handled,
   false,
 );
 

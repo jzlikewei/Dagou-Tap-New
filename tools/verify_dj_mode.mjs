@@ -494,6 +494,7 @@ vm.runInNewContext(
     return performanceSettings.djMode || performanceSettings.rhythmGameMode;
   }
   let settingsOpen = false;
+  let djRecorderOpen = false;
   const keyboardZoneByCode = new Map([
     ['Digit1', 0],
     ['KeyA', 8],
@@ -501,6 +502,7 @@ vm.runInNewContext(
   const pressedKeyboardCodes = new Set();
   const pointers = new Map();
   const rhythmGame = { activeHolds: new Map() };
+  const djTransport = { phase: 'idle' };
   const inputQueue = [];
   const inputVisualTimers = new Set();
   const lastCommittedDjInputTimes = new Map();

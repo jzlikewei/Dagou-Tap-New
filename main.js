@@ -29,6 +29,16 @@ const RHYTHM_GAME_AUTOPLAY_CONNECTED_DURATION = 0.2;
 const RHYTHM_GAME_AUTOPLAY_INPUT_PREFIX = 'rhythm-autoplay:';
 const RHYTHM_GAME_PHRASE_TAIL_MIN_STEPS = 2;
 const RHYTHM_GAME_PHRASE_TAIL_MAX_STEPS = 6;
+const DJ_RECORDING_MAX_SECONDS = 90;
+const DJ_RECORDING_DEFAULT_SECONDS = 30;
+const DJ_RECORDING_DURATION_OPTIONS = Object.freeze([30, 60]);
+const DJ_RECORDING_END_WARNING_SECONDS = 5;
+const DJ_RECORDING_MAX_NOTES = 5000;
+const DJ_RECORDING_MAX_CODE_LENGTH = 32768;
+const DJ_RECORDING_TIME_UNITS_PER_BEAT = 1024;
+const DJ_RECORDING_SNAP_UNITS = DJ_RECORDING_TIME_UNITS_PER_BEAT / 2;
+const DJ_RECORDING_LOOP_UNITS = DJ_RECORDING_TIME_UNITS_PER_BEAT * 16;
+const DJ_RECORDING_FORMAT_VERSION = 2;
 const RHYTHM_GAME_PHRASE_TEMPLATES = Object.freeze({
   dagou: Object.freeze([
     Object.freeze({
@@ -231,6 +241,16 @@ const SFX_EMOJIS = Object.freeze({
   dingdong: '🐔',
   hajimi: '🐱',
 });
+const DJ_RECORDING_SFX_CODES = Object.freeze({
+  dagou: 0,
+  hajimi: 1,
+  dingdong: 2,
+});
+const DJ_RECORDING_SFX_IDS = Object.freeze([
+  'dagou',
+  'hajimi',
+  'dingdong',
+]);
 const LOADING_MESSAGES = Object.freeze(['狗叫加载中', '基米哈气中']);
 const DJ_DECK_LABELS = Object.freeze(['LEFT', 'CENTER', 'RIGHT']);
 const DJ_ACTIVE_SLOTS = Object.freeze({
@@ -306,6 +326,27 @@ const rhythmGame = {
   wrong: 0,
   countdownText: '',
 };
+const djTransport = {
+  phase: 'idle',
+  recordingLimitSeconds: DJ_RECORDING_DEFAULT_SECONDS,
+  armedConfig: null,
+  notes: [],
+  openNotes: new Set(),
+  startAt: 0,
+  phaseUnits: 0,
+  loadedTrack: null,
+  loadedTrackOrigin: null,
+  shareCode: '',
+  loopPlayback: false,
+  playbackEvents: [],
+  playbackIndex: 0,
+  playbackStartAt: 0,
+  playbackVoices: new Map(),
+  playbackOneShots: new Set(),
+  restoreState: null,
+  statusMessage: '',
+};
+let djRecordingNoteByVoice = new WeakMap();
 let djSettingsSaving = false;
 let rhythmGameSettingsSaving = false;
 let djLandscape = true;
@@ -558,6 +599,33 @@ const rhythmGameAutoplayLaunch = document.getElementById(
 const rhythmGameAutoplayAction = document.getElementById(
   'rhythm-game-autoplay-action'
 );
+const djRecordingToggle = document.getElementById('dj-recording-toggle');
+const djRecordingPlay = document.getElementById('dj-recording-play');
+const djRecordingImportPlay = document.getElementById('dj-recording-import-play');
+const djRecordingShare = document.getElementById('dj-recording-share');
+const djRecorderDock = document.getElementById('dj-recorder-dock');
+const djRecorderOpenButton = document.getElementById('dj-recorder-open');
+const djRecorderOverlay = document.getElementById('dj-recorder-overlay');
+const djRecorderPanel = document.getElementById('dj-recorder-panel');
+const djRecorderClose = document.getElementById('dj-recorder-close');
+const djRecorderTabButtons = [
+  ...document.querySelectorAll('[data-dj-recorder-tab]'),
+];
+const djRecorderRecordView = document.getElementById('dj-recorder-record-view');
+const djRecorderImportView = document.getElementById('dj-recorder-import-view');
+const djRecordingDurationButtons = [
+  ...document.querySelectorAll('[data-dj-recording-seconds]'),
+];
+const djRecordingCode = document.getElementById('dj-recording-code');
+const djRecordingShareCode = document.getElementById('dj-recording-share-code');
+const djShareResult = document.getElementById('dj-share-result');
+const djRecordingImport = document.getElementById('dj-recording-import');
+const djRecordingLoop = document.getElementById('dj-recording-loop');
+const djRecorderStatus = document.getElementById('dj-recorder-status');
+const djTransportHud = document.getElementById('dj-transport-hud');
+const djTransportState = document.getElementById('dj-transport-state');
+const djTransportTime = document.getElementById('dj-transport-time');
+const djTransportStop = document.getElementById('dj-transport-stop');
 const spatialAudioSettingsPanel = document.getElementById(
   'spatial-audio-settings'
 );
@@ -1034,6 +1102,8 @@ shortcutToggle.addEventListener('click', toggleShortcutOverlay);
 
 /* ---------- 设置菜单与 Toy 云状态 ---------- */
 let settingsOpen = false;
+let djRecorderOpen = false;
+let djRecorderTab = 'record';
 let toyNoticeTimer = 0;
 const toyCloudState = {
   toy: null,
@@ -1183,6 +1253,7 @@ function renderSoundFieldPosition() {
 function renderSpatialAudioControls() {
   const enabled = performanceSettings.spatialAudio;
   const gravityMode = spatialControlMode === 'gravity';
+  const transportBusy = isDjTransportBusy();
   const toggleAction = enabled ? '关闭' : '开启';
   spatialAudioToggle.setAttribute('aria-label', `${toggleAction} 3D 音效`);
   spatialAudioToggle.title = `${toggleAction} 3D 音效`;
@@ -1191,17 +1262,18 @@ function renderSpatialAudioControls() {
   stage.classList.toggle('is-spatial-audio', enabled);
   stage.classList.toggle('is-spatial-gravity', enabled && gravityMode);
   soundFieldControl.setAttribute('aria-hidden', String(!enabled));
-  soundFieldSlider.disabled = !enabled || gravityMode;
+  soundFieldSlider.disabled = !enabled || gravityMode || transportBusy;
   soundFieldModeLabel.textContent = gravityMode
     ? 'HRTF · 重力'
     : 'HRTF · 手动';
   soundFieldCenterButton.textContent = gravityMode ? '校准' : '回中';
+  soundFieldCenterButton.disabled = !enabled || transportBusy;
 
   for (const button of spatialModeButtons) {
     const selected = button.dataset.spatialMode === spatialControlMode;
     button.classList.toggle('is-active', selected);
     button.setAttribute('aria-checked', String(selected));
-    button.disabled = !enabled || gravityPermissionPending;
+    button.disabled = !enabled || gravityPermissionPending || transportBusy;
   }
   renderSoundFieldPosition();
 }
@@ -1251,7 +1323,11 @@ function getGravitySoundFieldTarget(delta) {
 }
 
 function handleDeviceOrientation(event) {
-  if (spatialControlMode !== 'gravity' || !performanceSettings.spatialAudio) {
+  if (
+    spatialControlMode !== 'gravity' ||
+    !performanceSettings.spatialAudio ||
+    isDjTransportBusy()
+  ) {
     return;
   }
   const tilt = screenRelativeTilt(event);
@@ -2924,8 +3000,1200 @@ function readCloudRhythmGameSettings(cloud) {
   };
 }
 
+/* ---------- DJ 录制分享码：紧凑二进制 + 可选 LZSS + Base64url ---------- */
+function writeDjRecordingVarUint(target, value) {
+  let remaining = Math.max(0, Math.round(Number(value) || 0));
+  if (!Number.isSafeInteger(remaining) || remaining > 0x0fffffff) {
+    throw new Error('DJ recording integer is out of range');
+  }
+  do {
+    let byte = remaining & 0x7f;
+    remaining = Math.floor(remaining / 128);
+    if (remaining > 0) byte |= 0x80;
+    target.push(byte);
+  } while (remaining > 0);
+}
+
+function readDjRecordingVarUint(bytes, cursor) {
+  let value = 0;
+  let scale = 1;
+  for (let count = 0; count < 5; count++) {
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording ended inside an integer');
+    }
+    const byte = bytes[cursor.index++];
+    value += (byte & 0x7f) * scale;
+    if ((byte & 0x80) === 0) return value;
+    scale *= 128;
+  }
+  throw new Error('DJ recording integer is too large');
+}
+
+function djRecordingCrc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function appendDjRecordingCrc(bytes) {
+  const output = new Uint8Array(bytes.length + 4);
+  output.set(bytes);
+  const crc = djRecordingCrc32(bytes);
+  output[bytes.length] = crc & 0xff;
+  output[bytes.length + 1] = (crc >>> 8) & 0xff;
+  output[bytes.length + 2] = (crc >>> 16) & 0xff;
+  output[bytes.length + 3] = (crc >>> 24) & 0xff;
+  return output;
+}
+
+function verifyDjRecordingCrc(bytes) {
+  if (bytes.length < 5) throw new Error('DJ recording is incomplete');
+  const data = bytes.subarray(0, bytes.length - 4);
+  const offset = bytes.length - 4;
+  const expected = (
+    bytes[offset] |
+    bytes[offset + 1] << 8 |
+    bytes[offset + 2] << 16 |
+    bytes[offset + 3] << 24
+  ) >>> 0;
+  if (djRecordingCrc32(data) !== expected) {
+    throw new Error('DJ recording checksum mismatch');
+  }
+  return data;
+}
+
+function compressDjRecordingBytes(bytes) {
+  const output = [];
+  writeDjRecordingVarUint(output, bytes.length);
+  const positions = new Map();
+
+  const remember = (position) => {
+    if (position + 2 >= bytes.length) return;
+    const key = bytes[position] << 16 |
+      bytes[position + 1] << 8 |
+      bytes[position + 2];
+    const list = positions.get(key) ?? [];
+    list.push(position);
+    while (list.length > 48) list.shift();
+    positions.set(key, list);
+  };
+
+  let index = 0;
+  while (index < bytes.length) {
+    const flagIndex = output.length;
+    output.push(0);
+    let flags = 0;
+
+    for (let bit = 0; bit < 8 && index < bytes.length; bit++) {
+      let bestLength = 0;
+      let bestOffset = 0;
+      if (index + 2 < bytes.length) {
+        const key = bytes[index] << 16 |
+          bytes[index + 1] << 8 |
+          bytes[index + 2];
+        const candidates = positions.get(key) ?? [];
+        for (let candidateIndex = candidates.length - 1;
+          candidateIndex >= 0;
+          candidateIndex--) {
+          const candidate = candidates[candidateIndex];
+          const offset = index - candidate;
+          if (offset <= 0 || offset > 4095) continue;
+          const maxLength = Math.min(18, bytes.length - index);
+          let length = 0;
+          while (
+            length < maxLength &&
+            bytes[candidate + length] === bytes[index + length]
+          ) length++;
+          if (length > bestLength && length >= 3) {
+            bestLength = length;
+            bestOffset = offset;
+            if (length === maxLength) break;
+          }
+        }
+      }
+
+      if (bestLength >= 3) {
+        flags |= 1 << bit;
+        output.push(bestOffset >>> 4);
+        output.push((bestOffset & 0x0f) << 4 | (bestLength - 3));
+        for (let step = 0; step < bestLength; step++) remember(index + step);
+        index += bestLength;
+      } else {
+        output.push(bytes[index]);
+        remember(index);
+        index++;
+      }
+    }
+    output[flagIndex] = flags;
+  }
+  return Uint8Array.from(output);
+}
+
+function decompressDjRecordingBytes(bytes) {
+  const cursor = { index: 0 };
+  const length = readDjRecordingVarUint(bytes, cursor);
+  if (length <= 0 || length > 262144) {
+    throw new Error('DJ recording expands beyond the supported size');
+  }
+  const output = new Uint8Array(length);
+  let outputIndex = 0;
+
+  while (outputIndex < length) {
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording compressed data is incomplete');
+    }
+    const flags = bytes[cursor.index++];
+    for (let bit = 0; bit < 8 && outputIndex < length; bit++) {
+      if ((flags & (1 << bit)) === 0) {
+        if (cursor.index >= bytes.length) {
+          throw new Error('DJ recording literal is incomplete');
+        }
+        output[outputIndex++] = bytes[cursor.index++];
+        continue;
+      }
+
+      if (cursor.index + 1 >= bytes.length) {
+        throw new Error('DJ recording match is incomplete');
+      }
+      const high = bytes[cursor.index++];
+      const low = bytes[cursor.index++];
+      const offset = high << 4 | low >>> 4;
+      const matchLength = (low & 0x0f) + 3;
+      if (offset <= 0 || offset > outputIndex) {
+        throw new Error('DJ recording match points outside the decoded data');
+      }
+      for (let step = 0; step < matchLength && outputIndex < length; step++) {
+        output[outputIndex] = output[outputIndex - offset];
+        outputIndex++;
+      }
+    }
+  }
+  if (cursor.index !== bytes.length) {
+    throw new Error('DJ recording compressed data has trailing bytes');
+  }
+  return output;
+}
+
+function djRecordingBytesToBase64Url(bytes) {
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function djRecordingBase64UrlToBytes(encoded) {
+  if (!/^[A-Za-z0-9_-]+$/.test(encoded)) {
+    throw new Error('DJ recording contains invalid Base64url characters');
+  }
+  const padded = encoded
+    .replace(/-/g, '+')
+    .replace(/_/g, '/')
+    .padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function isValidDjRecordingZone(zoneId, deckCount) {
+  if (!Number.isInteger(zoneId) || zoneId < 0 || zoneId >= 36) return false;
+  const deckSlot = Math.floor(zoneId / 12);
+  return deckCount === 3 || deckSlot !== 1;
+}
+
+function writeDjRecordingNotes(bytes, track) {
+  if (!Array.isArray(track.notes)) {
+    throw new Error('DJ recording notes are invalid');
+  }
+  const notes = [...track.notes].sort(
+    (left, right) => left.startUnits - right.startUnits || left.zone - right.zone
+  );
+  if (notes.length <= 0 || notes.length > DJ_RECORDING_MAX_NOTES) {
+    throw new Error('DJ recording note count is invalid');
+  }
+
+  let previousStart = 0;
+  for (const note of notes) {
+    if (
+      !isValidDjRecordingZone(note.zone, track.deckCount) ||
+      !Number.isInteger(note.startUnits) ||
+      note.startUnits < 0 ||
+      note.startUnits > track.durationUnits
+    ) {
+      throw new Error('DJ recording note is invalid');
+    }
+    const encodedStart = track.rhythmSnap
+      ? Math.round(note.startUnits / DJ_RECORDING_SNAP_UNITS)
+      : Math.round(note.startUnits);
+    const decodedStart = track.rhythmSnap
+      ? encodedStart * DJ_RECORDING_SNAP_UNITS
+      : encodedStart;
+    if (
+      encodedStart < previousStart ||
+      decodedStart > track.durationUnits ||
+      (track.rhythmSnap && decodedStart !== note.startUnits)
+    ) {
+      throw new Error('DJ recording notes are out of order');
+    }
+    writeDjRecordingVarUint(bytes, encodedStart - previousStart);
+    previousStart = encodedStart;
+
+    const hasGate = Number.isInteger(note.gateUnits);
+    const retunes = Array.isArray(note.retunes) ? note.retunes : [];
+    if (
+      (note.gateUnits !== null && !hasGate) ||
+      (hasGate && (
+        note.gateUnits < 0 ||
+        note.startUnits + note.gateUnits > track.durationUnits ||
+        Math.floor(note.zone % 12 / 4) !== 2
+      )) ||
+      (!hasGate && retunes.length > 0) ||
+      retunes.length > 256
+    ) {
+      throw new Error('DJ recording held note is invalid');
+    }
+    const marker = note.zone | (hasGate ? 0x40 : 0) |
+      (retunes.length > 0 ? 0x80 : 0);
+    bytes.push(marker);
+    if (!hasGate) continue;
+
+    writeDjRecordingVarUint(bytes, note.gateUnits);
+    if (retunes.length === 0) continue;
+    writeDjRecordingVarUint(bytes, retunes.length);
+    let previousOffset = 0;
+    for (const retune of retunes) {
+      if (
+        !Number.isInteger(retune.offsetUnits) ||
+        retune.offsetUnits < previousOffset ||
+        retune.offsetUnits > note.gateUnits ||
+        !isValidDjRecordingZone(retune.zone, track.deckCount) ||
+        Math.floor(retune.zone / 12) !== Math.floor(note.zone / 12) ||
+        Math.floor(retune.zone % 12 / 4) !== 2
+      ) {
+        throw new Error('DJ recording retune is invalid');
+      }
+      writeDjRecordingVarUint(bytes, retune.offsetUnits - previousOffset);
+      bytes.push(retune.zone);
+      previousOffset = retune.offsetUnits;
+    }
+  }
+}
+
+function readDjRecordingNotes(bytes, cursor, options) {
+  const { deckCount, rhythmSnap, durationUnits, noteCount } = options;
+  const notes = [];
+  let encodedStart = 0;
+  while (noteCount === null ? cursor.index < bytes.length : notes.length < noteCount) {
+    if (notes.length >= DJ_RECORDING_MAX_NOTES) {
+      throw new Error('DJ recording note count is invalid');
+    }
+    encodedStart += readDjRecordingVarUint(bytes, cursor);
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording note is incomplete');
+    }
+    const marker = bytes[cursor.index++];
+    const zone = marker & 0x3f;
+    if (!isValidDjRecordingZone(zone, deckCount)) {
+      throw new Error('DJ recording note points to an inactive zone');
+    }
+    const startUnits = rhythmSnap
+      ? encodedStart * DJ_RECORDING_SNAP_UNITS
+      : encodedStart;
+    if (startUnits > durationUnits) {
+      throw new Error('DJ recording note starts after the recording ends');
+    }
+
+    const hasGate = Boolean(marker & 0x40);
+    const hasRetunes = Boolean(marker & 0x80);
+    let gateUnits = null;
+    const retunes = [];
+    if (hasGate) {
+      gateUnits = readDjRecordingVarUint(bytes, cursor);
+      if (
+        startUnits + gateUnits > durationUnits ||
+        Math.floor(zone % 12 / 4) !== 2
+      ) {
+        throw new Error('DJ recording note extends beyond the recording');
+      }
+    }
+    if (hasRetunes) {
+      if (!hasGate) throw new Error('DJ recording retune has no held note');
+      const retuneCount = readDjRecordingVarUint(bytes, cursor);
+      if (retuneCount > 256) throw new Error('DJ recording has too many retunes');
+      let offsetUnits = 0;
+      for (let retuneIndex = 0; retuneIndex < retuneCount; retuneIndex++) {
+        offsetUnits += readDjRecordingVarUint(bytes, cursor);
+        if (cursor.index >= bytes.length) {
+          throw new Error('DJ recording retune is incomplete');
+        }
+        const retuneZone = bytes[cursor.index++];
+        if (
+          !isValidDjRecordingZone(retuneZone, deckCount) ||
+          Math.floor(retuneZone / 12) !== Math.floor(zone / 12) ||
+          Math.floor(retuneZone % 12 / 4) !== 2 ||
+          offsetUnits > gateUnits
+        ) {
+          throw new Error('DJ recording retune is invalid');
+        }
+        retunes.push({ offsetUnits, zone: retuneZone });
+      }
+    }
+    notes.push({ startUnits, zone, gateUnits, retunes });
+  }
+  if (notes.length <= 0) {
+    throw new Error('DJ recording note count is invalid');
+  }
+  return notes;
+}
+
+function encodeDjRecording(track) {
+  const requestedBpm = Number(track.bpm ?? BPM);
+  const maximumDurationUnits = Math.ceil(
+    DJ_RECORDING_MAX_SECONDS / (60 / BPM) * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  );
+  if (
+    !Number.isFinite(requestedBpm) ||
+    Math.round(requestedBpm) !== BPM ||
+    (track.deckCount !== 2 && track.deckCount !== 3) ||
+    !Number.isInteger(track.phaseUnits) ||
+    track.phaseUnits < 0 ||
+    track.phaseUnits >= DJ_RECORDING_LOOP_UNITS ||
+    (track.rhythmSnap && track.phaseUnits % DJ_RECORDING_SNAP_UNITS !== 0) ||
+    !Number.isInteger(track.durationUnits) ||
+    track.durationUnits <= 0 ||
+    track.durationUnits > maximumDurationUnits
+  ) {
+    throw new Error('DJ recording header is invalid');
+  }
+  const bytes = [];
+  const flags =
+    (track.rhythmSnap ? 1 : 0) |
+    (track.deckCount === 3 ? 2 : 0) |
+    (track.trailStyle === 'emoji' ? 4 : 0) |
+    (track.spatialAudio ? 8 : 0);
+  bytes.push(flags);
+  if (!Array.isArray(track.deckSfxIds) || track.deckSfxIds.length !== 3) {
+    throw new Error('DJ recording sound set is invalid');
+  }
+  const sfxCodes = track.deckSfxIds.map(
+    sfxId => DJ_RECORDING_SFX_CODES[sfxId]
+  );
+  if (sfxCodes.some(code => !Number.isInteger(code))) {
+    throw new Error('DJ recording contains an unknown sound set');
+  }
+  bytes.push(sfxCodes[0] | sfxCodes[1] << 2 | sfxCodes[2] << 4);
+  if (track.rhythmSnap) {
+    bytes.push(track.phaseUnits / DJ_RECORDING_SNAP_UNITS);
+  } else {
+    writeDjRecordingVarUint(bytes, track.phaseUnits);
+  }
+  writeDjRecordingVarUint(bytes, track.durationUnits);
+  writeDjRecordingNotes(bytes, track);
+
+  const raw = appendDjRecordingCrc(Uint8Array.from(bytes));
+  const compressed = compressDjRecordingBytes(raw);
+  const useCompressed = compressed.length + 2 < raw.length;
+  const payload = useCompressed ? compressed : raw;
+  const kind = useCompressed ? 'Z' : 'R';
+  const code = `DGT${DJ_RECORDING_FORMAT_VERSION}${kind}.` +
+    djRecordingBytesToBase64Url(payload);
+  if (code.length > DJ_RECORDING_MAX_CODE_LENGTH) {
+    throw new Error('DJ recording share code is too long');
+  }
+  return code;
+}
+
+function decodeDjRecording(code) {
+  const normalized = String(code ?? '').replace(/\s+/g, '');
+  if (normalized.length === 0 || normalized.length > DJ_RECORDING_MAX_CODE_LENGTH) {
+    throw new Error('DJ recording code length is invalid');
+  }
+  const match = normalized.match(/^DGT(\d+)([RZ])\.([A-Za-z0-9_-]+)$/);
+  if (!match) {
+    throw new Error('DJ recording version is unsupported');
+  }
+  const version = Number(match[1]);
+  if (version !== 1 && version !== DJ_RECORDING_FORMAT_VERSION) {
+    throw new Error('DJ recording version is unsupported');
+  }
+  let raw = djRecordingBase64UrlToBytes(match[3]);
+  if (match[2] === 'Z') raw = decompressDjRecordingBytes(raw);
+  const bytes = verifyDjRecordingCrc(raw);
+  const cursor = { index: 0 };
+  if (bytes.length < 4) throw new Error('DJ recording header is incomplete');
+
+  const flags = bytes[cursor.index++];
+  if (flags & 0xf0) throw new Error('DJ recording flags are invalid');
+  const deckCount = flags & 2 ? 3 : 2;
+  const packedSfx = bytes[cursor.index++];
+  if (packedSfx & 0xc0) throw new Error('DJ recording sound set is invalid');
+  const deckSfxIds = [0, 1, 2].map(slot => {
+    const codeValue = packedSfx >>> (slot * 2) & 0x03;
+    const sfxId = DJ_RECORDING_SFX_IDS[codeValue];
+    if (!sfxId) throw new Error('DJ recording sound set is invalid');
+    return sfxId;
+  });
+  const rhythmSnap = Boolean(flags & 1);
+  let bpm = BPM;
+  let phaseUnits;
+  let noteCount = null;
+  if (version === 1) {
+    if (cursor.index + 1 >= bytes.length) {
+      throw new Error('DJ recording header is incomplete');
+    }
+    bpm = bytes[cursor.index++];
+    if (bpm < 40 || bpm > 240) throw new Error('DJ recording BPM is invalid');
+    cursor.index++; // DGT1 音场位置；DGT2 起只保留 3D 开关。
+    phaseUnits = readDjRecordingVarUint(bytes, cursor);
+  } else if (rhythmSnap) {
+    if (cursor.index >= bytes.length) {
+      throw new Error('DJ recording header is incomplete');
+    }
+    phaseUnits = bytes[cursor.index++] * DJ_RECORDING_SNAP_UNITS;
+  } else {
+    phaseUnits = readDjRecordingVarUint(bytes, cursor);
+  }
+  const durationUnits = readDjRecordingVarUint(bytes, cursor);
+  const maxDurationUnits = Math.ceil(
+    DJ_RECORDING_MAX_SECONDS / (60 / bpm) * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  );
+  if (
+    phaseUnits >= DJ_RECORDING_LOOP_UNITS ||
+    durationUnits <= 0 ||
+    durationUnits > maxDurationUnits
+  ) {
+    throw new Error('DJ recording duration or beat phase is invalid');
+  }
+  if (version === 1) {
+    noteCount = readDjRecordingVarUint(bytes, cursor);
+    if (noteCount <= 0 || noteCount > DJ_RECORDING_MAX_NOTES) {
+      throw new Error('DJ recording note count is invalid');
+    }
+  }
+  const notes = readDjRecordingNotes(bytes, cursor, {
+    deckCount,
+    rhythmSnap,
+    durationUnits,
+    noteCount,
+  });
+  if (cursor.index !== bytes.length) {
+    throw new Error('DJ recording contains trailing data');
+  }
+
+  return {
+    version,
+    bpm,
+    rhythmSnap,
+    deckCount,
+    deckSfxIds,
+    trailStyle: flags & 4 ? 'emoji' : 'normal',
+    spatialAudio: Boolean(flags & 8),
+    phaseUnits,
+    durationUnits,
+    notes,
+  };
+}
+
+function djRecordingSecondsToUnits(seconds, bpm = BPM) {
+  return Math.max(0, Math.round(
+    Number(seconds) / (60 / bpm) * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  ));
+}
+
+function djRecordingUnitsToSeconds(units, bpm = BPM) {
+  return Math.max(0, Number(units) || 0) /
+    DJ_RECORDING_TIME_UNITS_PER_BEAT * (60 / bpm);
+}
+
+function getDjRecordingZoneId(zone) {
+  if (
+    !zone ||
+    !Number.isInteger(zone.deckSlot) ||
+    !Number.isInteger(zone.localRow) ||
+    !Number.isInteger(zone.localColumn)
+  ) return -1;
+  return zone.deckSlot * 12 + zone.localRow * 4 + zone.localColumn;
+}
+
+function resolveDjRecordingZoneIndex(zoneId) {
+  const deckSlot = Math.floor(zoneId / 12);
+  const localIndex = zoneId % 12;
+  const localRow = Math.floor(localIndex / 4);
+  const localColumn = localIndex % 4;
+  return zones.findIndex(zone =>
+    zone.deckSlot === deckSlot &&
+    zone.localRow === localRow &&
+    zone.localColumn === localColumn
+  );
+}
+
+function formatDjRecordingTime(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function isDjRecordingActive() {
+  return djTransport.phase === 'armed' || djTransport.phase === 'recording';
+}
+
+function isDjTransportBusy() {
+  return isDjRecordingActive() || djTransport.phase === 'playing';
+}
+
+function snapshotDjRecordingConfig() {
+  return {
+    bpm: BPM,
+    rhythmSnap: performanceSettings.rhythmSnap,
+    deckCount: djSettings.deckCount,
+    deckSfxIds: [...djSettings.deckSfxIds],
+    trailStyle: djSettings.trailStyle,
+    spatialAudio: performanceSettings.spatialAudio,
+  };
+}
+
+function isDjPlaybackLoopEnabled() {
+  return djTransport.loadedTrackOrigin === 'import' &&
+    djTransport.loopPlayback;
+}
+
+function setDjRecorderTab(tab, moveFocus = false) {
+  djRecorderTab = tab === 'import' ? 'import' : 'record';
+  renderDjRecorder();
+  if (!moveFocus) return;
+  const activeButton = djRecorderTabButtons.find(
+    button => button.dataset.djRecorderTab === djRecorderTab
+  );
+  activeButton?.focus({ preventScroll: true });
+}
+
+function openDjRecorder(tab = djRecorderTab) {
+  if (!performanceSettings.djMode) return;
+  if (isRhythmGameVisible()) {
+    showToyNotice('请先退出当前音游谱面');
+    return;
+  }
+  if (settingsOpen) closeSettings();
+  stopActivePerformanceInput();
+  djRecorderOpen = true;
+  djRecorderOverlay.inert = false;
+  djRecorderOverlay.classList.add('is-open');
+  djRecorderOverlay.setAttribute('aria-hidden', 'false');
+  djRecorderOpenButton.setAttribute('aria-expanded', 'true');
+  setDjRecorderTab(tab);
+  requestAnimationFrame(() => {
+    const activeButton = djRecorderTabButtons.find(
+      button => button.dataset.djRecorderTab === djRecorderTab
+    );
+    activeButton?.focus({ preventScroll: true });
+  });
+}
+
+function closeDjRecorder(restoreFocus = true) {
+  if (!djRecorderOpen) return;
+  djRecorderOpen = false;
+  djRecorderOverlay.inert = true;
+  djRecorderOverlay.classList.remove('is-open');
+  djRecorderOverlay.setAttribute('aria-hidden', 'true');
+  djRecorderOpenButton.setAttribute('aria-expanded', 'false');
+  if (restoreFocus && performanceSettings.djMode) {
+    djRecorderOpenButton.focus({ preventScroll: true });
+  }
+}
+
+function renderDjRecorder() {
+  const recording = isDjRecordingActive();
+  const playing = djTransport.phase === 'playing';
+  const busy = recording || playing;
+  const hasTrack = Boolean(djTransport.loadedTrack && djTransport.shareCode);
+  const recordedTrack = hasTrack && djTransport.loadedTrackOrigin === 'recording';
+  const importedTrack = hasTrack && djTransport.loadedTrackOrigin === 'import';
+  const dockVisible = performanceSettings.djMode;
+
+  djRecorderDock.classList.toggle('is-visible', dockVisible);
+  djRecorderDock.setAttribute('aria-hidden', String(!dockVisible));
+  djRecorderOpenButton.disabled = !dockVisible;
+  if (!dockVisible && djRecorderOpen) closeDjRecorder(false);
+
+  for (const button of djRecorderTabButtons) {
+    const selected = button.dataset.djRecorderTab === djRecorderTab;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-selected', String(selected));
+  }
+  const recordViewActive = djRecorderTab === 'record';
+  djRecorderRecordView.classList.toggle('is-active', recordViewActive);
+  djRecorderRecordView.setAttribute('aria-hidden', String(!recordViewActive));
+  djRecorderImportView.classList.toggle('is-active', !recordViewActive);
+  djRecorderImportView.setAttribute('aria-hidden', String(recordViewActive));
+
+  for (const button of djRecordingDurationButtons) {
+    const selected = Number(button.dataset.djRecordingSeconds) ===
+      djTransport.recordingLimitSeconds;
+    button.classList.toggle('is-active', selected);
+    button.setAttribute('aria-checked', String(selected));
+    button.disabled = busy;
+  }
+
+  djRecordingToggle.textContent = recording ? '停止录制' : '开始录制';
+  djRecordingToggle.disabled = !performanceSettings.djMode || playing;
+  djRecordingPlay.textContent = playing && recordedTrack
+    ? '停止播放'
+    : '播放录制';
+  djRecordingPlay.disabled = !performanceSettings.djMode || recording ||
+    !recordedTrack || (playing && !recordedTrack);
+  djRecordingImportPlay.textContent = playing && importedTrack
+    ? '停止播放'
+    : '播放导入';
+  djRecordingImportPlay.disabled = !performanceSettings.djMode || recording ||
+    !importedTrack || (playing && !importedTrack);
+  djRecordingShare.disabled = busy || !recordedTrack;
+  djRecordingImport.disabled = busy;
+  djRecordingCode.disabled = busy;
+  djRecordingLoop.disabled = busy;
+  djRecordingLoop.setAttribute(
+    'aria-checked',
+    String(djTransport.loopPlayback)
+  );
+  djRecordingShareCode.value = recordedTrack ? djTransport.shareCode : '';
+  djShareResult.classList.toggle('is-visible', recordedTrack);
+  djShareResult.setAttribute('aria-hidden', String(!recordedTrack));
+
+  if (djTransport.statusMessage) {
+    djRecorderStatus.textContent = djTransport.statusMessage;
+  } else if (hasTrack) {
+    const duration = djRecordingUnitsToSeconds(
+      djTransport.loadedTrack.durationUnits,
+      djTransport.loadedTrack.bpm
+    );
+    const loopLabel = importedTrack && djTransport.loopPlayback
+      ? ' · 循环'
+      : '';
+    djRecorderStatus.textContent =
+      `${formatDjRecordingTime(duration)} · ` +
+      `${djTransport.loadedTrack.notes.length} 音符 · ` +
+      `${djTransport.shareCode.length} 字符${loopLabel}`;
+  } else {
+    djRecorderStatus.textContent = djRecorderTab === 'record'
+      ? `准备录制 · ${formatDjRecordingTime(djTransport.recordingLimitSeconds)}`
+      : '粘贴分享码后导入';
+  }
+
+  djTransportHud.classList.toggle('is-visible', busy);
+  djTransportHud.classList.toggle('is-recording', recording);
+  djTransportHud.classList.toggle('is-playing', playing);
+  djTransportHud.setAttribute('aria-hidden', String(!busy));
+  renderDjTransportHud(ctx?.currentTime ?? 0);
+}
+
+function renderDjTransportHud(audioNow) {
+  djTransportHud.classList.remove('is-ending');
+  if (djTransport.phase === 'armed') {
+    djTransportState.textContent = 'REC';
+    djTransportTime.textContent =
+      `待机 · ${formatDjRecordingTime(djTransport.recordingLimitSeconds)}`;
+    return;
+  }
+  if (djTransport.phase === 'recording') {
+    const elapsed = Math.min(
+      djTransport.recordingLimitSeconds,
+      Math.max(0, audioNow - djTransport.startAt)
+    );
+    const remaining = Math.max(
+      0,
+      djTransport.recordingLimitSeconds - elapsed
+    );
+    const endingSoon = remaining <= DJ_RECORDING_END_WARNING_SECONDS;
+    djTransportHud.classList.toggle('is-ending', endingSoon);
+    djTransportState.textContent = endingSoon ? '即将结束' : 'REC';
+    djTransportTime.textContent = endingSoon
+      ? `剩余 ${formatDjRecordingTime(Math.ceil(remaining))}`
+      : `${formatDjRecordingTime(elapsed)} / ` +
+        formatDjRecordingTime(djTransport.recordingLimitSeconds);
+    return;
+  }
+  if (djTransport.phase === 'playing') {
+    const track = djTransport.loadedTrack;
+    const duration = track
+      ? djRecordingUnitsToSeconds(track.durationUnits, track.bpm)
+      : 0;
+    const elapsed = Math.max(0, audioNow - djTransport.playbackStartAt);
+    djTransportState.textContent = 'PLAY';
+    const loopLabel = isDjPlaybackLoopEnabled() ? ' · 循环' : '';
+    djTransportTime.textContent = audioNow < djTransport.playbackStartAt
+      ? '同步节拍…'
+      : `${formatDjRecordingTime(Math.min(elapsed, duration))} / ` +
+        formatDjRecordingTime(duration) + loopLabel;
+  }
+}
+
+async function startDjRecording() {
+  if (!performanceSettings.djMode || djTransport.phase !== 'idle') return;
+  if (!DJ_RECORDING_DURATION_OPTIONS.includes(
+    djTransport.recordingLimitSeconds
+  )) {
+    djTransport.recordingLimitSeconds = DJ_RECORDING_DEFAULT_SECONDS;
+  }
+  const ready = await start();
+  if (!ready) return;
+
+  stopActivePerformanceInput();
+  djTransport.phase = 'armed';
+  djTransport.armedConfig = snapshotDjRecordingConfig();
+  djTransport.notes = [];
+  djTransport.openNotes = new Set();
+  djTransport.startAt = 0;
+  djTransport.phaseUnits = 0;
+  djTransport.statusMessage = '等待第一次演奏';
+  djRecordingNoteByVoice = new WeakMap();
+  closeSettings();
+  closeDjRecorder(false);
+  renderPerformanceSettings();
+}
+
+function beginArmedDjRecording(when) {
+  if (djTransport.phase !== 'armed') return;
+  djTransport.phase = 'recording';
+  djTransport.startAt = when;
+  const loopPhase = ((when - startTime) / SPB % 16 + 16) % 16;
+  djTransport.phaseUnits = Math.round(
+    loopPhase * DJ_RECORDING_TIME_UNITS_PER_BEAT
+  ) % DJ_RECORDING_LOOP_UNITS;
+  djTransport.loadedTrack = null;
+  djTransport.loadedTrackOrigin = null;
+  djTransport.shareCode = '';
+  djTransport.loopPlayback = false;
+  djTransport.statusMessage = '';
+  renderDjRecorder();
+}
+
+function recordDjNoteStart(entry, voice) {
+  if (!isDjRecordingActive() || !performanceSettings.djMode) return;
+  beginArmedDjRecording(entry.when);
+  if (djTransport.phase !== 'recording') return;
+
+  const elapsed = entry.when - djTransport.startAt;
+  if (elapsed > djTransport.recordingLimitSeconds) {
+    finishDjRecording({
+      reason: `已录满 ${formatDjRecordingTime(
+        djTransport.recordingLimitSeconds
+      )}`,
+    });
+    return;
+  }
+  if (djTransport.notes.length >= DJ_RECORDING_MAX_NOTES) {
+    finishDjRecording({ reason: '录制音符达到上限' });
+    return;
+  }
+  const zone = zones[entry.zone];
+  const zoneId = getDjRecordingZoneId(zone);
+  if (zoneId < 0) return;
+
+  const note = {
+    startUnits: djRecordingSecondsToUnits(elapsed),
+    zone: zoneId,
+    gateUnits: null,
+    retunes: [],
+  };
+  djTransport.notes.push(note);
+  if (voice) {
+    djTransport.openNotes.add(note);
+    djRecordingNoteByVoice.set(voice, note);
+  }
+}
+
+function recordDjRetune(voice, zoneIndexValue, when) {
+  if (djTransport.phase !== 'recording') return;
+  const note = djRecordingNoteByVoice.get(voice);
+  if (!note || note.gateUnits !== null) return;
+  const zoneId = getDjRecordingZoneId(zones[zoneIndexValue]);
+  if (zoneId < 0) return;
+  const absoluteUnits = djRecordingSecondsToUnits(
+    Math.max(0, when - djTransport.startAt)
+  );
+  const offsetUnits = Math.max(0, absoluteUnits - note.startUnits);
+  const previous = note.retunes.at(-1);
+  if (previous?.zone === zoneId && previous.offsetUnits === offsetUnits) return;
+  note.retunes.push({ offsetUnits, zone: zoneId });
+}
+
+function recordDjVoiceRelease(voice, when) {
+  if (djTransport.phase !== 'recording') return;
+  const note = djRecordingNoteByVoice.get(voice);
+  if (!note || note.gateUnits !== null) return;
+  const releaseUnits = djRecordingSecondsToUnits(
+    Math.max(0, when - djTransport.startAt)
+  );
+  note.gateUnits = Math.max(0, Math.min(
+    releaseUnits - note.startUnits,
+    djRecordingSecondsToUnits(djTransport.recordingLimitSeconds) -
+      note.startUnits
+  ));
+  note.retunes = note.retunes.filter(
+    retune => retune.offsetUnits <= note.gateUnits
+  );
+  djTransport.openNotes.delete(note);
+}
+
+function finishDjRecording({ reason = '' } = {}) {
+  if (!isDjRecordingActive()) return;
+  if (djTransport.phase === 'armed' || djTransport.notes.length === 0) {
+    djTransport.phase = 'idle';
+    djTransport.armedConfig = null;
+    djTransport.notes = [];
+    djTransport.openNotes = new Set();
+    djTransport.statusMessage = '没有录到演奏';
+    djRecordingNoteByVoice = new WeakMap();
+    renderPerformanceSettings();
+    openDjRecorder('record');
+    showToyNotice('没有录到演奏');
+    return;
+  }
+
+  const maximumEnd = djTransport.startAt + djTransport.recordingLimitSeconds;
+  const latestStart = djTransport.notes.reduce(
+    (latest, note) => Math.max(
+      latest,
+      djTransport.startAt + djRecordingUnitsToSeconds(note.startUnits)
+    ),
+    djTransport.startAt
+  );
+  const endAt = Math.min(
+    maximumEnd,
+    Math.max(ctx?.currentTime ?? latestStart, latestStart)
+  );
+  const endUnits = djRecordingSecondsToUnits(endAt - djTransport.startAt);
+  for (const note of djTransport.openNotes) {
+    note.gateUnits = Math.max(0, endUnits - note.startUnits);
+    note.retunes = note.retunes.filter(
+      retune => retune.offsetUnits <= note.gateUnits
+    );
+  }
+
+  const config = djTransport.armedConfig ?? snapshotDjRecordingConfig();
+  const noteEndUnits = djTransport.notes.reduce(
+    (latest, note) => Math.max(
+      latest,
+      note.startUnits + (note.gateUnits ?? 0)
+    ),
+    0
+  );
+  const durationUnits = Math.max(1, Math.min(
+    djRecordingSecondsToUnits(djTransport.recordingLimitSeconds),
+    Math.max(endUnits, noteEndUnits)
+  ));
+  const track = {
+    version: DJ_RECORDING_FORMAT_VERSION,
+    ...config,
+    phaseUnits: djTransport.phaseUnits,
+    durationUnits,
+    notes: djTransport.notes.map(note => ({
+      ...note,
+      retunes: note.retunes.map(retune => ({ ...retune })),
+    })),
+  };
+
+  try {
+    const shareCode = encodeDjRecording(track);
+    djTransport.loadedTrack = track;
+    djTransport.loadedTrackOrigin = 'recording';
+    djTransport.shareCode = shareCode;
+    djTransport.loopPlayback = false;
+    djTransport.statusMessage = reason;
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 录制编码失败。', error);
+    djTransport.loadedTrack = null;
+    djTransport.loadedTrackOrigin = null;
+    djTransport.shareCode = '';
+    djTransport.statusMessage = '录制编码失败';
+  }
+  djTransport.phase = 'idle';
+  djTransport.armedConfig = null;
+  djTransport.notes = [];
+  djTransport.openNotes = new Set();
+  djRecordingNoteByVoice = new WeakMap();
+  renderPerformanceSettings();
+  openDjRecorder('record');
+  if (djTransport.loadedTrack) {
+    showToyNotice(
+      `录制完成：${djTransport.loadedTrack.notes.length} 个音符，` +
+      `${djTransport.shareCode.length} 字符`
+    );
+  }
+}
+
+function buildDjPlaybackEvents(track) {
+  const events = [];
+  track.notes.forEach((note, noteIndex) => {
+    events.push({ kind: 'press', noteIndex, units: note.startUnits, zone: note.zone });
+    for (const retune of note.retunes) {
+      events.push({
+        kind: 'retune',
+        noteIndex,
+        units: note.startUnits + retune.offsetUnits,
+        zone: retune.zone,
+      });
+    }
+    if (note.gateUnits !== null) {
+      events.push({
+        kind: 'release',
+        noteIndex,
+        units: note.startUnits + note.gateUnits,
+        zone: note.zone,
+      });
+    }
+  });
+  const priority = { press: 0, retune: 1, release: 2 };
+  events.sort((left, right) =>
+    left.units - right.units ||
+    priority[left.kind] - priority[right.kind] ||
+    left.noteIndex - right.noteIndex
+  );
+  return events;
+}
+
+function getDjPlaybackStartAt(track) {
+  const loopDuration = 16 * SPB;
+  const phaseSeconds = djRecordingUnitsToSeconds(track.phaseUnits, track.bpm);
+  const phaseBase = startTime + phaseSeconds;
+  const earliest = ctx.currentTime + 0.18;
+  const cycle = Math.max(0, Math.ceil((earliest - phaseBase) / loopDuration));
+  return phaseBase + cycle * loopDuration;
+}
+
+async function startDjPlayback() {
+  const track = djTransport.loadedTrack;
+  if (!track || !performanceSettings.djMode || djTransport.phase !== 'idle') {
+    return;
+  }
+  const ready = await start();
+  if (!ready) return;
+
+  stopActivePerformanceInput();
+  djTransport.restoreState = {
+    performanceSettings: { ...performanceSettings },
+    djSettings: {
+      deckCount: djSettings.deckCount,
+      deckSfxIds: [...djSettings.deckSfxIds],
+      trailStyle: djSettings.trailStyle,
+    },
+    soundFieldPosition,
+    manualSoundFieldPosition,
+  };
+  replacePerformanceSettings({
+    ...performanceSettings,
+    djMode: true,
+    rhythmGameMode: false,
+    pianoMode: false,
+    rhythmSnap: track.rhythmSnap,
+    spatialAudio: track.spatialAudio,
+  }, 'djMode');
+  replaceDjSettings({
+    deckCount: track.deckCount,
+    deckSfxIds: [...track.deckSfxIds],
+    trailStyle: track.trailStyle,
+  });
+
+  djTransport.phase = 'playing';
+  djTransport.playbackEvents = buildDjPlaybackEvents(track);
+  djTransport.playbackIndex = 0;
+  djTransport.playbackVoices = new Map();
+  djTransport.playbackOneShots = new Set();
+  djTransport.playbackStartAt = getDjPlaybackStartAt(track);
+  djTransport.statusMessage = '';
+  closeSettings();
+  closeDjRecorder(false);
+  renderPerformanceSettings();
+}
+
+function scheduleDjPlaybackZoneFlash(zoneIndexValue, when) {
+  const waitMs = Math.max(0, (when - ctx.currentTime) * 1000);
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    flashZone(zoneIndexValue);
+  }, waitMs);
+  inputVisualTimers.add(timer);
+}
+
+function scheduleDjPlaybackEvent(event, track, when) {
+  if (event.kind === 'press') {
+    const zoneIndexValue = resolveDjRecordingZoneIndex(event.zone);
+    if (zoneIndexValue < 0) return;
+    const zone = zones[zoneIndexValue];
+    const audioSample = resolveSfxSample(zone.sample, zone.sfxId);
+    const rate = barkPlaybackRate(audioSample, zone.pitchTier, zone.targetMidi);
+    const voice = playPressVoice(
+      audioSample,
+      rate,
+      when,
+      zone.deckId,
+      oneShot => {
+        djTransport.playbackOneShots.add(oneShot);
+        oneShot.source?.addEventListener?.('ended', () => {
+          djTransport.playbackOneShots.delete(oneShot);
+        }, { once: true });
+      }
+    );
+    if (voice) djTransport.playbackVoices.set(event.noteIndex, voice);
+    scheduleDjPlaybackZoneFlash(zoneIndexValue, when);
+    scheduleActivationVisual(zoneIndexValue, when, zone.deckId);
+    return;
+  }
+
+  const voice = djTransport.playbackVoices.get(event.noteIndex);
+  if (!voice) return;
+  if (event.kind === 'retune') {
+    const zoneIndexValue = resolveDjRecordingZoneIndex(event.zone);
+    if (zoneIndexValue < 0) return;
+    const zone = zones[zoneIndexValue];
+    const rate = barkPlaybackRate(voice.name, zone.pitchTier, zone.targetMidi);
+    if (retuneSustainVoice(voice, rate, when)) {
+      scheduleDjPlaybackZoneFlash(zoneIndexValue, when);
+      scheduleActivationVisual(zoneIndexValue, when, zone.deckId);
+    }
+    return;
+  }
+  releaseVoice(voice, true, when);
+}
+
+function scheduleDjPlaybackEvents(horizon) {
+  if (djTransport.phase !== 'playing' || !djTransport.loadedTrack) return;
+  const track = djTransport.loadedTrack;
+  const duration = Math.max(
+    S16,
+    djRecordingUnitsToSeconds(track.durationUnits, track.bpm)
+  );
+  while (true) {
+    while (djTransport.playbackIndex < djTransport.playbackEvents.length) {
+      const event = djTransport.playbackEvents[djTransport.playbackIndex];
+      const when = djTransport.playbackStartAt +
+        djRecordingUnitsToSeconds(event.units, track.bpm);
+      const eventHorizon = event.kind === 'release'
+        ? Math.min(horizon, ctx.currentTime + INPUT_QUEUE_LOOKAHEAD)
+        : horizon;
+      if (when >= eventHorizon) return;
+      scheduleDjPlaybackEvent(event, track, Math.max(ctx.currentTime, when));
+      djTransport.playbackIndex++;
+    }
+    if (!isDjPlaybackLoopEnabled()) return;
+    const nextCycleStartAt = djTransport.playbackStartAt + duration;
+    if (nextCycleStartAt >= horizon) return;
+    djTransport.playbackStartAt = nextCycleStartAt;
+    djTransport.playbackIndex = 0;
+    djTransport.playbackVoices = new Map();
+  }
+}
+
+function stopDjPlayback({ natural = false } = {}) {
+  if (djTransport.phase !== 'playing') return;
+  const voices = [...djTransport.playbackVoices.values()];
+  const oneShots = [...djTransport.playbackOneShots];
+  djTransport.phase = 'idle';
+  djTransport.playbackEvents = [];
+  djTransport.playbackIndex = 0;
+  djTransport.playbackVoices = new Map();
+  djTransport.playbackOneShots = new Set();
+  if (!natural) clearInputVisualTimers();
+  for (const voice of voices) {
+    if (!natural || voice.held) forceStopVoice(voice);
+  }
+  if (!natural) {
+    for (const oneShot of oneShots) stopDjPlaybackOneShot(oneShot);
+  }
+
+  const restore = djTransport.restoreState;
+  djTransport.restoreState = null;
+  if (restore) {
+    replacePerformanceSettings(restore.performanceSettings);
+    replaceDjSettings(restore.djSettings);
+    manualSoundFieldPosition = restore.manualSoundFieldPosition;
+    setSoundFieldPosition(restore.soundFieldPosition);
+  }
+  renderPerformanceSettings();
+}
+
+function updateDjTransport(audioNow) {
+  renderDjTransportHud(audioNow);
+  if (
+    djTransport.phase === 'recording' &&
+    audioNow >= djTransport.startAt + djTransport.recordingLimitSeconds
+  ) {
+    finishDjRecording({
+      reason: `已录满 ${formatDjRecordingTime(
+        djTransport.recordingLimitSeconds
+      )}`,
+    });
+    return;
+  }
+  if (djTransport.phase !== 'playing' || !djTransport.loadedTrack) return;
+  if (isDjPlaybackLoopEnabled()) return;
+  const duration = djRecordingUnitsToSeconds(
+    djTransport.loadedTrack.durationUnits,
+    djTransport.loadedTrack.bpm
+  );
+  if (
+    djTransport.playbackIndex >= djTransport.playbackEvents.length &&
+    audioNow >= djTransport.playbackStartAt + duration + 0.8
+  ) {
+    stopDjPlayback({ natural: true });
+    showToyNotice('录制播放完成');
+  }
+}
+
+function importDjRecording() {
+  try {
+    const normalized = djRecordingCode.value.replace(/\s+/g, '');
+    const track = decodeDjRecording(normalized);
+    djTransport.loadedTrack = track;
+    djTransport.loadedTrackOrigin = 'import';
+    djTransport.shareCode = normalized;
+    djTransport.statusMessage = '';
+    djRecordingCode.value = normalized;
+    renderDjRecorder();
+    showToyNotice(
+      `已导入 ${formatDjRecordingTime(
+        djRecordingUnitsToSeconds(track.durationUnits, track.bpm)
+      )} 的 DJ 录制`
+    );
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 录制导入失败。', error);
+    djTransport.statusMessage = '分享码无效或内容损坏';
+    renderDjRecorder();
+  }
+}
+
+async function copyDjRecordingShareCode() {
+  if (
+    !djTransport.shareCode ||
+    djTransport.loadedTrackOrigin !== 'recording'
+  ) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(djTransport.shareCode);
+    } else {
+      djRecordingShareCode.focus();
+      djRecordingShareCode.select();
+      document.execCommand('copy');
+    }
+    showToyNotice('分享码已复制');
+  } catch (error) {
+    console.warn('[大狗Tap] DJ 分享码复制失败。', error);
+    showToyNotice('复制失败，请手动选择分享码', true);
+  }
+}
+
 function renderDjSettings() {
   const visible = performanceSettings.djMode;
+  const transportBusy = isDjTransportBusy();
   djSettingsPanel.classList.toggle('is-visible', visible);
   djSettingsPanel.setAttribute('aria-hidden', String(!visible));
 
@@ -2933,14 +4201,14 @@ function renderDjSettings() {
     const selected = Number(button.dataset.djCount) === djSettings.deckCount;
     button.classList.toggle('is-active', selected);
     button.setAttribute('aria-checked', String(selected));
-    button.disabled = djSettingsSaving;
+    button.disabled = djSettingsSaving || transportBusy;
   }
 
   for (const button of djTrailStyleButtons) {
     const selected = button.dataset.djTrailStyle === djSettings.trailStyle;
     button.classList.toggle('is-active', selected);
     button.setAttribute('aria-checked', String(selected));
-    button.disabled = djSettingsSaving;
+    button.disabled = djSettingsSaving || transportBusy;
   }
 
   for (const row of djDeckAssignmentRows) {
@@ -2950,9 +4218,10 @@ function renderDjSettings() {
       const selected = button.dataset.djSfx === djSettings.deckSfxIds[slot];
       button.classList.toggle('is-active', selected);
       button.setAttribute('aria-checked', String(selected));
-      button.disabled = djSettingsSaving;
+      button.disabled = djSettingsSaving || transportBusy;
     }
   }
+  renderDjRecorder();
 }
 
 function renderRhythmGameSettings() {
@@ -2985,7 +4254,8 @@ function renderPerformanceSettings() {
       !toyCloudState.initialized ||
       performanceSettingsSaving ||
       djSettingsSaving ||
-      rhythmGameSettingsSaving;
+      rhythmGameSettingsSaving ||
+      isDjTransportBusy();
   }
   const activeDeckModeName = performanceSettings.djMode
     ? 'DJ'
@@ -3598,6 +4868,82 @@ for (const button of djSfxChoiceButtons) {
   });
 }
 
+djRecorderOpenButton.addEventListener('click', () => openDjRecorder());
+djRecorderClose.addEventListener('click', () => closeDjRecorder());
+for (const button of djRecorderTabButtons) {
+  button.addEventListener('click', () => {
+    setDjRecorderTab(button.dataset.djRecorderTab, true);
+  });
+}
+for (const button of djRecordingDurationButtons) {
+  button.addEventListener('click', () => {
+    if (isDjTransportBusy()) return;
+    const seconds = Number(button.dataset.djRecordingSeconds);
+    if (!DJ_RECORDING_DURATION_OPTIONS.includes(seconds)) return;
+    djTransport.recordingLimitSeconds = seconds;
+    djTransport.statusMessage = '';
+    renderDjRecorder();
+  });
+}
+djRecordingToggle.addEventListener('click', () => {
+  if (isDjRecordingActive()) {
+    finishDjRecording();
+    return;
+  }
+  void startDjRecording();
+});
+djRecordingPlay.addEventListener('click', () => {
+  if (djTransport.phase === 'playing') {
+    stopDjPlayback();
+    return;
+  }
+  void startDjPlayback();
+});
+djRecordingImportPlay.addEventListener('click', () => {
+  if (djTransport.phase === 'playing') {
+    stopDjPlayback();
+    return;
+  }
+  void startDjPlayback();
+});
+djRecordingShare.addEventListener('click', () => {
+  void copyDjRecordingShareCode();
+});
+djRecordingImport.addEventListener('click', importDjRecording);
+djRecordingLoop.addEventListener('click', () => {
+  if (isDjTransportBusy()) return;
+  djTransport.loopPlayback = !djTransport.loopPlayback;
+  djTransport.statusMessage = '';
+  renderDjRecorder();
+});
+djRecordingCode.addEventListener('input', () => {
+  if (djTransport.statusMessage === '分享码无效或内容损坏') {
+    djTransport.statusMessage = '';
+    renderDjRecorder();
+  }
+});
+djTransportStop.addEventListener('click', () => {
+  if (isDjRecordingActive()) {
+    finishDjRecording();
+    return;
+  }
+  stopDjPlayback();
+});
+for (const eventName of [
+  'pointerdown',
+  'pointermove',
+  'pointerup',
+  'pointercancel',
+  'click',
+]) {
+  djTransportHud.addEventListener(eventName, event => event.stopPropagation());
+  djRecorderOverlay.addEventListener(eventName, event => event.stopPropagation());
+}
+djRecorderOverlay.addEventListener('pointerdown', (event) => {
+  if (event.target === djRecorderOverlay) closeDjRecorder();
+});
+djRecorderPanel.addEventListener('click', event => event.stopPropagation());
+
 rhythmGameLaunch.addEventListener('click', () => {
   void startRhythmGame({ autoplay: false });
 });
@@ -3627,6 +4973,7 @@ function openSettings() {
     showToyNotice('请先退出当前音游谱面');
     return;
   }
+  if (djRecorderOpen) closeDjRecorder(false);
   markSettingsSeen();
   settingsOpen = true;
   settingsOverlay.inert = false;
@@ -3661,7 +5008,12 @@ for (const eventName of ['pointerdown', 'pointermove', 'pointerup', 'pointercanc
 }
 settingsPanel.addEventListener('click', (event) => event.stopPropagation());
 window.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeSettings();
+  if (event.key !== 'Escape') return;
+  if (djRecorderOpen) {
+    closeDjRecorder();
+    return;
+  }
+  closeSettings();
 });
 
 authorHomeButton.addEventListener('click', handleAuthorHomeClick);
@@ -4235,6 +5587,7 @@ function scheduler() {
     stepCount = (stepCount + 1) % 64;
   }
   scheduleQueuedInputs(ctx.currentTime + INPUT_QUEUE_LOOKAHEAD);
+  scheduleDjPlaybackEvents(ctx.currentTime + INPUT_LOOKAHEAD);
 }
 
 /* ============================================================
@@ -4362,7 +5715,13 @@ function createTailSource(voice, boundary, sourceOffset) {
   source.onended = () => cleanupVoice(voice);
 }
 
-function playPressVoice(name, rate, when, deckId = null) {
+function playPressVoice(
+  name,
+  rate,
+  when,
+  deckId = null,
+  observeOneShot = null
+) {
   const sourceBuffer = buffers[name];
   const sustain = sustainLoops[name];
   const sampleGain = SFX_SAMPLE_GAIN[name] ?? 1;
@@ -4372,16 +5731,25 @@ function playPressVoice(name, rate, when, deckId = null) {
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
     const spatialOutput = createSpatialOutput(deckId);
+    const oneShot = {
+      source,
+      gain,
+      spatialOutput,
+      ended: false,
+      stopped: false,
+    };
     source.buffer = sourceBuffer;
     source.playbackRate.setValueAtTime(rate, when);
     gain.gain.setValueAtTime(sampleGain, when);
     source.connect(gain);
     gain.connect(spatialOutput.input);
     source.onended = () => {
+      oneShot.ended = true;
       try { source.disconnect(); } catch (_) { /* 节点可能已断开 */ }
       try { gain.disconnect(); } catch (_) { /* 节点可能已断开 */ }
       disconnectSpatialOutput(spatialOutput);
     };
+    if (typeof observeOneShot === 'function') observeOneShot(oneShot);
     source.start(when);
     return null;
   }
@@ -4448,6 +5816,15 @@ function playPressVoice(name, rate, when, deckId = null) {
   return voice;
 }
 
+function stopDjPlaybackOneShot(oneShot) {
+  if (!oneShot || oneShot.ended || oneShot.stopped) return;
+  const now = ctx.currentTime;
+  const stopAt = now + EMERGENCY_FADE;
+  oneShot.stopped = true;
+  fadeGain(oneShot.gain, now, stopAt);
+  safeStop(oneShot.source, stopAt);
+}
+
 function texturePositionAt(voice, now) {
   const start = voice.handoffAt;
   if (now <= start) return voice.sustain.attackOffset;
@@ -4475,7 +5852,15 @@ function textureRateAt(voice, now) {
   return rate;
 }
 
-function isRetunableSustainVoice(voice) {
+function isRetunableSustainVoice(voice, when = null) {
+  const modeReady = voice && (
+    voice.mode === 'sustain' ||
+    (
+      voice.mode === 'pending' &&
+      Number.isFinite(when) &&
+      when >= voice.handoffAt
+    )
+  );
   return Boolean(
     voice &&
     (
@@ -4483,7 +5868,7 @@ function isRetunableSustainVoice(voice) {
       voice.name === 'mi' ||
       voice.name === 'dingdongji_ji'
     ) &&
-    voice.mode === 'sustain' &&
+    modeReady &&
     voice.held &&
     !voice.released &&
     !voice.stopped &&
@@ -4492,7 +5877,7 @@ function isRetunableSustainVoice(voice) {
 }
 
 function retuneSustainVoice(voice, rate, when = ctx.currentTime) {
-  if (!isRetunableSustainVoice(voice)) return false;
+  if (!isRetunableSustainVoice(voice, when)) return false;
 
   const now = ctx.currentTime;
   const changeAt = Math.max(now, voice.handoffAt, when);
@@ -4565,10 +5950,33 @@ function updateSustainClaims(audioNow) {
   for (const voice of due) claimSustainVoice(voice);
 }
 
-function releaseVoice(voice, musical = true) {
+function scheduleVoiceReleaseVisual(voice, releaseAt, holdMs, openFallback) {
+  const releaseVisual = () => {
+    if (voice.stopped || voice.cleaned) return;
+    if (isMouthVoice(voice)) unlockMouth(voice, holdMs);
+    else if (openFallback) openMouth(holdMs, voice.deckId);
+  };
+  const waitMs = Math.max(0, (releaseAt - ctx.currentTime) * 1000);
+  if (waitMs <= 1) {
+    releaseVisual();
+    return;
+  }
+  const timer = setTimeout(() => {
+    inputVisualTimers.delete(timer);
+    releaseVisual();
+  }, waitMs);
+  inputVisualTimers.add(timer);
+}
+
+function releaseVoice(voice, musical = true, releaseAt = ctx.currentTime) {
   if (!voice || voice.released || voice.stopped || voice.cleaned) return;
 
-  const now = ctx.currentTime;
+  const audioNow = ctx.currentTime;
+  const now = Math.max(
+    audioNow,
+    Number.isFinite(releaseAt) ? releaseAt : audioNow
+  );
+  recordDjVoiceRelease(voice, now);
   voice.held = false;
   voice.released = true;
 
@@ -4589,10 +5997,8 @@ function releaseVoice(voice, musical = true) {
     voice.dryGain.gain.setValueAtTime(voice.sampleGain, now);
     safeStop(voice.loopSource, now);
 
-    if (isMouthVoice(voice)) {
-      const remainMs = Math.max(0, (voice.visualEndAt - now) * 1000);
-      unlockMouth(voice, remainMs);
-    }
+    const remainMs = Math.max(0, (voice.visualEndAt - now) * 1000);
+    scheduleVoiceReleaseVisual(voice, now, remainMs, false);
     return;
   }
 
@@ -4610,8 +6016,7 @@ function releaseVoice(voice, musical = true) {
   createTailSource(voice, release.boundary, release.sourceOffset);
 
   const remainMs = Math.max(0, (voice.tailEndAt - now) * 1000);
-  if (isMouthVoice(voice)) unlockMouth(voice, remainMs);
-  else openMouth(remainMs, voice.deckId);
+  scheduleVoiceReleaseVisual(voice, now, remainMs, true);
 }
 
 function fadeGain(gainNode, now, stopAt) {
@@ -4627,6 +6032,7 @@ function forceStopVoice(voice) {
   if (!voice || voice.stopped || voice.cleaned) return;
 
   const now = ctx.currentTime;
+  recordDjVoiceRelease(voice, now);
   const stopAt = now + EMERGENCY_FADE;
   voice.held = false;
   voice.released = true;
@@ -6030,6 +7436,7 @@ function playQueuedInput(entry) {
   );
   if (entry.kind === 'sustain-retune') {
     if (retuneSustainVoice(entry.voice, rate, entry.when)) {
+      recordDjRetune(entry.voice, entry.zone, entry.when);
       scheduleActivationVisual(entry.zone, entry.when, entry.deckId);
     }
     return;
@@ -6041,6 +7448,7 @@ function playQueuedInput(entry) {
     state.zone === entry.zone &&
     state.pendingEntryId === entry.id;
   const voice = playPressVoice(audioSample, rate, entry.when, entry.deckId);
+  recordDjNoteStart(entry, voice);
 
   if (stillHeld) {
     state.pendingEntryId = null;
@@ -6136,6 +7544,7 @@ function tick() {
   if (started && ctx) {
     const t = ctx.currentTime;
     updateSustainClaims(t);
+    updateDjTransport(t);
     const phase = (((t - startTime) / SPB) % 1 + 1) % 1;  // 当前拍内相位 0..1
     beatP = Math.pow(1 - phase, 2.4);                      // 拍头强、迅速衰减
 
@@ -6258,6 +7667,7 @@ function tryActivate(pointerId, x, y, state) {
 
 stage.addEventListener('pointerdown', (e) => {
   e.preventDefault();
+  if (djTransport.phase === 'playing') return;
   if (rhythmGame.autoplay && isRhythmGameActive()) return;
   beginTouchTrail(e.pointerId, e.clientX, e.clientY);
   if (!started || !buffers.da) {
@@ -6362,7 +7772,9 @@ function handleKeyboardDown(event) {
   if (handleSoundFieldKeyboard(event)) return;
   if (
     !isDeckPerformanceMode() ||
+    djTransport.phase === 'playing' ||
     settingsOpen ||
+    djRecorderOpen ||
     (rhythmGame.autoplay && isRhythmGameActive()) ||
     !keyboardZoneByCode.has(event.code)
   ) return;
@@ -6383,7 +7795,9 @@ function handleSoundFieldKeyboard(event) {
   if (
     position === undefined ||
     !performanceSettings.spatialAudio ||
+    isDjTransportBusy() ||
     settingsOpen ||
+    djRecorderOpen ||
     event.metaKey ||
     event.ctrlKey ||
     event.altKey

@@ -22,6 +22,7 @@ node tools/verify_runtime_mapping.mjs
 node tools/verify_interaction_queue.mjs
 node tools/verify_toy_cloud_flow.mjs
 node tools/verify_dj_mode.mjs
+node tools/verify_dj_recording.mjs
 node tools/verify_rhythm_game.mjs
 node tools/verify_spatial_audio.mjs
 node tools/verify_mobile_startup.mjs
@@ -58,7 +59,13 @@ node tools/verify_mobile_startup.mjs
 控制细网格，以及多指跟手尾迹的移动采样、长度上限、跨格脉冲、独立退场与
 按 Deck 音色映射的 `🐶🐱🐔` 样式。
 
-第七条命令会验证独立音游模式生成固定 1 分钟的 `128 BPM` 四小节乐句，保持“大狗叫”
+第七条命令会验证录制面板默认 30 秒并提供 60 秒档位、分享码直接展示与复制、
+导入循环播放，以及格式层保留的 90 秒兼容限制。它也覆盖 DGT2 的 4–7 字节头部、
+旧 DGT1 导入、紧凑二进制与 Base64url 往返、无损压缩和 CRC32 损坏检测，
+并检查只保存 3D 开关、双押、第三行长按、同 Deck 滑音、精确松开、两台 Deck
+的中心区域限制、播放事件顺序，以及录制与回放接入 Web Audio 调度器。
+
+第八条命令会验证独立音游模式生成固定 1 分钟的 `128 BPM` 四小节乐句，保持“大狗叫”
 “大狗大狗叫叫叫”“叮咚叮咚鸡”的音节顺序，并检查主题、问答、提升、
 收束四类段落与多种节奏型。目标覆盖 1–3 栏的完整 `4 × 3` 网格；2–3 栏双押固定
 使用不同栏，每四小节包含 2–3 个持续句尾，长音与连音链固定使用第三行，
@@ -66,12 +73,12 @@ node tools/verify_mobile_startup.mjs
 测试也会检查纸屑、折线、几何雨、星星的随机缩小点击层，以及整格着色与对应角色图片、最多两指约束、起按与松手窗口、滑音节点、触控和键盘入口、自动演奏对
 单点释放、真实拖动、双押和连音末端释放的调度。
 
-第八条命令会验证顶部与设置菜单的 3D 音效开关保持同步、关闭时旁路 HRTF、
+第九条命令会验证顶部与设置菜单的 3D 音效开关保持同步、关闭时旁路 HRTF、
 两台和三台 Deck 的三维位置、
 手动滑杆的左右与远近偏移、横竖屏重力轴映射、3° 静区与 15° 满幅、
 iPad 感应权限入口、手动降级路径，以及 PC 端 `Z`、`/`、`B` 三个音场快捷键。
 
-第九条命令会验证 iPhone 与 iPad 的移动触控识别、横屏演奏门与本机设置记忆，
+第十条命令会验证 iPhone 与 iPad 的移动触控识别、横屏演奏门与本机设置记忆，
 确认开启时先请求全屏再锁定横屏，关闭时只退出页面自行进入的全屏；同时验证
 失败后的自动重试与手动旋转入口，以及首次音频解锁由 `pointerup` 触发，
 AudioContext 恢复超时后会清理启动状态并允许再次点击。

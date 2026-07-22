@@ -22,6 +22,7 @@
 - 第三行支持长按延音，同一 Deck 内拖动可以连续变调。
 - 跟手特效支持普通几何样式与 `🐶🐱🐔` 样式。
 - Emoji 松手后会轻微放大，在约 200 毫秒内淡出并沿手势方向飞离。
+- “录制&分享”面板默认录制 30 秒，可切换为 60 秒，并生成可直接查看、选择和复制的 `DGT2` 分享码。
 
 默认三区顺序：
 
@@ -29,6 +30,16 @@
 LEFT       CENTER     RIGHT
 大狗叫      哈基米      叮咚鸡
 ```
+
+### DJ 录制与回放
+
+- 舞台顶部控制条提供单一“录制&分享”入口；面板内可切换“录制”和“导入”。第一次发声成为时间零点，录制状态栏可随时停止；最后 5 秒会变红并逐秒倒计时。
+- 录制保存音频时钟上的按下、双押、第三行长按、同 Deck 滑音和松开时间，回放继续走正式 Web Audio 调度器。
+- 分享码同时保存 Deck 数量、三区音色、节奏吸附、跟手样式、3D 音效开关和背景节拍相位。3D 只占标志位，播放沿用设备当前的音场位置。
+- `DGT2` 头部为 4–7 字节，固定使用 128 BPM，省去音符数量和音场位置。数据带 CRC32 校验，重复片段会经过无损 LZSS 压缩，再转换成 Base64url；前缀为 `DGT2R.` 或 `DGT2Z.`，旧 `DGT1` 分享码仍可导入。
+- 录制完成后，面板自动展示完整分享码和复制按钮。
+- 将分享码粘贴到“导入”页后即可播放并复现录制配置；开启“循环播放”后会按音频时钟连续重播，手动停止后恢复进入播放前的设置。
+- 新录制提供 `0:30` 与 `1:00` 两档，默认 `0:30`；旧分享码仍按最长 90 秒兼容导入。音符上限为 5000，分享码上限为 32768 个字符。
 
 ### 音游模式
 
@@ -117,6 +128,7 @@ node tools/verify_runtime_mapping.mjs
 node tools/verify_interaction_queue.mjs
 node tools/verify_toy_cloud_flow.mjs
 node tools/verify_dj_mode.mjs
+node tools/verify_dj_recording.mjs
 node tools/verify_rhythm_game.mjs
 node tools/verify_spatial_audio.mjs
 node tools/verify_mobile_startup.mjs

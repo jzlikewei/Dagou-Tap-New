@@ -1692,6 +1692,337 @@
     line-height: 1.45;
     text-align: center;
   }
+  #dj-recorder-dock {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    transform: translateX(-50%);
+  }
+  #dj-recorder-dock.is-visible { display: flex; }
+  #dj-recorder-open {
+    min-width: 104px;
+    min-height: 44px;
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 180, 0, .64);
+    border-radius: 10px;
+    color: #8d6200;
+    background: rgba(255, 250, 240, .94);
+    box-shadow: 0 5px 14px rgba(135, 131, 126, .16);
+    font: 850 11px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    white-space: nowrap;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #dj-recorder-open:active { transform: scale(.95); }
+  #dj-recorder-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 45;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(255, 242, 220, .9);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .24s ease;
+  }
+  #dj-recorder-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #dj-recorder-panel {
+    position: relative;
+    width: min(430px, 100%);
+    max-height: min(620px, calc(100vh - 36px));
+    overflow-y: auto;
+    padding: 16px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .98);
+    border: 2px solid rgba(255, 180, 0, .56);
+    border-radius: 18px;
+    box-shadow: 0 16px 38px rgba(110, 102, 94, .28);
+    transform: translateY(9px) scale(.98);
+    transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 180, 0, .45) transparent;
+  }
+  #dj-recorder-overlay.is-open #dj-recorder-panel {
+    transform: translateY(0) scale(1);
+  }
+  .dj-recorder-dialog-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .dj-recorder-dialog-title {
+    color: #765300;
+    font-size: 18px;
+    font-weight: 950;
+    letter-spacing: .08em;
+  }
+  #dj-recorder-close {
+    min-width: 38px;
+    min-height: 34px;
+    padding: 5px;
+  }
+  .dj-recorder-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 4px;
+    border-radius: 12px;
+    background: rgba(135, 131, 126, .1);
+  }
+  .dj-recorder-tab {
+    min-height: 38px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    color: rgba(111, 106, 99, .8);
+    background: transparent;
+    font: 850 12px/1 system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-recorder-tab.is-active {
+    color: #9a6b00;
+    border-color: rgba(255, 180, 0, .48);
+    background: rgba(255, 250, 240, .98);
+    box-shadow: 0 3px 10px rgba(135, 131, 126, .13);
+  }
+  .dj-recorder-view {
+    display: none;
+    gap: 12px;
+    padding-top: 14px;
+  }
+  .dj-recorder-view.is-active { display: grid; }
+  .dj-recorder-hint {
+    color: rgba(111, 106, 99, .74);
+    font-size: 10px;
+    line-height: 1.55;
+  }
+  .dj-recorder-field-label {
+    color: #765300;
+    font-size: 11px;
+    font-weight: 850;
+  }
+  .dj-recording-duration-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+  .dj-recording-duration-option,
+  .dj-recorder-button {
+    min-height: 40px;
+    border: 1px solid rgba(135, 131, 126, .3);
+    border-radius: 10px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .8);
+    font: 850 11px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-recording-duration-option.is-active {
+    color: #9a6b00;
+    border-color: rgba(255, 180, 0, .72);
+    background: rgba(255, 190, 35, .16);
+  }
+  .dj-recorder-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  #dj-recording-toggle {
+    color: #a53c42;
+    border-color: rgba(255, 90, 95, .5);
+    background: rgba(255, 241, 239, .92);
+  }
+  #dj-recording-play,
+  #dj-recording-import-play {
+    color: #087d6b;
+    border-color: rgba(22, 194, 163, .46);
+    background: rgba(231, 255, 248, .84);
+  }
+  #dj-recording-import,
+  #dj-recording-share {
+    color: #8d6200;
+    border-color: rgba(255, 180, 0, .52);
+    background: rgba(255, 250, 240, .94);
+  }
+  .dj-recorder-button:disabled,
+  .dj-recording-duration-option:disabled,
+  #dj-recording-loop:disabled {
+    opacity: .44;
+    cursor: not-allowed;
+  }
+  .dj-share-result {
+    display: none;
+    gap: 7px;
+    padding: 10px;
+    border: 1px solid rgba(255, 180, 0, .36);
+    border-radius: 12px;
+    background: rgba(255, 244, 224, .55);
+  }
+  .dj-share-result.is-visible { display: grid; }
+  #dj-recording-code,
+  #dj-recording-share-code {
+    width: 100%;
+    min-height: 74px;
+    max-height: 132px;
+    resize: vertical;
+    padding: 8px 9px;
+    border: 1px solid rgba(135, 131, 126, .3);
+    border-radius: 8px;
+    color: #625e59;
+    background: rgba(255, 255, 255, .8);
+    font: 600 9px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    overflow-wrap: anywhere;
+    user-select: text;
+    -webkit-user-select: text;
+    touch-action: pan-y;
+  }
+  #dj-recording-code:focus,
+  #dj-recording-share-code:focus {
+    outline: 2px solid rgba(255, 180, 0, .42);
+    outline-offset: 1px;
+  }
+  #dj-recording-share-code { background: rgba(255, 255, 255, .94); }
+  #dj-recording-loop {
+    min-height: 48px;
+    padding: 8px 10px;
+    border: 1px solid rgba(135, 131, 126, .28);
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .72);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .dj-recording-loop-copy {
+    display: grid;
+    gap: 3px;
+    text-align: left;
+  }
+  .dj-recording-loop-copy strong { font-size: 11px; }
+  .dj-recording-loop-copy small {
+    color: rgba(111, 106, 99, .68);
+    font-size: 9px;
+  }
+  .dj-recording-loop-switch {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(135, 131, 126, .28);
+    transition: background .18s ease;
+  }
+  .dj-recording-loop-switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(90, 84, 77, .2);
+    transition: transform .18s ease;
+  }
+  #dj-recording-loop[aria-checked="true"] .dj-recording-loop-switch {
+    background: rgba(255, 180, 0, .78);
+  }
+  #dj-recording-loop[aria-checked="true"] .dj-recording-loop-switch::after {
+    transform: translateX(16px);
+  }
+  #dj-recorder-status {
+    min-height: 16px;
+    color: rgba(111, 106, 99, .76);
+    font-size: 10px;
+    line-height: 1.45;
+    text-align: center;
+  }
+  #dj-transport-stop {
+    min-height: 28px;
+    padding: 5px 9px;
+    border: 1px solid rgba(135, 131, 126, .32);
+    border-radius: 8px;
+    color: #6f6a63;
+    background: rgba(255, 255, 255, .78);
+    font: 800 10px/1.2 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  #dj-transport-hud {
+    position: absolute;
+    top: max(70px, calc(env(safe-area-inset-top) + 58px));
+    left: 50%;
+    z-index: 46;
+    min-width: 178px;
+    padding: 7px 8px 7px 11px;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    color: #6f6a63;
+    background: rgba(255, 250, 240, .95);
+    border: 2px solid rgba(255, 180, 0, .7);
+    border-radius: 11px;
+    box-shadow: 0 8px 22px rgba(90, 84, 77, .22);
+    transform: translateX(-50%);
+    pointer-events: auto;
+  }
+  #dj-transport-hud.is-visible { display: flex; }
+  #dj-transport-hud.is-recording { border-color: rgba(255, 90, 95, .82); }
+  #dj-transport-hud.is-ending {
+    color: #8f3036;
+    background: rgba(255, 241, 239, .98);
+    border-color: rgba(255, 70, 78, .96);
+    animation: djRecordingEndingPulse .72s ease-in-out infinite;
+  }
+  #dj-transport-hud.is-ending #dj-transport-state { color: #a52e35; }
+  @keyframes djRecordingEndingPulse {
+    50% {
+      border-color: rgba(255, 35, 45, 1);
+      box-shadow: 0 8px 28px rgba(255, 70, 78, .42);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #dj-transport-hud.is-ending { animation: none; }
+  }
+  #dj-transport-state {
+    color: #a53c42;
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: .08em;
+  }
+  #dj-transport-hud.is-playing #dj-transport-state { color: #087d6b; }
+  #dj-transport-time {
+    flex: 1;
+    font: 800 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    text-align: center;
+    white-space: nowrap;
+  }
+  @media (max-width: 430px) {
+    #dj-recorder-open {
+      min-width: 60px;
+      padding-inline: 5px;
+      font-size: 9px;
+    }
+    #dj-recorder-overlay { padding: 12px; }
+    #dj-recorder-panel { padding: 13px; }
+  }
+  @media (max-width: 360px) {
+    #dj-recorder-open { min-width: 56px; padding-inline: 4px; font-size: 8px; }
+  }
   .spatial-audio-hint {
     color: rgba(135, 131, 126, .8);
     font-size: 10px;
@@ -1999,6 +2330,11 @@
       <span class="sound-field-edge" aria-hidden="true">R</span>
       <button id="sound-field-center" type="button">回中</button>
     </div>
+    <div id="dj-transport-hud" role="status" aria-live="polite" aria-hidden="true">
+      <span id="dj-transport-state">REC</span>
+      <strong id="dj-transport-time">待机 · 0:30</strong>
+      <button id="dj-transport-stop" type="button">停止</button>
+    </div>
     <div id="author-credits" aria-label="创作信息">
       <a id="author-link" href="https://space.bilibili.com/357762853" aria-label="打开原作者马克杯 MarkCup 的哔哩哔哩主页">
         <span class="author-copy" aria-hidden="true">
@@ -2055,7 +2391,7 @@
     </div>
     <img id="dog-animation-atlas" alt="" hidden decoding="async" fetchpriority="low" />
 
-    <div id="top-controls" class="is-visible has-update-dot" aria-label="声音、3D 音场与导航控制">
+    <div id="top-controls" class="is-visible has-update-dot" aria-label="声音、DJ 录制、3D 音场与导航控制">
       <div id="audio-controls" class="control-group">
         <button id="shortcut-toggle" class="control-button" type="button" aria-label="展示快捷键" aria-pressed="false" disabled>
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2086,6 +2422,9 @@
           <span>音场</span>
         </button>
       </div>
+      <div id="dj-recorder-dock" aria-hidden="true">
+        <button id="dj-recorder-open" type="button" aria-haspopup="dialog" aria-expanded="false">录制&amp;分享</button>
+      </div>
       <div id="settings-wrap">
         <button id="settings-button" class="control-button" type="button" aria-label="打开设置菜单" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2095,6 +2434,58 @@
           <span>设置</span>
         </button>
         <i id="update-dot" aria-hidden="true"></i>
+      </div>
+    </div>
+
+    <div id="dj-recorder-overlay" aria-hidden="true" inert>
+      <div id="dj-recorder-panel" role="dialog" aria-modal="true" aria-label="DJ 录制与分享">
+        <div class="dj-recorder-dialog-head">
+          <div class="dj-recorder-dialog-title">录制 &amp; 分享</div>
+          <button id="dj-recorder-close" class="control-button" type="button" aria-label="关闭录制与分享">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div class="dj-recorder-tabs" role="tablist" aria-label="录制或导入">
+          <button id="dj-recorder-record-tab" class="dj-recorder-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="dj-recorder-record-view" data-dj-recorder-tab="record">录制</button>
+          <button id="dj-recorder-import-tab" class="dj-recorder-tab" type="button" role="tab" aria-selected="false" aria-controls="dj-recorder-import-view" data-dj-recorder-tab="import">导入</button>
+        </div>
+
+        <section id="dj-recorder-record-view" class="dj-recorder-view is-active" role="tabpanel" aria-labelledby="dj-recorder-record-tab" aria-hidden="false">
+          <div class="dj-recorder-hint">第一次演奏开始计时，结束后会直接展示分享码。</div>
+          <div class="dj-recorder-field-label">录制时长</div>
+          <div class="dj-recording-duration-options" role="radiogroup" aria-label="录制时长">
+            <button class="dj-recording-duration-option is-active" type="button" role="radio" aria-checked="true" data-dj-recording-seconds="30">30 秒</button>
+            <button class="dj-recording-duration-option" type="button" role="radio" aria-checked="false" data-dj-recording-seconds="60">60 秒</button>
+          </div>
+          <div class="dj-recorder-actions">
+            <button id="dj-recording-toggle" class="dj-recorder-button" type="button">开始录制</button>
+            <button id="dj-recording-play" class="dj-recorder-button" type="button" disabled>播放录制</button>
+          </div>
+          <div id="dj-share-result" class="dj-share-result" aria-hidden="true">
+            <label class="dj-recorder-field-label" for="dj-recording-share-code">分享码</label>
+            <textarea id="dj-recording-share-code" maxlength="32768" readonly spellcheck="false" aria-label="录制生成的 DJ 分享码"></textarea>
+            <button id="dj-recording-share" class="dj-recorder-button" type="button" disabled>复制分享码</button>
+          </div>
+        </section>
+
+        <section id="dj-recorder-import-view" class="dj-recorder-view" role="tabpanel" aria-labelledby="dj-recorder-import-tab" aria-hidden="true">
+          <label class="dj-recorder-field-label" for="dj-recording-code">粘贴分享码</label>
+          <textarea id="dj-recording-code" maxlength="32768" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" aria-label="待导入的 DJ 分享码" placeholder="粘贴 DGT1 / DGT2 分享码"></textarea>
+          <button id="dj-recording-loop" type="button" role="switch" aria-checked="false">
+            <span class="dj-recording-loop-copy">
+              <strong>循环播放</strong>
+              <small>播放结束后从头继续</small>
+            </span>
+            <span class="dj-recording-loop-switch" aria-hidden="true"></span>
+          </button>
+          <div class="dj-recorder-actions">
+            <button id="dj-recording-import" class="dj-recorder-button" type="button">导入</button>
+            <button id="dj-recording-import-play" class="dj-recorder-button" type="button" disabled>播放导入</button>
+          </div>
+        </section>
+        <div id="dj-recorder-status" role="status" aria-live="polite">准备录制</div>
       </div>
     </div>
 
@@ -2341,6 +2732,6 @@
   </div>
 
   <script src="audio-data.js?v=20260721-hajimi-new"></script>
-  <script src="main.js?v=20260722-shortcut-toggle"></script>
+  <script src="main.js?v=20260722-recording-countdown"></script>
 </body>
 </html>
